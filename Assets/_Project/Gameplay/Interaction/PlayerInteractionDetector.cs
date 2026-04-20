@@ -1,5 +1,6 @@
 // File: Assets/_Project/Gameplay/Interaction/PlayerInteractionDetector.cs
 using System;
+using HueDoneIt.Gameplay.Elimination;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -15,6 +16,7 @@ namespace HueDoneIt.Gameplay.Interaction
 
         private Collider[] _overlapResults;
         private NetworkInteractable _currentInteractable;
+        private PlayerLifeState _lifeState;
 
         public event Action<string, bool> PromptChanged;
 
@@ -23,11 +25,18 @@ namespace HueDoneIt.Gameplay.Interaction
         private void Awake()
         {
             _overlapResults = new Collider[Mathf.Max(1, overlapBufferSize)];
+            _lifeState = GetComponent<PlayerLifeState>();
         }
 
         private void Update()
         {
             if (!IsSpawned || !IsOwner || !IsClient)
+            {
+                SetCurrentInteractable(null);
+                return;
+            }
+
+            if (_lifeState != null && !_lifeState.IsAlive)
             {
                 SetCurrentInteractable(null);
                 return;

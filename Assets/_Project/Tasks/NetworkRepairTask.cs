@@ -1,6 +1,7 @@
 // File: Assets/_Project/Tasks/NetworkRepairTask.cs
 using System;
 using HueDoneIt.Flood;
+using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Interaction;
 using Unity.Netcode;
 using UnityEngine;
@@ -169,6 +170,13 @@ namespace HueDoneIt.Tasks
 
         protected virtual bool IsInteractionAllowed(in InteractionContext context)
         {
+            if (context.InteractorObject == null ||
+                !context.InteractorObject.TryGetComponent(out PlayerLifeState interactorLifeState) ||
+                !interactorLifeState.IsAlive)
+            {
+                return false;
+            }
+
             if (CurrentState == RepairTaskState.Completed)
             {
                 return false;
@@ -184,6 +192,13 @@ namespace HueDoneIt.Tasks
 
         protected virtual string GetPromptForState(in InteractionContext context)
         {
+            if (context.InteractorObject != null &&
+                context.InteractorObject.TryGetComponent(out PlayerLifeState interactorLifeState) &&
+                !interactorLifeState.IsAlive)
+            {
+                return $"{displayName}: Eliminated players cannot repair";
+            }
+
             if (CurrentState == RepairTaskState.Completed)
             {
                 return $"{displayName} [COMPLETED]";
