@@ -1,6 +1,7 @@
 // File: Assets/_Project/Gameplay/Players/NetworkPlayerAvatar.cs
 using HueDoneIt.Flood.Integration;
 using HueDoneIt.Gameplay.Interaction;
+using HueDoneIt.Tasks;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -13,6 +14,7 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(PlayerInteractionDetector))]
     [RequireComponent(typeof(PlayerInteractionController))]
     [RequireComponent(typeof(PlayerFloodZoneTracker))]
+    [RequireComponent(typeof(PlayerRepairTaskParticipant))]
     public sealed class NetworkPlayerAvatar : NetworkBehaviour
     {
         public override void OnNetworkSpawn()
