@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Interaction/PlayerInteractionController.cs
+using HueDoneIt.Tasks;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -76,7 +77,17 @@ namespace HueDoneIt.Gameplay.Interaction
                 return;
             }
 
-            interactable.TryInteract(context);
+            bool success = interactable.TryInteract(context);
+            if (!success)
+            {
+                return;
+            }
+
+            if (interactable is NetworkRepairTask repairTask &&
+                client.PlayerObject.TryGetComponent(out PlayerRepairTaskParticipant participant))
+            {
+                participant.ServerRegisterTaskStart(repairTask, senderClientId);
+            }
         }
     }
 }
