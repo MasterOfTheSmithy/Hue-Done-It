@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Players/NetworkPlayerAuthoritativeMover.cs
+using HueDoneIt.Gameplay.Elimination;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -7,6 +8,7 @@ namespace HueDoneIt.Gameplay.Players
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
     [RequireComponent(typeof(NetworkPlayerInputReader))]
+    [RequireComponent(typeof(PlayerLifeState))]
     public sealed class NetworkPlayerAuthoritativeMover : NetworkBehaviour
     {
         [Header("Movement")]
@@ -18,6 +20,7 @@ namespace HueDoneIt.Gameplay.Players
             new(writePerm: NetworkVariableWritePermission.Server);
 
         private NetworkPlayerInputReader _inputReader;
+        private PlayerLifeState _lifeState;
         private Vector2 _serverMoveInput;
         private Vector2 _lastSentInput;
         private float _nextInputSendTime;
@@ -25,6 +28,7 @@ namespace HueDoneIt.Gameplay.Players
         private void Awake()
         {
             _inputReader = GetComponent<NetworkPlayerInputReader>();
+            _lifeState = GetComponent<PlayerLifeState>();
         }
 
         public override void OnNetworkSpawn()
@@ -45,7 +49,18 @@ namespace HueDoneIt.Gameplay.Players
 
             if (IsOwner && IsClient)
             {
-                SendInputToServerIfNeeded();
+                if (_lifeState != null && !_lifeState.IsAlive)
+                {
+                    if (_lastSentInput != Vector2.zero)
+                    {
+                        _lastSentInput = Vector2.zero;
+                        SubmitMoveInputServerRpc(Vector2.zero);
+                    }
+                }
+                else
+                {
+                    SendInputToServerIfNeeded();
+                }
             }
 
             if (!IsServer)
@@ -61,7 +76,11 @@ namespace HueDoneIt.Gameplay.Players
                 return;
             }
 
-            if (IsOwner && IsClient && _inputReader != null)
+            if (_lifeState != null && !_lifeState.IsAlive)
+            {
+                _serverMoveInput = Vector2.zero;
+            }
+            else if (IsOwner && IsClient && _inputReader != null)
             {
                 _serverMoveInput = _inputReader.CurrentMoveInput;
             }

@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Interaction/PlayerInteractionController.cs
+using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -14,15 +15,22 @@ namespace HueDoneIt.Gameplay.Interaction
         [SerializeField] private Key interactKey = Key.E;
 
         private PlayerInteractionDetector _detector;
+        private PlayerLifeState _lifeState;
 
         private void Awake()
         {
             _detector = GetComponent<PlayerInteractionDetector>();
+            _lifeState = GetComponent<PlayerLifeState>();
         }
 
         private void Update()
         {
             if (!IsSpawned || !IsOwner || !IsClient)
+            {
+                return;
+            }
+
+            if (_lifeState != null && !_lifeState.IsAlive)
             {
                 return;
             }
@@ -61,6 +69,12 @@ namespace HueDoneIt.Gameplay.Interaction
             if (!objectRef.TryGetComponent(out NetworkInteractable interactable))
             {
                 Debug.LogWarning($"Interaction rejected: object {interactableNetworkObjectId} is not interactable.");
+                return;
+            }
+
+            if (client.PlayerObject.TryGetComponent(out PlayerLifeState interactorLifeState) && !interactorLifeState.IsAlive)
+            {
+                Debug.LogWarning($"Interaction rejected: eliminated client {senderClientId}.");
                 return;
             }
 
