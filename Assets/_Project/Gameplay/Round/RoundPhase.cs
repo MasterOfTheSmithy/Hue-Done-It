@@ -3,7 +3,11 @@ namespace HueDoneIt.Gameplay.Round
 {
     public enum RoundPhase : byte
     {
-        FreeRoam = 0,
-        Reported = 1
+        Lobby = 0,
+        Intro = 1,
+        FreeRoam = 2,
+        Reported = 3,
+        Resolved = 4,
+        PostRound = 5
     }
 }

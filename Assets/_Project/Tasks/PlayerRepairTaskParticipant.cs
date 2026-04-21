@@ -3,6 +3,7 @@ using System;
 using HueDoneIt.Gameplay.Interaction;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace HueDoneIt.Tasks
 {
@@ -12,6 +13,7 @@ namespace HueDoneIt.Tasks
     public sealed class PlayerRepairTaskParticipant : NetworkBehaviour
     {
         [SerializeField, Min(0.1f)] private float maxRepairRange = 2.5f;
+        [SerializeField] private Key puzzleConfirmKey = Key.E;
 
         private readonly NetworkVariable<ulong> _activeTaskNetworkObjectId =
             new(ulong.MaxValue, NetworkVariableReadPermission.Owner, NetworkVariableWritePermission.Server);
@@ -20,6 +22,7 @@ namespace HueDoneIt.Tasks
             new(0f, NetworkVariableReadPermission.Owner, NetworkVariableWritePermission.Server);
 
         private NetworkRepairTask _trackedTask;
+        private bool _hasSentTerminalRequest;
 
         public event Action<NetworkRepairTask, float, bool> TaskProgressUpdated;
 
@@ -61,7 +64,10 @@ namespace HueDoneIt.Tasks
             bool completed = _trackedTask.CurrentState == RepairTaskState.Completed;
             TaskProgressUpdated?.Invoke(_trackedTask, progress, completed);
 
-            if (completed || _trackedTask.CurrentState == RepairTaskState.Cancelled)
+            if (_trackedTask.CurrentState == RepairTaskState.Cancelled ||
+                _trackedTask.CurrentState == RepairTaskState.Completed ||
+                _trackedTask.CurrentState == RepairTaskState.FailedAttempt ||
+                _trackedTask.CurrentState == RepairTaskState.Locked)
             {
                 return;
             }
@@ -76,23 +82,43 @@ namespace HueDoneIt.Tasks
                 return;
             }
 
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard != null && _trackedTask is PumpRepairTask && keyboard[puzzleConfirmKey].wasPressedThisFrame)
+            {
+                RequestPumpConfirmServerRpc(_trackedTask.NetworkObjectId);
+            }
+
             float distance = Vector3.Distance(transform.position, _trackedTask.transform.position);
             if (distance > maxRepairRange || !_trackedTask.IsTaskEnvironmentSafe())
             {
-                RequestCancelRepairServerRpc(_trackedTask.NetworkObjectId, "Repair interrupted");
+                if (!_hasSentTerminalRequest)
+                {
+                    _hasSentTerminalRequest = true;
+                    RequestCancelRepairServerRpc(_trackedTask.NetworkObjectId, "Repair interrupted");
+                }
+
                 return;
             }
 
-            if (progress >= 1f)
+            if (progress >= 1f && !_hasSentTerminalRequest)
             {
-                RequestCompleteRepairServerRpc(_trackedTask.NetworkObjectId);
+                _hasSentTerminalRequest = true;
+
+                if (_trackedTask is PumpRepairTask)
+                {
+                    RequestPumpTimeoutServerRpc(_trackedTask.NetworkObjectId);
+                }
+                else
+                {
+                    RequestCompleteRepairServerRpc(_trackedTask.NetworkObjectId);
+                }
             }
         }
 
         [ServerRpc]
         private void RequestCompleteRepairServerRpc(ulong taskNetworkObjectId, ServerRpcParams rpcParams = default)
         {
-            if (!TryGetTaskForSender(taskNetworkObjectId, rpcParams.Receive.SenderClientId, out NetworkRepairTask task, out NetworkObject playerObject))
+            if (!TryGetTaskForSender(taskNetworkObjectId, rpcParams.Receive.SenderClientId, out NetworkRepairTask task, out _))
             {
                 return;
             }
@@ -108,8 +134,48 @@ namespace HueDoneIt.Tasks
             }
 
             task.TryCompleteTask();
-            _activeTaskNetworkObjectId.Value = ulong.MaxValue;
-            _taskStartedServerTime.Value = 0f;
+            ClearActiveTaskServerState();
+        }
+
+        [ServerRpc]
+        private void RequestPumpConfirmServerRpc(ulong taskNetworkObjectId, ServerRpcParams rpcParams = default)
+        {
+            if (!TryGetTaskForSender(taskNetworkObjectId, rpcParams.Receive.SenderClientId, out NetworkRepairTask task, out _))
+            {
+                return;
+            }
+
+            if (task is not PumpRepairTask pumpTask)
+            {
+                return;
+            }
+
+            float elapsed = Mathf.Max(0f, (float)NetworkManager.ServerTime.Time - _taskStartedServerTime.Value);
+            pumpTask.ServerTryResolveConfirmation(elapsed, rpcParams.Receive.SenderClientId);
+            if (pumpTask.CurrentState != RepairTaskState.InProgress)
+            {
+                ClearActiveTaskServerState();
+            }
+        }
+
+        [ServerRpc]
+        private void RequestPumpTimeoutServerRpc(ulong taskNetworkObjectId, ServerRpcParams rpcParams = default)
+        {
+            if (!TryGetTaskForSender(taskNetworkObjectId, rpcParams.Receive.SenderClientId, out NetworkRepairTask task, out _))
+            {
+                return;
+            }
+
+            if (task is not PumpRepairTask pumpTask)
+            {
+                return;
+            }
+
+            pumpTask.ServerTryHandleTimeout(rpcParams.Receive.SenderClientId);
+            if (pumpTask.CurrentState != RepairTaskState.InProgress)
+            {
+                ClearActiveTaskServerState();
+            }
         }
 
         [ServerRpc]
@@ -131,8 +197,7 @@ namespace HueDoneIt.Tasks
             }
 
             task.TryCancelTask(reason);
-            _activeTaskNetworkObjectId.Value = ulong.MaxValue;
-            _taskStartedServerTime.Value = 0f;
+            ClearActiveTaskServerState();
         }
 
         public void ServerRegisterTaskStart(NetworkRepairTask task, ulong clientId)
@@ -177,6 +242,12 @@ namespace HueDoneIt.Tasks
 
             _activeTaskNetworkObjectId.Value = taskNetworkObjectId;
             _taskStartedServerTime.Value = (float)NetworkManager.ServerTime.Time;
+        }
+
+        private void ClearActiveTaskServerState()
+        {
+            _activeTaskNetworkObjectId.Value = ulong.MaxValue;
+            _taskStartedServerTime.Value = 0f;
         }
 
         private bool TryGetTaskForSender(ulong taskNetworkObjectId, ulong senderClientId, out NetworkRepairTask task, out NetworkObject playerObject)
@@ -235,6 +306,7 @@ namespace HueDoneIt.Tasks
         private void ResolveTrackedTask(ulong networkObjectId)
         {
             UnbindTrackedTask();
+            _hasSentTerminalRequest = false;
 
             if (networkObjectId == ulong.MaxValue)
             {
@@ -264,8 +336,9 @@ namespace HueDoneIt.Tasks
 
         private void HandleTrackedTaskStateChanged(RepairTaskState _, RepairTaskState current)
         {
-            if (current is RepairTaskState.Completed or RepairTaskState.Cancelled)
+            if (current is RepairTaskState.Completed or RepairTaskState.Cancelled or RepairTaskState.FailedAttempt or RepairTaskState.Locked)
             {
+                _hasSentTerminalRequest = false;
                 TaskProgressUpdated?.Invoke(_trackedTask, current == RepairTaskState.Completed ? 1f : 0f, current == RepairTaskState.Completed);
             }
         }

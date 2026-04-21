@@ -6,6 +6,8 @@ namespace HueDoneIt.Tasks
         Idle = 0,
         InProgress = 1,
         Completed = 2,
-        Cancelled = 3
+        Cancelled = 3,
+        FailedAttempt = 4,
+        Locked = 5
     }
 }

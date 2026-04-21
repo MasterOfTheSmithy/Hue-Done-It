@@ -18,6 +18,7 @@ namespace HueDoneIt.Flood
         public event Action<FloodZoneState, FloodZoneState> StateChanged;
 
         public string ZoneId => zoneId;
+        public FloodZoneState InitialState => initialState;
         public FloodZoneState CurrentState => (FloodZoneState)_state.Value;
         public bool IsSafe => CurrentState is FloodZoneState.Dry or FloodZoneState.Wet or FloodZoneState.SealedSafe;
 
@@ -46,6 +47,16 @@ namespace HueDoneIt.Flood
 
             _state.Value = (byte)nextState;
             return true;
+        }
+
+        public void ServerResetToInitialState()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _state.Value = (byte)initialState;
         }
 
         private void HandleStateChanged(byte previous, byte current)
