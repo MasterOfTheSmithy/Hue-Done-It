@@ -14,7 +14,6 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(NetworkPlayerInputReader))]
     [RequireComponent(typeof(PlayerLifeState))]
     [RequireComponent(typeof(PlayerFloodZoneTracker))]
-    [RequireComponent(typeof(PlayerStaminaState))]
     [RequireComponent(typeof(NetworkPlayerPaintEmitter))]
     [RequireComponent(typeof(CapsuleCollider))]
     public sealed class NetworkPlayerAuthoritativeMover : NetworkBehaviour
@@ -59,15 +58,6 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Range(0f, 1f)] private float postWallLaunchAirAccelerationMultiplier = 0.35f;
         [SerializeField, Min(0.01f)] private float wallDetachGraceSeconds = 0.2f;
         [SerializeField, Range(0f, 1f)] private float wallDetachNormalDotThreshold = 0.5f;
-
-
-        [Header("Water Movement")]
-        [SerializeField, Range(0.2f, 1f)] private float floodingSpeedMultiplier = 0.88f;
-        [SerializeField, Range(0.2f, 1f)] private float submergedSpeedMultiplier = 0.72f;
-        [SerializeField, Min(0f)] private float submergedDragBonus = 2.8f;
-
-        [Header("Stamina Integration")]
-        [SerializeField, Min(0f)] private float burstMinStaminaToActivate = 8f;
 
         [Header("Punch / Knockback")]
         [SerializeField, Min(0.1f)] private float punchCooldownSeconds = 0.75f;
@@ -144,7 +134,6 @@ namespace HueDoneIt.Gameplay.Players
         private NetworkPlayerInputReader _inputReader;
         private PlayerLifeState _lifeState;
         private PlayerFloodZoneTracker _floodTracker;
-        private PlayerStaminaState _staminaState;
         private NetworkPlayerPaintEmitter _paintEmitter;
         private CapsuleCollider _capsuleCollider;
         private NetworkRoundState _roundState;
@@ -189,14 +178,35 @@ namespace HueDoneIt.Gameplay.Players
         public float JumpBufferRemaining => _jumpBufferTimeRemaining;
         public float LastLandingImpact => _lastLandingImpact.Value;
         public float WallCompression => _wallCompression01.Value;
-        public float Stamina01 => _staminaState != null ? _staminaState.Normalized : 1f;
+        public float Opacity01
+        {
+            get
+            {
+                if (_floodTracker != null)
+                {
+                    return 1f - Mathf.Clamp01(_floodTracker.Saturation01);
+                }
+
+                if (_lifeState != null)
+                {
+                    return _lifeState.IsAlive ? 1f : 0f;
+                }
+
+                return 1f;
+            }
+        }
+
+        public float Cohesion01 => 1f;
+
+        // Temporary HUD compatibility shim.
+        // Replace HUD references with Cohesion01 later.
+        public float Stamina01 => Cohesion01;
 
         private void Awake()
         {
             _inputReader = GetComponent<NetworkPlayerInputReader>();
             _lifeState = GetComponent<PlayerLifeState>();
             _floodTracker = GetComponent<PlayerFloodZoneTracker>();
-            _staminaState = GetComponent<PlayerStaminaState>();
             _paintEmitter = GetComponent<NetworkPlayerPaintEmitter>();
             _capsuleCollider = GetComponent<CapsuleCollider>();
 
@@ -226,10 +236,6 @@ namespace HueDoneIt.Gameplay.Players
                 _supportNormal.Value = Vector3.up;
                 _lastLandingImpact.Value = 0f;
                 _wallCompression01.Value = 0f;
-                if (_staminaState != null)
-                {
-                    _staminaState.ServerResetForRound();
-                }
             }
         }
 
@@ -286,6 +292,8 @@ namespace HueDoneIt.Gameplay.Players
             _knockbackTimeRemaining = 0f;
             _wallDetachTimeRemaining = 0f;
             _wallLaunchControlTimeRemaining = 0f;
+            _ragdollTimeRemaining = 0f;
+            _ragdollRecoveryTimeRemaining = 0f;
             _jumpBufferTimeRemaining = 0f;
             _coyoteTimeRemaining = 0f;
             _serverVisualYaw = yawDegrees;
@@ -372,6 +380,7 @@ namespace HueDoneIt.Gameplay.Players
             _wallDetachTimeRemaining = Mathf.Max(0f, _wallDetachTimeRemaining - deltaTime);
             _jumpBufferTimeRemaining = Mathf.Max(0f, _jumpBufferTimeRemaining - deltaTime);
             _wallLaunchControlTimeRemaining = Mathf.Max(0f, _wallLaunchControlTimeRemaining - deltaTime);
+            _ragdollRecoveryTimeRemaining = Mathf.Max(0f, _ragdollRecoveryTimeRemaining - deltaTime);
 
             if (grounded)
             {
@@ -388,24 +397,7 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             Vector3 desiredMoveDir = Vector3.ClampMagnitude(_serverMoveWorldInput, 1f);
-            bool burstActive = _serverBurstHeld && _staminaState != null && _staminaState.CurrentStamina >= burstMinStaminaToActivate;
-            if (burstActive)
-            {
-                burstActive = _staminaState.ServerTryConsumeBurst(deltaTime);
-            }
-
-            float waterMultiplier = 1f;
-            if (_floodTracker != null)
-            {
-                waterMultiplier = _floodTracker.CurrentZoneState switch
-                {
-                    FloodZoneState.Submerged => submergedSpeedMultiplier,
-                    FloodZoneState.Flooding => floodingSpeedMultiplier,
-                    _ => 1f
-                };
-            }
-
-            float targetSpeed = (burstActive ? burstMoveSpeed : moveSpeed) * waterMultiplier;
+            float targetSpeed = _serverBurstHeld ? burstMoveSpeed : moveSpeed;
             Vector3 desiredHorizontalVelocity = desiredMoveDir * targetSpeed;
 
             if (_ragdollTimeRemaining > 0f)
@@ -464,10 +456,6 @@ namespace HueDoneIt.Gameplay.Players
                         : airAcceleration;
 
                     _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, desiredHorizontalVelocity, effectiveAirAcceleration * deltaTime);
-                    if (_floodTracker != null && _floodTracker.CurrentZoneState == FloodZoneState.Submerged)
-                    {
-                        _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, submergedDragBonus * deltaTime);
-                    }
 
                     if (hasWall)
                     {
@@ -495,14 +483,6 @@ namespace HueDoneIt.Gameplay.Players
                             bool allowStick = lowGravity && allowUnlimitedLowGravityWallStick
                                 ? true
                                 : _wallStickTimeRemaining > 0f;
-
-                            if (allowStick)
-                            {
-                                if (_staminaState != null && !_staminaState.ServerTryConsumeWallStick(deltaTime))
-                                {
-                                    allowStick = false;
-                                }
-                            }
 
                             if (allowStick)
                             {
@@ -563,9 +543,6 @@ namespace HueDoneIt.Gameplay.Players
                 }
             }
 
-            bool idle = desiredMoveDir.sqrMagnitude < 0.02f && Mathf.Abs(_verticalVelocity) < 0.2f;
-            _staminaState?.ServerRegenerate(deltaTime, grounded, idle);
-
             _serverJumpRequested = false;
 
             Vector3 displacement = (_horizontalVelocity * deltaTime) + (Vector3.up * (_verticalVelocity * deltaTime));
@@ -574,8 +551,17 @@ namespace HueDoneIt.Gameplay.Players
 
             transform.SetPositionAndRotation(nextPosition, Quaternion.Euler(0f, _serverVisualYaw, 0f));
 
-            bool groundedAfterMove = hitGroundBySweep || IsGrounded(nextPosition, out RaycastHit refreshGroundHit);
-            Vector3 groundNormal = hitGroundBySweep ? groundNormalFromSweep : (groundedAfterMove ? refreshGroundHit.normal : Vector3.up);
+            RaycastHit refreshGroundHit = default;
+            bool groundedAfterMove = hitGroundBySweep;
+
+            if (!groundedAfterMove)
+            {
+                groundedAfterMove = IsGrounded(nextPosition, out refreshGroundHit);
+            }
+
+            Vector3 groundNormal = hitGroundBySweep
+                ? groundNormalFromSweep
+                : (groundedAfterMove ? refreshGroundHit.normal : Vector3.up);
 
             if (groundedAfterMove)
             {
@@ -640,15 +626,6 @@ namespace HueDoneIt.Gameplay.Players
             {
                 _ragdollRecoveryTimeRemaining = ragdollRecoveryLockSeconds;
                 _locomotionState.Value = (byte)LocomotionState.Knockback;
-            }
-            else
-            {
-                _ragdollRecoveryTimeRemaining = 0f;
-            }
-
-            if (_ragdollRecoveryTimeRemaining > 0f)
-            {
-                _ragdollRecoveryTimeRemaining = Mathf.Max(0f, _ragdollRecoveryTimeRemaining - deltaTime);
             }
         }
 
@@ -1011,8 +988,8 @@ namespace HueDoneIt.Gameplay.Players
 
             Vector3 move = _inputReader.CurrentWorldMoveInput;
             float yaw = _inputReader.CurrentVisualYaw;
-            bool jumpPressed = _inputReader.ConsumeJumpPressedThisFrame();
-            bool punchPressed = _inputReader.ConsumePunchPressedThisFrame();
+            bool jumpPressed = _inputReader.JumpPressedThisFrame;
+            bool punchPressed = _inputReader.PunchPressedThisFrame;
             bool burstHeld = _inputReader.BurstHeld;
 
             bool shouldSend = (move - _lastSentMoveWorldInput).sqrMagnitude > 0.0001f ||
@@ -1043,7 +1020,7 @@ namespace HueDoneIt.Gameplay.Players
             _serverJumpRequested |= jumpPressed;
             _serverPunchRequested |= punchPressed;
             _serverBurstHeld = burstHeld;
-        }
+        } 
 
         private float GetServerTime()
         {

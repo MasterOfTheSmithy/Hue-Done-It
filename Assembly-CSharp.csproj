@@ -93,6 +93,7 @@
     <Compile Include="Assets\_Project\Gameplay\Elimination\IPlayerLifeStateReader.cs" />
     <Compile Include="Assets\_Project\Gameplay\Interaction\PlayerInteractionDetector.cs" />
     <Compile Include="Assets\_Project\Roles\PlayerRole.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Players\PlayerStaminaState.cs" />
     <Compile Include="Assets\_Project\Tasks\NetworkRepairTask.cs" />
     <Compile Include="Assets\_Project\Gameplay\Interaction\PlayerInteractionController.cs" />
     <Compile Include="Assets\_Project\Gameplay\Elimination\PlayerLifeState.cs" />
