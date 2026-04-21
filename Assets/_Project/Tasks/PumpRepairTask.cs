@@ -1,6 +1,7 @@
 // File: Assets/_Project/Tasks/PumpRepairTask.cs
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Interaction;
+using HueDoneIt.Gameplay.Round;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -13,6 +14,11 @@ namespace HueDoneIt.Tasks
         [SerializeField, Min(1)] private int maxFailures = 3;
         [SerializeField, Range(0f, 1f)] private float confirmationWindowStartNormalized = 0.58f;
         [SerializeField, Range(0f, 1f)] private float confirmationWindowEndNormalized = 0.82f;
+
+        [Header("Commitment")]
+        [SerializeField, Range(0f, 1f)] private float cancelFailureThresholdNormalized = 0.35f;
+        [SerializeField, Min(0f)] private float floodedTimingPenaltyNormalized = 0.08f;
+        [SerializeField, Min(0f)] private float lateStageTimingPenaltyNormalized = 0.06f;
 
         [Header("Pump Presentation")]
         [SerializeField] private Renderer statusRenderer;
@@ -28,6 +34,9 @@ namespace HueDoneIt.Tasks
 
         private readonly NetworkVariable<int> _failedAttempts =
             new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _activeStartServerTime =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private MaterialPropertyBlock _propertyBlock;
 
@@ -64,7 +73,9 @@ namespace HueDoneIt.Tasks
 
             float duration = Mathf.Max(0.01f, TaskDurationSeconds);
             float normalized = Mathf.Clamp01(elapsedSeconds / duration);
-            bool success = normalized >= confirmationWindowStartNormalized && normalized <= confirmationWindowEndNormalized;
+            float dynamicStart = GetDynamicConfirmStart();
+            float dynamicEnd = GetDynamicConfirmEnd(dynamicStart);
+            bool success = normalized >= dynamicStart && normalized <= dynamicEnd;
             if (success)
             {
                 return TryCompleteTask();
@@ -93,6 +104,8 @@ namespace HueDoneIt.Tasks
             }
 
             RegisterFailure($"Corrupted by client {instigatorClientId}");
+            FloodSequenceController floodController = FindFirstObjectByType<FloodSequenceController>();
+            floodController?.ServerTriggerReportAftershock();
             return true;
         }
 
@@ -121,13 +134,13 @@ namespace HueDoneIt.Tasks
             if (CurrentState == RepairTaskState.InProgress)
             {
                 return ActiveClientId == context.InteractorClientId
-                    ? "Stabilize Pump: press [E] in the blue window"
+                    ? "Commit to repair: press [E] in the blue window"
                     : "Pump Busy";
             }
 
             if (!IsTaskEnvironmentSafe(this))
             {
-                return "Pump Unsafe: Zone flooded";
+                return "Pump Unsafe: wait for drain window";
             }
 
             return $"Repair Pump ({AttemptsRemaining} attempts left)";
@@ -142,19 +155,81 @@ namespace HueDoneIt.Tasks
         protected override void OnTaskCancelled(string reason)
         {
             base.OnTaskCancelled(reason);
+            if (!IsServer)
+            {
+                ApplyStateVisual(RepairTaskState.Cancelled);
+                return;
+            }
+
+            float elapsedNormalized = GetActiveElapsedNormalized();
+            if (elapsedNormalized >= cancelFailureThresholdNormalized)
+            {
+                RegisterFailure($"Aborted committed repair ({reason})");
+                return;
+            }
+
             ApplyStateVisual(RepairTaskState.Cancelled);
         }
 
         protected override void OnTaskStarted(in InteractionContext context)
         {
             base.OnTaskStarted(context);
+            if (IsServer)
+            {
+                _activeStartServerTime.Value = GetServerTime();
+            }
+
             ApplyStateVisual(RepairTaskState.InProgress);
         }
 
         protected override void OnServerResetTask()
         {
             _failedAttempts.Value = 0;
+            _activeStartServerTime.Value = 0f;
             ApplyStateVisual(RepairTaskState.Idle);
+        }
+
+        private float GetDynamicConfirmStart()
+        {
+            float start = confirmationWindowStartNormalized;
+            if (linkedFloodZone != null && linkedFloodZone.CurrentState == FloodZoneState.Flooding)
+            {
+                start += floodedTimingPenaltyNormalized;
+            }
+
+            if (ResolveRoundState() == NetworkRoundState.PressureStage.Late)
+            {
+                start += lateStageTimingPenaltyNormalized;
+            }
+
+            return Mathf.Clamp01(start);
+        }
+
+        private float GetDynamicConfirmEnd(float dynamicStart)
+        {
+            float baseWidth = Mathf.Max(0.05f, confirmationWindowEndNormalized - confirmationWindowStartNormalized);
+            float latePenalty = ResolveRoundState() == NetworkRoundState.PressureStage.Late
+                ? lateStageTimingPenaltyNormalized
+                : 0f;
+            float width = Mathf.Max(0.05f, baseWidth - latePenalty);
+            return Mathf.Clamp01(dynamicStart + width);
+        }
+
+        private NetworkRoundState.PressureStage ResolveRoundState()
+        {
+            NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();
+            return roundState == null ? NetworkRoundState.PressureStage.Early : roundState.CurrentPressureStage;
+        }
+
+        private float GetActiveElapsedNormalized()
+        {
+            if (_activeStartServerTime.Value <= 0f)
+            {
+                return 0f;
+            }
+
+            float duration = Mathf.Max(0.01f, TaskDurationSeconds);
+            return Mathf.Clamp01((GetServerTime() - _activeStartServerTime.Value) / duration);
         }
 
         private void RegisterFailure(string reason)
@@ -169,6 +244,7 @@ namespace HueDoneIt.Tasks
                 SetActiveClientId(ulong.MaxValue);
             }
 
+            _activeStartServerTime.Value = 0f;
             _failedAttempts.Value = Mathf.Clamp(_failedAttempts.Value + 1, 0, maxFailures);
             if (_failedAttempts.Value >= maxFailures)
             {
@@ -214,6 +290,11 @@ namespace HueDoneIt.Tasks
                 RepairTaskState.Locked => lockedColor,
                 _ => idleColor
             };
+        }
+
+        private float GetServerTime()
+        {
+            return NetworkManager == null ? 0f : (float)NetworkManager.ServerTime.Time;
         }
     }
 }
