@@ -26,7 +26,8 @@ namespace HueDoneIt.Gameplay.Players
             WallStick = 3,
             WallLaunch = 4,
             LowGravityFloat = 5,
-            Knockback = 6
+            Knockback = 6,
+            Ragdoll = 7
         }
 
         [Header("Core Movement")]
@@ -61,7 +62,15 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0f)] private float knockbackUpwardBoost = 2.2f;
         [SerializeField, Min(0.05f)] private float knockbackLockSeconds = 0.24f;
         [SerializeField, Min(0.1f)] private float knockbackDamping = 14f;
+        [SerializeField, Min(0.1f)] private float airbornePunchRagdollImpulseThreshold = 10.5f;
         [SerializeField] private LayerMask punchMask = ~0;
+
+        [Header("Ragdoll (Authoritative Fallback Tumble)")]
+        [SerializeField, Min(0.1f)] private float airborneRagdollSpeedThreshold = 14f;
+        [SerializeField, Min(0.05f)] private float ragdollMinDurationSeconds = 0.8f;
+        [SerializeField, Min(0.05f)] private float ragdollRecoveryLockSeconds = 0.45f;
+        [SerializeField, Min(0f)] private float ragdollHorizontalDamping = 1.1f;
+        [SerializeField, Min(0f)] private float ragdollGravityMultiplier = 1.2f;
 
         [Header("Grounding / Collision")]
         [SerializeField] private LayerMask groundMask = ~0;
@@ -85,6 +94,10 @@ namespace HueDoneIt.Gameplay.Players
 
         private readonly NetworkVariable<byte> _locomotionState =
             new((byte)LocomotionState.Airborne, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<Vector3> _authoritativeVelocity =
+            new(Vector3.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+        private readonly NetworkVariable<Vector3> _supportNormal =
+            new(Vector3.up, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<float> _punchCooldownEndServerTime =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -120,6 +133,8 @@ namespace HueDoneIt.Gameplay.Players
 
         public LocomotionState CurrentState => (LocomotionState)_locomotionState.Value;
         public float PunchCooldownRemaining => Mathf.Max(0f, _punchCooldownEndServerTime.Value - GetServerTime());
+        public Vector3 CurrentVelocity => _authoritativeVelocity.Value;
+        public Vector3 CurrentSupportNormal => _supportNormal.Value;
 
         private void Awake()
         {
@@ -140,6 +155,8 @@ namespace HueDoneIt.Gameplay.Players
                 _authoritativePosition.Value = transform.position;
                 _authoritativeYaw.Value = transform.eulerAngles.y;
                 _locomotionState.Value = (byte)LocomotionState.Airborne;
+                _authoritativeVelocity.Value = Vector3.zero;
+                _supportNormal.Value = Vector3.up;
             }
         }
 
@@ -204,6 +221,8 @@ namespace HueDoneIt.Gameplay.Players
 
             _authoritativePosition.Value = transform.position;
             _authoritativeYaw.Value = yawDegrees;
+            _authoritativeVelocity.Value = Vector3.zero;
+            _supportNormal.Value = Vector3.up;
         }
 
         public void ServerApplyKnockback(Vector3 impulse)
@@ -213,11 +232,19 @@ namespace HueDoneIt.Gameplay.Players
                 return;
             }
 
+            bool wasAirborne = !IsGrounded(transform.position);
             _horizontalVelocity = new Vector3(impulse.x, 0f, impulse.z);
             _verticalVelocity = Mathf.Max(impulse.y, 0f);
             _knockbackTimeRemaining = knockbackLockSeconds;
             _wallStickTimeRemaining = 0f;
+            _wallLaunchControlTimeRemaining = 0f;
+            _wallDetachTimeRemaining = wallDetachGraceSeconds;
             _locomotionState.Value = (byte)LocomotionState.Knockback;
+
+            if (wasAirborne && impulse.magnitude >= airbornePunchRagdollImpulseThreshold)
+            {
+                EnterRagdoll(ragdollMinDurationSeconds);
+            }
 
             if (_paintEmitter != null)
             {
@@ -271,16 +298,22 @@ namespace HueDoneIt.Gameplay.Players
                 hasWall = false;
             }
 
-            if (_knockbackTimeRemaining > 0f)
+                _supportNormal.Value = hasWall ? wallHit.normal : Vector3.up;
+            }
+            else if (_knockbackTimeRemaining > 0f)
             {
                 _knockbackTimeRemaining -= deltaTime;
                 _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, knockbackDamping * deltaTime);
                 _verticalVelocity += -GetGravity(lowGravity) * deltaTime;
+                _supportNormal.Value = hasWall ? wallHit.normal : Vector3.up;
             }
             else
             {
                 float targetSpeed = _serverBurstHeld ? burstMoveSpeed : moveSpeed;
                 Vector3 desiredHorizontalVelocity = Vector3.ClampMagnitude(_serverMoveWorldInput, 1f) * targetSpeed;
+                float effectiveAirAcceleration = _wallLaunchControlTimeRemaining > 0f
+                    ? airAcceleration * postWallLaunchAirAccelerationMultiplier
+                    : airAcceleration;
 
                 if (grounded)
                 {
@@ -296,7 +329,10 @@ namespace HueDoneIt.Gameplay.Players
                         _verticalVelocity = -stickToGroundVelocity;
                     }
 
-                    _locomotionState.Value = (byte)LocomotionState.Grounded;
+                    _locomotionState.Value = _ragdollRecoveryTimeRemaining > 0f
+                        ? (byte)LocomotionState.Knockback
+                        : (byte)LocomotionState.Grounded;
+                    _supportNormal.Value = Vector3.up;
 
                     if (_jumpBufferTimeRemaining > 0f)
                     {
@@ -309,14 +345,15 @@ namespace HueDoneIt.Gameplay.Players
                 }
                 else
                 {
-                    _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, desiredHorizontalVelocity, airAcceleration * deltaTime);
+                    _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, desiredHorizontalVelocity, effectiveAirAcceleration * deltaTime);
 
                     if (hasWall)
                     {
                         _lastWallNormal = wallHit.normal;
                         bool movingIntoWall = Vector3.Dot(_serverMoveWorldInput, -wallHit.normal) > 0.2f;
+                        _supportNormal.Value = wallHit.normal;
 
-                        if (_serverJumpRequested)
+                        if (_serverJumpRequested && _ragdollRecoveryTimeRemaining <= 0f)
                         {
                             Vector3 planarInput = Vector3.ProjectOnPlane(_serverMoveWorldInput, wallHit.normal);
                             Vector3 awayLaunch = wallHit.normal * (wallLaunchHorizontalForce + wallLaunchSeparationBoost);
@@ -336,9 +373,13 @@ namespace HueDoneIt.Gameplay.Players
 
                             if (allowStick)
                             {
-                                _locomotionState.Value = (byte)LocomotionState.WallStick;
+                                _locomotionState.Value = _ragdollRecoveryTimeRemaining > 0f
+                                    ? (byte)LocomotionState.Knockback
+                                    : (byte)LocomotionState.WallStick;
                                 _verticalVelocity = Mathf.Max(_verticalVelocity - (wallStickForce * deltaTime), -0.4f);
-                                _horizontalVelocity = Vector3.ProjectOnPlane(_horizontalVelocity, wallHit.normal) * 0.88f;
+                                Vector3 projected = Vector3.ProjectOnPlane(_horizontalVelocity, wallHit.normal) * 0.94f;
+                                Vector3 wallCarry = Vector3.ProjectOnPlane(desiredHorizontalVelocity, wallHit.normal) * wallGlidePlanarAssist;
+                                _horizontalVelocity = projected + wallCarry;
                                 if (!lowGravity)
                                 {
                                     _wallStickTimeRemaining -= deltaTime;
@@ -360,13 +401,24 @@ namespace HueDoneIt.Gameplay.Players
                     else if (lowGravity)
                     {
                         _locomotionState.Value = (byte)LocomotionState.LowGravityFloat;
+                        _supportNormal.Value = Vector3.up;
                     }
                     else
                     {
                         _locomotionState.Value = (byte)LocomotionState.Airborne;
+                        _supportNormal.Value = Vector3.up;
                     }
 
                     _verticalVelocity += -GetGravity(lowGravity) * deltaTime;
+                }
+            }
+
+            if (!grounded && _ragdollTimeRemaining <= 0f && _ragdollRecoveryTimeRemaining <= 0f)
+            {
+                float airborneSpeed = new Vector3(_horizontalVelocity.x, 0f, _horizontalVelocity.z).magnitude;
+                if (airborneSpeed >= airborneRagdollSpeedThreshold)
+                {
+                    EnterRagdoll(ragdollMinDurationSeconds);
                 }
             }
 
@@ -399,6 +451,7 @@ namespace HueDoneIt.Gameplay.Players
 
             _authoritativePosition.Value = transform.position;
             _authoritativeYaw.Value = _serverVisualYaw;
+            _authoritativeVelocity.Value = _horizontalVelocity + (Vector3.up * _verticalVelocity);
         }
 
         private void TryResolvePunch()
@@ -534,6 +587,16 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             _paintEmitter.ServerEmitPaint(kind, position, normal, radius, intensity);
+        }
+
+        private void EnterRagdoll(float duration)
+        {
+            _ragdollTimeRemaining = Mathf.Max(_ragdollTimeRemaining, Mathf.Max(ragdollMinDurationSeconds, duration));
+            _ragdollRecoveryTimeRemaining = 0f;
+            _wallStickTimeRemaining = 0f;
+            _wallLaunchControlTimeRemaining = 0f;
+            _wallDetachTimeRemaining = wallDetachGraceSeconds;
+            _locomotionState.Value = (byte)LocomotionState.Ragdoll;
         }
 
         private Vector3 MoveCharacter(Vector3 startPosition, Vector3 displacement, out bool hitGround, out Vector3 groundNormal)
