@@ -331,12 +331,38 @@ namespace HueDoneIt.Gameplay
             {
                 return;
             }
+        }
 
             NetworkObject networkObject = gameObject.GetComponent<NetworkObject>();
             if (networkObject != null && !networkObject.IsSpawned)
             {
                 networkObject.Spawn(destroyWithScene: true);
             }
+
+            GameObject go = new(objectName);
+            go.transform.SetParent(root, false);
+            go.AddComponent<NetworkObject>();
+            T component = go.AddComponent<T>();
+            TrySpawnNetworkObject(go);
+            return component;
+        }
+
+        private static void EnsureGround(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
+        {
+            GameObject ground = FindOrCreate(name, PrimitiveType.Cube, parent);
+            ground.transform.position = position;
+            ground.transform.localScale = scale;
+            ApplyMaterial(ground, color, transparent: false);
+        }
+
+        private static GameObject EnsureBlock(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
+        {
+            GameObject block = FindOrCreate(name, PrimitiveType.Cube, parent);
+            block.transform.position = position;
+            block.transform.rotation = Quaternion.identity;
+            block.transform.localScale = scale;
+            ApplyMaterial(block, color, transparent: false);
+            return block;
         }
 
         private static void ApplyFloodZoneSerializedDefaults(FloodZone zone, string zoneId, FloodZoneState initialState)
@@ -354,7 +380,8 @@ namespace HueDoneIt.Gameplay
         {
             if (target == null)
             {
-                return;
+                go = GameObject.CreatePrimitive(primitiveType);
+                go.name = name;
             }
 
             Renderer renderer = target.GetComponent<Renderer>();
@@ -381,12 +408,14 @@ namespace HueDoneIt.Gameplay
 
         private static void ConfigureSceneLighting()
         {
-            Light directional = FindFirstObjectByType<Light>();
-            if (directional != null && directional.type == LightType.Directional)
+            FloodZone[] zones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
+            foreach (FloodZone zone in zones)
             {
                 directional.transform.rotation = Quaternion.Euler(45f, -35f, 0f);
                 directional.intensity = 1.35f;
             }
+
+            return null;
         }
 
         private static bool HasCommandLineArg(string arg)
