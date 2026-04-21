@@ -1,0 +1,2677 @@
+# INDEX
+# Group: Scripts
+# Generated: 2026-04-20 23:59:58
+# --------------------------------
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Bootstrap\AppBootstrap.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Bootstrap\BootSceneEntrypoint.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Scenes\ISceneLoader.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Scenes\UnitySceneLoader.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\Debug\FloodZoneStateLabel.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\FloodSequenceController.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\FloodZone.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\FloodZoneState.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\Integration\PlayerFloodZoneTracker.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\BodyReportManager.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\EliminationManager.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\IPlayerLifeStateReader.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerKillInputController.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerLifeState.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerLifeStateKind.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerRemains.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\GameplayBetaSceneInstaller.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\IInteractable.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\InteractionContext.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\NetworkInteractable.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\PlayerInteractionController.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\PlayerInteractionDetector.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\SampleConsoleInteractable.cs
+# - C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Players\LocalPlayerCameraBinder.cs
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Bootstrap\AppBootstrap.cs =====
+
+// File: Assets/_Project/Core/Bootstrap/AppBootstrap.cs
+using HueDoneIt.Core.Scenes;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace HueDoneIt.Core.Bootstrap
+{
+    public sealed class AppBootstrap : MonoBehaviour
+    {
+        [Header("Startup")]
+        [SerializeField] private bool loadInitialSceneOnStart;
+        [SerializeField] private string initialSceneName = "Gameplay_Undertint";
+
+        private ISceneLoader _sceneLoader;
+
+        private void Awake()
+        {
+            DontDestroyOnLoad(gameObject);
+            _sceneLoader = new UnitySceneLoader();
+        }
+
+        private void Start()
+        {
+            if (!loadInitialSceneOnStart)
+            {
+                Debug.Log("AppBootstrap initialized in Boot scene.");
+                return;
+            }
+
+            LoadInitialScene();
+        }
+
+        public void LoadScene(string sceneName, LoadSceneMode loadSceneMode = LoadSceneMode.Single)
+        {
+            _sceneLoader.LoadSceneAsync(sceneName, loadSceneMode);
+        }
+
+        private void LoadInitialScene()
+        {
+            if (string.IsNullOrWhiteSpace(initialSceneName))
+            {
+                Debug.LogWarning("Initial scene name is empty. Staying in Boot scene.");
+                return;
+            }
+
+            _sceneLoader.LoadSceneAsync(initialSceneName, LoadSceneMode.Single);
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Bootstrap\BootSceneEntrypoint.cs =====
+
+// File: Assets/_Project/Core/Bootstrap/BootSceneEntrypoint.cs
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace HueDoneIt.Core.Bootstrap
+{
+    public static class BootSceneEntrypoint
+    {
+        private const string BootSceneName = "Boot";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.BeforeSceneLoad)]
+        private static void EnsureBootSceneIsLoadedFirst()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            if (activeScene.IsValid() && activeScene.name == BootSceneName)
+            {
+                return;
+            }
+
+            if (!Application.CanStreamedLevelBeLoaded(BootSceneName))
+            {
+                Debug.LogError($"Boot scene '{BootSceneName}' is missing from Build Settings.");
+                return;
+            }
+
+            SceneManager.LoadScene(BootSceneName, LoadSceneMode.Single);
+        }
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void InstallBootstrapInBootScene()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            if (!activeScene.IsValid() || activeScene.name != BootSceneName)
+            {
+                return;
+            }
+
+            if (Object.FindAnyObjectByType<AppBootstrap>() != null)
+            {
+                return;
+            }
+
+            GameObject bootstrapObject = new(nameof(AppBootstrap));
+            bootstrapObject.AddComponent<AppBootstrap>();
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Scenes\ISceneLoader.cs =====
+
+// File: Assets/_Project/Core/Scenes/ISceneLoader.cs
+using UnityEngine.SceneManagement;
+using UnityEngine;
+
+namespace HueDoneIt.Core.Scenes
+{
+    public interface ISceneLoader
+    {
+        AsyncOperation LoadSceneAsync(string sceneName, LoadSceneMode loadSceneMode = LoadSceneMode.Single);
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Core\Scenes\UnitySceneLoader.cs =====
+
+// File: Assets/_Project/Core/Scenes/UnitySceneLoader.cs
+using System;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace HueDoneIt.Core.Scenes
+{
+    public sealed class UnitySceneLoader : ISceneLoader
+    {
+        public AsyncOperation LoadSceneAsync(string sceneName, LoadSceneMode loadSceneMode = LoadSceneMode.Single)
+        {
+            if (string.IsNullOrWhiteSpace(sceneName))
+            {
+                throw new ArgumentException("Scene name cannot be null or empty.", nameof(sceneName));
+            }
+
+            if (!Application.CanStreamedLevelBeLoaded(sceneName))
+            {
+                throw new InvalidOperationException($"Scene '{sceneName}' is not available. Add it to Build Settings.");
+            }
+
+            AsyncOperation operation = SceneManager.LoadSceneAsync(sceneName, loadSceneMode);
+            if (operation == null)
+            {
+                throw new InvalidOperationException($"Failed to start loading scene '{sceneName}'.");
+            }
+
+            return operation;
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\Debug\FloodZoneStateLabel.cs =====
+
+// File: Assets/_Project/Flood/Debug/FloodZoneStateLabel.cs
+using UnityEngine;
+using UnityEngine.UI;
+
+namespace HueDoneIt.Flood.Debug
+{
+    public sealed class FloodZoneStateLabel : MonoBehaviour
+    {
+        [SerializeField] private FloodZone zone;
+        [SerializeField] private Text targetText;
+
+        private void Awake()
+        {
+            if (zone == null)
+            {
+                zone = GetComponentInParent<FloodZone>();
+            }
+        }
+
+        private void OnEnable()
+        {
+            if (zone != null)
+            {
+                zone.StateChanged += HandleStateChanged;
+                Refresh();
+            }
+        }
+
+        private void OnDisable()
+        {
+            if (zone != null)
+            {
+                zone.StateChanged -= HandleStateChanged;
+            }
+        }
+
+        private void HandleStateChanged(FloodZoneState previous, FloodZoneState current)
+        {
+            Refresh();
+        }
+
+        private void Refresh()
+        {
+            if (targetText == null)
+            {
+                return;
+            }
+
+            targetText.text = zone == null ? "Zone: <none>" : $"{zone.ZoneId}: {zone.CurrentState}";
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\FloodSequenceController.cs =====
+
+// File: Assets/_Project/Flood/FloodSequenceController.cs
+using System.Collections;
+using System.Collections.Generic;
+using HueDoneIt.Tasks;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Flood
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public sealed class FloodSequenceController : NetworkBehaviour
+    {
+        [System.Serializable]
+        public struct StateDuration
+        {
+            public FloodZoneState state;
+            [Min(0.1f)] public float durationSeconds;
+        }
+
+        [System.Serializable]
+        public sealed class ZoneSequence
+        {
+            public FloodZone zone;
+            [Min(0f)] public float initialDelaySeconds;
+            public bool loop;
+            public List<StateDuration> states = new();
+        }
+
+        [SerializeField] private List<ZoneSequence> sequences = new();
+        [SerializeField, Min(0.1f)] private float lockedFloodingDelaySeconds = 4f;
+        [SerializeField, Min(0.1f)] private float lockedSubmergeDelaySeconds = 6f;
+
+        private readonly List<Coroutine> _running = new();
+        private Coroutine _lockedEscalationCoroutine;
+        private bool _completionApplied;
+        private bool _lockEscalationStarted;
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            if (IsServer)
+            {
+                ServerResetForRound();
+            }
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            if (IsServer)
+            {
+                StopSequences();
+            }
+
+            base.OnNetworkDespawn();
+        }
+
+        private void Update()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            PumpRepairTask pumpRepairTask = FindFirstObjectByType<PumpRepairTask>();
+            if (pumpRepairTask == null)
+            {
+                return;
+            }
+
+            if (pumpRepairTask.IsCompleted && !_completionApplied)
+            {
+                _completionApplied = true;
+                StopSequences();
+                SetAllZones(FloodZoneState.SealedSafe);
+                return;
+            }
+
+            if (pumpRepairTask.IsLocked && !_lockEscalationStarted)
+            {
+                _lockEscalationStarted = true;
+                StopSequences();
+                _lockedEscalationCoroutine = StartCoroutine(RunLockedEscalation());
+            }
+        }
+
+        public void ServerResetForRound()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            StopSequences();
+            ResetZonesToInitialState();
+            _completionApplied = false;
+            _lockEscalationStarted = false;
+            StartSequences();
+        }
+
+        private void StartSequences()
+        {
+            StopSequences();
+            foreach (ZoneSequence sequence in sequences)
+            {
+                if (sequence?.zone == null || sequence.states == null || sequence.states.Count == 0)
+                {
+                    continue;
+                }
+
+                _running.Add(StartCoroutine(RunSequence(sequence)));
+            }
+        }
+
+        private void StopSequences()
+        {
+            foreach (Coroutine coroutineRef in _running)
+            {
+                if (coroutineRef != null)
+                {
+                    StopCoroutine(coroutineRef);
+                }
+            }
+
+            _running.Clear();
+
+            if (_lockedEscalationCoroutine != null)
+            {
+                StopCoroutine(_lockedEscalationCoroutine);
+                _lockedEscalationCoroutine = null;
+            }
+        }
+
+        private IEnumerator RunSequence(ZoneSequence sequence)
+        {
+            if (sequence.initialDelaySeconds > 0f)
+            {
+                yield return new WaitForSeconds(sequence.initialDelaySeconds);
+            }
+
+            do
+            {
+                foreach (StateDuration step in sequence.states)
+                {
+                    sequence.zone.TrySetState(step.state);
+                    yield return new WaitForSeconds(Mathf.Max(0.1f, step.durationSeconds));
+                }
+            }
+            while (sequence.loop);
+        }
+
+        private IEnumerator RunLockedEscalation()
+        {
+            yield return new WaitForSeconds(lockedFloodingDelaySeconds);
+            SetAllZones(FloodZoneState.Flooding);
+            yield return new WaitForSeconds(lockedSubmergeDelaySeconds);
+            SetAllZones(FloodZoneState.Submerged);
+            _lockedEscalationCoroutine = null;
+        }
+
+        private void ResetZonesToInitialState()
+        {
+            HashSet<FloodZone> uniqueZones = GatherAllRelevantZones();
+            foreach (FloodZone zone in uniqueZones)
+            {
+                zone.ServerResetToInitialState();
+            }
+        }
+
+        private void SetAllZones(FloodZoneState state)
+        {
+            HashSet<FloodZone> uniqueZones = GatherAllRelevantZones();
+            foreach (FloodZone zone in uniqueZones)
+            {
+                zone.TrySetState(state);
+            }
+        }
+
+        private HashSet<FloodZone> GatherAllRelevantZones()
+        {
+            HashSet<FloodZone> uniqueZones = new();
+            foreach (ZoneSequence sequence in sequences)
+            {
+                if (sequence?.zone != null)
+                {
+                    uniqueZones.Add(sequence.zone);
+                }
+            }
+
+            if (uniqueZones.Count > 0)
+            {
+                return uniqueZones;
+            }
+
+            FloodZone[] sceneZones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
+            foreach (FloodZone zone in sceneZones)
+            {
+                if (zone != null)
+                {
+                    uniqueZones.Add(zone);
+                }
+            }
+
+            return uniqueZones;
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\FloodZone.cs =====
+
+// File: Assets/_Project/Flood/FloodZone.cs
+using System;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Flood
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public sealed class FloodZone : NetworkBehaviour
+    {
+        [SerializeField] private string zoneId = "Zone";
+        [SerializeField] private FloodZoneState initialState = FloodZoneState.Dry;
+
+        private readonly NetworkVariable<byte> _state =
+            new((byte)FloodZoneState.Dry, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        public event Action<FloodZoneState, FloodZoneState> StateChanged;
+
+        public string ZoneId => zoneId;
+        public FloodZoneState InitialState => initialState;
+        public FloodZoneState CurrentState => (FloodZoneState)_state.Value;
+        public bool IsSafe => CurrentState is FloodZoneState.Dry or FloodZoneState.Wet or FloodZoneState.SealedSafe;
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            _state.OnValueChanged += HandleStateChanged;
+            if (IsServer)
+            {
+                _state.Value = (byte)initialState;
+            }
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            _state.OnValueChanged -= HandleStateChanged;
+            base.OnNetworkDespawn();
+        }
+
+        public bool TrySetState(FloodZoneState nextState)
+        {
+            if (!IsServer || CurrentState == nextState)
+            {
+                return false;
+            }
+
+            _state.Value = (byte)nextState;
+            return true;
+        }
+
+        public void ServerResetToInitialState()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _state.Value = (byte)initialState;
+        }
+
+        private void HandleStateChanged(byte previous, byte current)
+        {
+            FloodZoneState previousState = (FloodZoneState)previous;
+            FloodZoneState currentState = (FloodZoneState)current;
+            StateChanged?.Invoke(previousState, currentState);
+            if (IsServer)
+            {
+                UnityEngine.Debug.Log($"Flood zone '{zoneId}' transitioned {previousState} -> {currentState}.");
+            }
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\FloodZoneState.cs =====
+
+// File: Assets/_Project/Flood/FloodZoneState.cs
+namespace HueDoneIt.Flood
+{
+    public enum FloodZoneState : byte
+    {
+        Dry = 0,
+        Wet = 1,
+        Flooding = 2,
+        Submerged = 3,
+        SealedSafe = 4
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Flood\Integration\PlayerFloodZoneTracker.cs =====
+
+// File: Assets/_Project/Flood/Integration/PlayerFloodZoneTracker.cs
+using System;
+using HueDoneIt.Gameplay.Elimination;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Flood.Integration
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    [RequireComponent(typeof(PlayerLifeState))]
+    public sealed class PlayerFloodZoneTracker : NetworkBehaviour
+    {
+        [Header("Detection")]
+        [SerializeField] private float probeRadius = 0.35f;
+        [SerializeField] private LayerMask zoneMask = ~0;
+        [SerializeField] private int overlapBufferSize = 8;
+        [SerializeField] private float reportIntervalSeconds = 0.15f;
+
+        [Header("Saturation")]
+        [SerializeField] private float dryRecoveryPerSecond = 0.2f;
+        [SerializeField] private float wetSaturationPerSecond = 0.08f;
+        [SerializeField] private float floodingSaturationPerSecond = 0.22f;
+        [SerializeField] private float submergedSaturationPerSecond = 0.45f;
+        [SerializeField, Range(0f, 1f)] private float criticalThreshold = 0.7f;
+        [SerializeField, Range(0f, 1f)] private float deathThreshold = 1f;
+        [SerializeField] private bool instantlyDiffuseInSubmerged = true;
+
+        private readonly NetworkVariable<ulong> _serverZoneNetworkObjectId =
+            new(ulong.MaxValue, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<byte> _serverZoneState =
+            new((byte)FloodZoneState.Dry, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _saturation =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private Collider[] _overlapResults;
+        private FloodZone _currentZone;
+        private PlayerLifeState _lifeState;
+        private float _nextReportTime;
+
+        public event Action<FloodZone> ZoneChanged;
+
+        public FloodZone CurrentZone => _currentZone;
+        public FloodZoneState CurrentZoneState => (FloodZoneState)_serverZoneState.Value;
+        public bool IsCurrentZoneSafe => CurrentZone == null || CurrentZone.IsSafe;
+        public float Saturation01 => _saturation.Value;
+        public bool IsCritical => Saturation01 >= criticalThreshold;
+
+        private void Awake()
+        {
+            _overlapResults = new Collider[Mathf.Max(1, overlapBufferSize)];
+            _lifeState = GetComponent<PlayerLifeState>();
+        }
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            if (IsServer)
+            {
+                _serverZoneNetworkObjectId.Value = ulong.MaxValue;
+                _serverZoneState.Value = (byte)FloodZoneState.Dry;
+                _saturation.Value = 0f;
+            }
+        }
+
+        private void Update()
+        {
+            if (IsOwner && IsClient)
+            {
+                UpdateLocalObservedZone();
+                SendZoneToServerIfNeeded();
+            }
+
+            if (IsServer)
+            {
+                SimulateServerSaturation(Time.deltaTime);
+            }
+        }
+
+        public void ServerResetFloodState()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _serverZoneNetworkObjectId.Value = ulong.MaxValue;
+            _serverZoneState.Value = (byte)FloodZoneState.Dry;
+            _saturation.Value = 0f;
+        }
+
+        private void UpdateLocalObservedZone()
+        {
+            if (!IsSpawned)
+            {
+                SetCurrentZone(null);
+                return;
+            }
+
+            int hitCount = Physics.OverlapSphereNonAlloc(transform.position, probeRadius, _overlapResults, zoneMask, QueryTriggerInteraction.Collide);
+
+            FloodZone bestZone = null;
+            float bestDistanceSqr = float.MaxValue;
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider hit = _overlapResults[i];
+                if (hit == null)
+                {
+                    continue;
+                }
+
+                FloodZone zone = hit.GetComponentInParent<FloodZone>();
+                if (zone == null)
+                {
+                    continue;
+                }
+
+                float distanceSqr = (hit.ClosestPoint(transform.position) - transform.position).sqrMagnitude;
+                if (distanceSqr < bestDistanceSqr)
+                {
+                    bestDistanceSqr = distanceSqr;
+                    bestZone = zone;
+                }
+            }
+
+            SetCurrentZone(bestZone);
+        }
+
+        private void SendZoneToServerIfNeeded()
+        {
+            if (!IsSpawned || Time.unscaledTime < _nextReportTime)
+            {
+                return;
+            }
+
+            _nextReportTime = Time.unscaledTime + Mathf.Max(0.05f, reportIntervalSeconds);
+            ulong zoneId = _currentZone != null && _currentZone.NetworkObject != null
+                ? _currentZone.NetworkObjectId
+                : ulong.MaxValue;
+
+            ReportObservedZoneServerRpc(zoneId);
+        }
+
+        private void SimulateServerSaturation(float deltaTime)
+        {
+            if (_lifeState != null && !_lifeState.IsAlive)
+            {
+                return;
+            }
+
+            FloodZoneState state = (FloodZoneState)_serverZoneState.Value;
+            if (instantlyDiffuseInSubmerged && state == FloodZoneState.Submerged)
+            {
+                if (_lifeState != null && _lifeState.ServerTrySetDiffused("Caught in fast-moving flood"))
+                {
+                    _saturation.Value = deathThreshold;
+                }
+
+                return;
+            }
+
+            float delta = state switch
+            {
+                FloodZoneState.Wet => wetSaturationPerSecond,
+                FloodZoneState.Flooding => floodingSaturationPerSecond,
+                FloodZoneState.Submerged => submergedSaturationPerSecond,
+                FloodZoneState.SealedSafe => -dryRecoveryPerSecond,
+                _ => -dryRecoveryPerSecond
+            };
+
+            _saturation.Value = Mathf.Clamp01(_saturation.Value + (delta * deltaTime));
+            if (_saturation.Value >= deathThreshold && _lifeState != null)
+            {
+                _lifeState.ServerTrySetDiffused("Flood saturation reached critical mass");
+            }
+        }
+
+        [ServerRpc]
+        private void ReportObservedZoneServerRpc(ulong zoneNetworkObjectId, ServerRpcParams rpcParams = default)
+        {
+            if (rpcParams.Receive.SenderClientId != OwnerClientId)
+            {
+                return;
+            }
+
+            if (zoneNetworkObjectId == ulong.MaxValue)
+            {
+                _serverZoneNetworkObjectId.Value = zoneNetworkObjectId;
+                _serverZoneState.Value = (byte)FloodZoneState.Dry;
+                return;
+            }
+
+            if (!NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(zoneNetworkObjectId, out NetworkObject zoneObject) ||
+                !zoneObject.TryGetComponent(out FloodZone zone))
+            {
+                return;
+            }
+
+            float validationDistance = Vector3.Distance(transform.position, zone.transform.position);
+            if (validationDistance > 8f)
+            {
+                return;
+            }
+
+            _serverZoneNetworkObjectId.Value = zoneNetworkObjectId;
+            _serverZoneState.Value = (byte)zone.CurrentState;
+        }
+
+        private void SetCurrentZone(FloodZone zone)
+        {
+            if (_currentZone == zone)
+            {
+                return;
+            }
+
+            _currentZone = zone;
+            ZoneChanged?.Invoke(_currentZone);
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\BodyReportManager.cs =====
+
+// File: Assets/_Project/Gameplay/Elimination/BodyReportManager.cs
+using HueDoneIt.Gameplay.Round;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Elimination
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public sealed class BodyReportManager : NetworkBehaviour
+    {
+        private NetworkRoundState _roundState;
+
+        private void Awake()
+        {
+            ResolveRoundState();
+        }
+
+        public bool TryReportBody(NetworkObject reporterObject, PlayerRemains remains)
+        {
+            if (!IsServer || reporterObject == null || remains == null)
+            {
+                return false;
+            }
+
+            ResolveRoundState();
+            if (_roundState == null)
+            {
+                Debug.LogError("BodyReportManager requires NetworkRoundState in the scene.");
+                return false;
+            }
+
+            if (!_roundState.IsFreeRoam)
+            {
+                return false;
+            }
+
+            if (!reporterObject.TryGetComponent(out PlayerLifeState reporterLifeState) || !reporterLifeState.IsAlive)
+            {
+                return false;
+            }
+
+            if (remains.IsReported || !remains.ServerTryMarkReported())
+            {
+                return false;
+            }
+
+            bool phaseUpdated = _roundState.ServerTrySetReported(reporterObject.OwnerClientId, remains.VictimClientId);
+            if (!phaseUpdated)
+            {
+                return false;
+            }
+
+            Debug.Log($"Body reported by client {reporterObject.OwnerClientId}. Victim={remains.VictimClientId}");
+            return true;
+        }
+
+        private void ResolveRoundState()
+        {
+            if (_roundState == null)
+            {
+                _roundState = FindFirstObjectByType<NetworkRoundState>();
+            }
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\EliminationManager.cs =====
+
+// File: Assets/_Project/Gameplay/Elimination/EliminationManager.cs
+using HueDoneIt.Gameplay.Round;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Elimination
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public sealed class EliminationManager : NetworkBehaviour
+    {
+        [SerializeField, Min(0.1f)] private float maxEliminationRange = 2.5f;
+        [SerializeField] private PlayerRemains remainsPrefab;
+
+        private NetworkRoundState _roundState;
+
+        private void Awake()
+        {
+            ResolveRoundState();
+        }
+
+        public bool TryHandleEliminationRequest(NetworkObject killerObject, ulong targetNetworkObjectId)
+        {
+            if (!IsServer || killerObject == null || !killerObject.IsSpawned)
+            {
+                return false;
+            }
+
+            ResolveRoundState();
+            if (_roundState == null || !_roundState.IsFreeRoam)
+            {
+                return false;
+            }
+
+            if (!killerObject.TryGetComponent(out PlayerLifeState killerLifeState) || !killerLifeState.IsAlive)
+            {
+                return false;
+            }
+
+            if (!killerObject.TryGetComponent(out PlayerKillInputController killerController) || !killerController.IsTestKillerEnabled)
+            {
+                Debug.LogWarning($"Elimination rejected: player {killerObject.OwnerClientId} is not marked as test killer.");
+                return false;
+            }
+
+            if (!NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(targetNetworkObjectId, out NetworkObject targetObject))
+            {
+                return false;
+            }
+
+            if (targetObject == killerObject)
+            {
+                return false;
+            }
+
+            if (!targetObject.TryGetComponent(out PlayerLifeState targetLifeState) || !targetLifeState.IsAlive)
+            {
+                return false;
+            }
+
+            float distance = Vector3.Distance(killerObject.transform.position, targetObject.transform.position);
+            if (distance > maxEliminationRange)
+            {
+                Debug.LogWarning($"Elimination rejected: target out of range ({distance:F2}m).");
+                return false;
+            }
+
+            if (!targetLifeState.ServerTrySetEliminated())
+            {
+                return false;
+            }
+
+            if (targetLifeState.ServerTryMarkRemainsSpawned())
+            {
+                SpawnRemains(targetObject, targetLifeState);
+            }
+
+            Debug.Log($"Elimination accepted. Killer={killerObject.OwnerClientId}, Target={targetObject.OwnerClientId}");
+            return true;
+        }
+
+        private void SpawnRemains(NetworkObject eliminatedPlayerObject, PlayerLifeState eliminatedPlayerLifeState)
+        {
+            if (remainsPrefab == null)
+            {
+                Debug.LogError("EliminationManager is missing remains prefab reference.");
+                return;
+            }
+
+            Vector3 spawnPosition = eliminatedPlayerObject.transform.position;
+            Quaternion spawnRotation = eliminatedPlayerObject.transform.rotation;
+            PlayerRemains remainsInstance = Instantiate(remainsPrefab, spawnPosition, spawnRotation);
+
+            if (!remainsInstance.TryGetComponent(out NetworkObject remainsNetworkObject))
+            {
+                Debug.LogError("Remains prefab does not contain a NetworkObject.");
+                Destroy(remainsInstance.gameObject);
+                return;
+            }
+
+            remainsNetworkObject.Spawn(true);
+            remainsInstance.ServerInitialize(eliminatedPlayerObject.OwnerClientId, eliminatedPlayerObject.NetworkObjectId, eliminatedPlayerObject.name);
+        }
+
+        private void ResolveRoundState()
+        {
+            if (_roundState == null)
+            {
+                _roundState = FindFirstObjectByType<NetworkRoundState>();
+            }
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\IPlayerLifeStateReader.cs =====
+
+// File: Assets/_Project/Gameplay/Elimination/IPlayerLifeStateReader.cs
+namespace HueDoneIt.Gameplay.Elimination
+{
+    public interface IPlayerLifeStateReader
+    {
+        PlayerLifeStateKind CurrentLifeState { get; }
+        bool IsAlive { get; }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerKillInputController.cs =====
+
+// File: Assets/_Project/Gameplay/Elimination/PlayerKillInputController.cs
+using System;
+using HueDoneIt.Gameplay.Round;
+using HueDoneIt.Roles;
+using HueDoneIt.Tasks;
+using Unity.Netcode;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace HueDoneIt.Gameplay.Elimination
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    [RequireComponent(typeof(PlayerLifeState))]
+    public sealed class PlayerKillInputController : NetworkBehaviour
+    {
+        private const int MaxSearchHits = 16;
+        private const ulong InvalidNetworkObjectId = ulong.MaxValue;
+
+        [Header("Input")]
+        [SerializeField] private Key killKey = Key.F;
+        [SerializeField] private Key secondaryKey = Key.Q;
+
+        [Header("Targeting")]
+        [SerializeField, Min(0.1f)] private float targetSearchRange = 2.75f;
+        [SerializeField] private LayerMask targetMask = ~0;
+        [SerializeField] private float lineOfSightHeight = 0.8f;
+
+        [Header("Bleach Primary")]
+        [SerializeField, Min(0.1f)] private float primaryCooldownSeconds = 60f;
+        [SerializeField, Min(0.1f)] private float failedPrimaryCooldownSeconds = 5f;
+        [SerializeField, Min(0.1f)] private float primaryWindupSeconds = 2f;
+
+        [Header("Bleach Secondary")]
+        [SerializeField, Min(0.1f)] private float secondaryCooldownSeconds = 22f;
+        [SerializeField, Min(0.1f)] private float mimicDurationSeconds = 10f;
+        [SerializeField, Min(0.1f)] private float corruptRange = 4f;
+        [SerializeField, Min(0.1f)] private float overloadRange = 3f;
+        [SerializeField] private bool isTestKillerEnabled;
+
+        [Header("Visual")]
+        [SerializeField] private Renderer bodyRenderer;
+        [SerializeField] private Color deadTint = new(0.25f, 0.25f, 0.25f);
+        [SerializeField] private Color bleachExposedTint = new(0.95f, 0.95f, 1f);
+
+        private readonly NetworkVariable<byte> _role =
+            new((byte)PlayerRole.Unassigned, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<byte> _secondaryAbility =
+            new((byte)BleachSecondaryAbility.None, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _primaryCooldownEndServerTime =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _secondaryCooldownEndServerTime =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<bool> _primaryWindupActive =
+            new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _primaryWindupEndServerTime =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<ulong> _primaryTargetNetworkObjectId =
+            new(InvalidNetworkObjectId, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _mimicEndServerTime =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<ulong> _mimicTargetNetworkObjectId =
+            new(InvalidNetworkObjectId, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<bool> _overloadConsumed =
+            new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private PlayerLifeState _lifeState;
+        private Collider[] _overlapResults;
+        private MaterialPropertyBlock _propertyBlock;
+        private Color _currentDisplayColor;
+        private bool _hasAppliedDisplayColor;
+        private bool _subscribedToNetworkVariables;
+        private bool _subscribedToLifeState;
+
+        public bool IsTestKillerEnabled => isTestKillerEnabled || CurrentRole == PlayerRole.Bleach;
+        public PlayerRole CurrentRole => (PlayerRole)_role.Value;
+        public BleachSecondaryAbility CurrentSecondaryAbility => (BleachSecondaryAbility)_secondaryAbility.Value;
+        public bool IsBleachRole => CurrentRole == PlayerRole.Bleach;
+        public bool IsPrimaryWindupActive => _primaryWindupActive.Value;
+        public bool IsMimicking => IsBleachRole && GetServerTime() < _mimicEndServerTime.Value;
+        public bool HasUsedOverload => _overloadConsumed.Value;
+        public Color DisplayColor => _currentDisplayColor;
+
+        private void Awake()
+        {
+            _lifeState = GetComponent<PlayerLifeState>();
+            _overlapResults = new Collider[MaxSearchHits];
+            _propertyBlock = new MaterialPropertyBlock();
+
+            if (bodyRenderer == null)
+            {
+                bodyRenderer = GetComponentInChildren<Renderer>();
+            }
+        }
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            SubscribeToState();
+            ApplyVisualState(force: true);
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            UnsubscribeFromState();
+            base.OnNetworkDespawn();
+        }
+
+        private void OnDestroy()
+        {
+            UnsubscribeFromState();
+        }
+
+        private void Update()
+        {
+            if (!IsSpawned)
+            {
+                return;
+            }
+
+            if (IsOwner && IsClient && _lifeState != null && _lifeState.IsAlive)
+            {
+                ReadOwnerInput();
+            }
+
+            if (IsServer)
+            {
+                ResolveServerTimedEffects();
+            }
+
+            ApplyVisualState();
+        }
+
+        public void ServerAssignRole(PlayerRole role, BleachSecondaryAbility secondaryAbility)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _role.Value = (byte)role;
+            _secondaryAbility.Value = (byte)secondaryAbility;
+            _primaryCooldownEndServerTime.Value = 0f;
+            _secondaryCooldownEndServerTime.Value = 0f;
+            _primaryWindupActive.Value = false;
+            _primaryWindupEndServerTime.Value = 0f;
+            _primaryTargetNetworkObjectId.Value = InvalidNetworkObjectId;
+            _mimicTargetNetworkObjectId.Value = InvalidNetworkObjectId;
+            _mimicEndServerTime.Value = 0f;
+            _overloadConsumed.Value = false;
+            isTestKillerEnabled = role == PlayerRole.Bleach;
+            ApplyVisualState(force: true);
+        }
+
+        public float GetPrimaryCooldownRemaining()
+        {
+            return Mathf.Max(0f, _primaryCooldownEndServerTime.Value - GetServerTime());
+        }
+
+        public float GetSecondaryCooldownRemaining()
+        {
+            return Mathf.Max(0f, _secondaryCooldownEndServerTime.Value - GetServerTime());
+        }
+
+        private void SubscribeToState()
+        {
+            if (!_subscribedToNetworkVariables)
+            {
+                _role.OnValueChanged += HandleVisualStateChanged;
+                _secondaryAbility.OnValueChanged += HandleVisualStateChanged;
+                _primaryWindupActive.OnValueChanged += HandleVisualStateChanged;
+                _mimicTargetNetworkObjectId.OnValueChanged += HandleVisualStateChanged;
+                _mimicEndServerTime.OnValueChanged += HandleVisualStateChanged;
+                _subscribedToNetworkVariables = true;
+            }
+
+            if (!_subscribedToLifeState && _lifeState != null)
+            {
+                _lifeState.LifeStateChanged += HandleLifeStateChanged;
+                _subscribedToLifeState = true;
+            }
+        }
+
+        private void UnsubscribeFromState()
+        {
+            if (_subscribedToNetworkVariables)
+            {
+                _role.OnValueChanged -= HandleVisualStateChanged;
+                _secondaryAbility.OnValueChanged -= HandleVisualStateChanged;
+                _primaryWindupActive.OnValueChanged -= HandleVisualStateChanged;
+                _mimicTargetNetworkObjectId.OnValueChanged -= HandleVisualStateChanged;
+                _mimicEndServerTime.OnValueChanged -= HandleVisualStateChanged;
+                _subscribedToNetworkVariables = false;
+            }
+
+            if (_subscribedToLifeState && _lifeState != null)
+            {
+                _lifeState.LifeStateChanged -= HandleLifeStateChanged;
+                _subscribedToLifeState = false;
+            }
+        }
+
+        private void ReadOwnerInput()
+        {
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null)
+            {
+                return;
+            }
+
+            if (IsBleachRole && keyboard[killKey].wasPressedThisFrame && !IsPrimaryWindupActive)
+            {
+                if (TryFindClosestTarget(targetSearchRange, out NetworkObject target))
+                {
+                    RequestPrimaryBleachAttackServerRpc(target.NetworkObjectId);
+                }
+            }
+
+            if (IsBleachRole && keyboard[secondaryKey].wasPressedThisFrame)
+            {
+                RequestUseSecondaryServerRpc();
+            }
+        }
+
+        private void ResolveServerTimedEffects()
+        {
+            float serverTime = GetServerTime();
+            if (_primaryWindupActive.Value && serverTime >= _primaryWindupEndServerTime.Value)
+            {
+                ResolvePrimaryWindup();
+            }
+
+            if (_mimicEndServerTime.Value > 0f && serverTime >= _mimicEndServerTime.Value)
+            {
+                _mimicEndServerTime.Value = 0f;
+                _mimicTargetNetworkObjectId.Value = InvalidNetworkObjectId;
+            }
+        }
+
+        private void ResolvePrimaryWindup()
+        {
+            _primaryWindupActive.Value = false;
+            ulong targetNetworkObjectId = _primaryTargetNetworkObjectId.Value;
+            _primaryTargetNetworkObjectId.Value = InvalidNetworkObjectId;
+
+            if (!CanUseBleachPrimary(ignorePrimaryWindupState: true))
+            {
+                return;
+            }
+
+            if (!TryGetValidBleachTarget(targetNetworkObjectId, out NetworkObject targetObject))
+            {
+                _primaryCooldownEndServerTime.Value = GetServerTime() + failedPrimaryCooldownSeconds;
+                return;
+            }
+
+            EliminationManager eliminationManager = FindFirstObjectByType<EliminationManager>();
+            if (eliminationManager == null)
+            {
+                Debug.LogError("No EliminationManager found in scene.");
+                _primaryCooldownEndServerTime.Value = GetServerTime() + failedPrimaryCooldownSeconds;
+                return;
+            }
+
+            bool eliminated = eliminationManager.TryHandleEliminationRequest(NetworkObject, targetObject.NetworkObjectId);
+            _primaryCooldownEndServerTime.Value = GetServerTime() + (eliminated ? primaryCooldownSeconds : failedPrimaryCooldownSeconds);
+        }
+
+        [ServerRpc]
+        private void RequestPrimaryBleachAttackServerRpc(ulong targetNetworkObjectId, ServerRpcParams rpcParams = default)
+        {
+            if (rpcParams.Receive.SenderClientId != OwnerClientId)
+            {
+                return;
+            }
+
+            if (!CanUseBleachPrimary())
+            {
+                return;
+            }
+
+            if (!TryGetValidBleachTarget(targetNetworkObjectId, out NetworkObject targetObject))
+            {
+                _primaryCooldownEndServerTime.Value = GetServerTime() + failedPrimaryCooldownSeconds;
+                return;
+            }
+
+            _primaryWindupActive.Value = true;
+            _primaryWindupEndServerTime.Value = GetServerTime() + primaryWindupSeconds;
+            _primaryTargetNetworkObjectId.Value = targetObject.NetworkObjectId;
+        }
+
+        [ServerRpc]
+        private void RequestUseSecondaryServerRpc(ServerRpcParams rpcParams = default)
+        {
+            if (rpcParams.Receive.SenderClientId != OwnerClientId)
+            {
+                return;
+            }
+
+            if (!CanUseBleachSecondary())
+            {
+                return;
+            }
+
+            switch (CurrentSecondaryAbility)
+            {
+                case BleachSecondaryAbility.Mimic:
+                    TryActivateMimic();
+                    break;
+                case BleachSecondaryAbility.Corrupt:
+                    TryActivateCorrupt();
+                    break;
+                case BleachSecondaryAbility.Overload:
+                    TryActivateOverload();
+                    break;
+            }
+        }
+
+        private bool CanUseBleachPrimary(bool ignorePrimaryWindupState = false)
+        {
+            if (!IsServer || !IsSpawned || _lifeState == null || !_lifeState.IsAlive || !IsBleachRole)
+            {
+                return false;
+            }
+
+            if (GetPrimaryCooldownRemaining() > 0f)
+            {
+                return false;
+            }
+
+            if (!ignorePrimaryWindupState && _primaryWindupActive.Value)
+            {
+                return false;
+            }
+
+            NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();
+            return roundState == null || roundState.IsFreeRoam;
+        }
+
+        private bool CanUseBleachSecondary()
+        {
+            if (!IsServer || !IsSpawned || _lifeState == null || !_lifeState.IsAlive || !IsBleachRole)
+            {
+                return false;
+            }
+
+            if (GetSecondaryCooldownRemaining() > 0f || _primaryWindupActive.Value)
+            {
+                return false;
+            }
+
+            NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();
+            return roundState == null || roundState.IsFreeRoam;
+        }
+
+        private void TryActivateMimic()
+        {
+            if (!TryFindClosestTarget(targetSearchRange + 2f, out NetworkObject target))
+            {
+                return;
+            }
+
+            _mimicTargetNetworkObjectId.Value = target.NetworkObjectId;
+            _mimicEndServerTime.Value = GetServerTime() + mimicDurationSeconds;
+            _secondaryCooldownEndServerTime.Value = GetServerTime() + secondaryCooldownSeconds;
+        }
+
+        private void TryActivateCorrupt()
+        {
+            PumpRepairTask[] tasks = FindObjectsByType<PumpRepairTask>(FindObjectsSortMode.None);
+            foreach (PumpRepairTask task in tasks)
+            {
+                if (task == null)
+                {
+                    continue;
+                }
+
+                float distance = Vector3.Distance(transform.position, task.transform.position);
+                if (distance > corruptRange)
+                {
+                    continue;
+                }
+
+                if (task.ServerTryApplyCorrupt(OwnerClientId))
+                {
+                    _secondaryCooldownEndServerTime.Value = GetServerTime() + secondaryCooldownSeconds;
+                    return;
+                }
+            }
+        }
+
+        private void TryActivateOverload()
+        {
+            if (_overloadConsumed.Value)
+            {
+                return;
+            }
+
+            int hitCount = Physics.OverlapSphereNonAlloc(transform.position, overloadRange, _overlapResults, targetMask, QueryTriggerInteraction.Collide);
+            EliminationManager eliminationManager = FindFirstObjectByType<EliminationManager>();
+            if (eliminationManager == null)
+            {
+                Debug.LogError("No EliminationManager found in scene.");
+                return;
+            }
+
+            bool hitAny = false;
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider hit = _overlapResults[i];
+                if (hit == null)
+                {
+                    continue;
+                }
+
+                NetworkObject candidate = hit.GetComponentInParent<NetworkObject>();
+                if (candidate == null || candidate == NetworkObject)
+                {
+                    continue;
+                }
+
+                if (!candidate.TryGetComponent(out PlayerLifeState candidateLifeState) || !candidateLifeState.IsAlive)
+                {
+                    continue;
+                }
+
+                if (eliminationManager.TryHandleEliminationRequest(NetworkObject, candidate.NetworkObjectId))
+                {
+                    hitAny = true;
+                }
+            }
+
+            if (!hitAny)
+            {
+                return;
+            }
+
+            _overloadConsumed.Value = true;
+            _secondaryCooldownEndServerTime.Value = GetServerTime() + 9999f;
+        }
+
+        private bool TryFindClosestTarget(float searchRange, out NetworkObject target)
+        {
+            target = null;
+            if (_overlapResults == null || _overlapResults.Length == 0)
+            {
+                _overlapResults = new Collider[MaxSearchHits];
+            }
+
+            int hitCount = Physics.OverlapSphereNonAlloc(transform.position, searchRange, _overlapResults, targetMask, QueryTriggerInteraction.Collide);
+            float bestDistanceSqr = float.MaxValue;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider hit = _overlapResults[i];
+                if (hit == null)
+                {
+                    continue;
+                }
+
+                NetworkObject candidate = hit.GetComponentInParent<NetworkObject>();
+                if (candidate == null || candidate == NetworkObject)
+                {
+                    continue;
+                }
+
+                if (!candidate.TryGetComponent(out PlayerLifeState candidateLifeState) || !candidateLifeState.IsAlive)
+                {
+                    continue;
+                }
+
+                float distanceSqr = (candidate.transform.position - transform.position).sqrMagnitude;
+                if (distanceSqr >= bestDistanceSqr)
+                {
+                    continue;
+                }
+
+                bestDistanceSqr = distanceSqr;
+                target = candidate;
+            }
+
+            return target != null;
+        }
+
+        private bool TryGetValidBleachTarget(ulong targetNetworkObjectId, out NetworkObject targetObject)
+        {
+            targetObject = null;
+            if (NetworkManager == null || NetworkManager.SpawnManager == null)
+            {
+                return false;
+            }
+
+            if (!NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(targetNetworkObjectId, out NetworkObject candidate) || candidate == NetworkObject)
+            {
+                return false;
+            }
+
+            if (!candidate.TryGetComponent(out PlayerLifeState targetLifeState) || !targetLifeState.IsAlive)
+            {
+                return false;
+            }
+
+            float distance = Vector3.Distance(transform.position, candidate.transform.position);
+            if (distance > targetSearchRange)
+            {
+                return false;
+            }
+
+            if (!HasLineOfSight(candidate.transform))
+            {
+                return false;
+            }
+
+            targetObject = candidate;
+            return true;
+        }
+
+        private bool HasLineOfSight(Transform target)
+        {
+            Vector3 origin = transform.position + (Vector3.up * lineOfSightHeight);
+            Vector3 destination = target.position + (Vector3.up * lineOfSightHeight);
+            Vector3 direction = destination - origin;
+            float distance = direction.magnitude;
+            if (distance <= 0.01f)
+            {
+                return true;
+            }
+
+            RaycastHit[] hits = Physics.RaycastAll(origin, direction.normalized, distance, ~0, QueryTriggerInteraction.Ignore);
+            Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+            NetworkObject targetNetworkObject = target.GetComponent<NetworkObject>();
+            foreach (RaycastHit hit in hits)
+            {
+                if (hit.collider == null)
+                {
+                    continue;
+                }
+
+                NetworkObject hitObject = hit.collider.GetComponentInParent<NetworkObject>();
+                if (hitObject == NetworkObject)
+                {
+                    continue;
+                }
+
+                return hitObject == null || hitObject == targetNetworkObject;
+            }
+
+            return true;
+        }
+
+        private void ApplyVisualState(bool force = false)
+        {
+            if (bodyRenderer == null)
+            {
+                if (!TryResolveBodyRenderer())
+                {
+                    return;
+                }
+            }
+
+            if (_propertyBlock == null)
+            {
+                _propertyBlock = new MaterialPropertyBlock();
+            }
+
+            Color targetColor = ResolveDisplayColor();
+            if (!force && _hasAppliedDisplayColor && _currentDisplayColor.Equals(targetColor))
+            {
+                return;
+            }
+
+            _currentDisplayColor = targetColor;
+            _hasAppliedDisplayColor = true;
+            bodyRenderer.GetPropertyBlock(_propertyBlock);
+            _propertyBlock.SetColor("_BaseColor", targetColor);
+            _propertyBlock.SetColor("_Color", targetColor);
+            bodyRenderer.SetPropertyBlock(_propertyBlock);
+        }
+
+        private bool TryResolveBodyRenderer()
+        {
+            if (bodyRenderer != null)
+            {
+                return true;
+            }
+
+            bodyRenderer = GetComponentInChildren<Renderer>();
+            return bodyRenderer != null;
+        }
+
+        private Color ResolveDisplayColor()
+        {
+            if (_lifeState != null && !_lifeState.IsAlive)
+            {
+                return deadTint;
+            }
+
+            if (CurrentRole == PlayerRole.Bleach && IsPrimaryWindupActive)
+            {
+                return bleachExposedTint;
+            }
+
+            if (_mimicTargetNetworkObjectId.Value != InvalidNetworkObjectId && GetServerTime() < _mimicEndServerTime.Value)
+            {
+                if (NetworkManager != null && NetworkManager.SpawnManager != null &&
+                    NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(_mimicTargetNetworkObjectId.Value, out NetworkObject mimicTarget) &&
+                    mimicTarget.TryGetComponent(out PlayerKillInputController targetController))
+                {
+                    return targetController.DisplayColor;
+                }
+            }
+
+            return GetStablePlayerColor(OwnerClientId);
+        }
+
+        private static Color GetStablePlayerColor(ulong clientId)
+        {
+            float hue = Mathf.Repeat((clientId * 0.173f) + 0.12f, 1f);
+            return Color.HSVToRGB(hue, 0.55f, 0.95f);
+        }
+
+        private void HandleVisualStateChanged<T>(T _, T __)
+        {
+            ApplyVisualState(force: true);
+        }
+
+        private void HandleLifeStateChanged(PlayerLifeStateKind _, PlayerLifeStateKind __)
+        {
+            ApplyVisualState(force: true);
+        }
+
+        private float GetServerTime()
+        {
+            return NetworkManager == null ? 0f : (float)NetworkManager.ServerTime.Time;
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerLifeState.cs =====
+
+// File: Assets/_Project/Gameplay/Elimination/PlayerLifeState.cs
+using System;
+using Unity.Collections;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Elimination
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public sealed class PlayerLifeState : NetworkBehaviour, IPlayerLifeStateReader
+    {
+        private readonly NetworkVariable<byte> _lifeState =
+            new((byte)PlayerLifeStateKind.Alive, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<bool> _hasSpawnedRemains =
+            new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<FixedString64Bytes> _lastStateReason =
+            new(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        public event Action<PlayerLifeStateKind, PlayerLifeStateKind> LifeStateChanged;
+
+        public PlayerLifeStateKind CurrentLifeState => (PlayerLifeStateKind)_lifeState.Value;
+        public bool IsAlive => CurrentLifeState == PlayerLifeStateKind.Alive;
+        public bool HasSpawnedRemains => _hasSpawnedRemains.Value;
+        public string LastStateReason => _lastStateReason.Value.ToString();
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            _lifeState.OnValueChanged += HandleLifeStateChanged;
+
+            if (IsServer)
+            {
+                ServerResetForRound();
+            }
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            _lifeState.OnValueChanged -= HandleLifeStateChanged;
+            base.OnNetworkDespawn();
+        }
+
+        public void ServerResetForRound()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _lifeState.Value = (byte)PlayerLifeStateKind.Alive;
+            _hasSpawnedRemains.Value = false;
+            _lastStateReason.Value = default;
+        }
+
+        public bool ServerTrySetEliminated(string reason = "Eliminated")
+        {
+            return ServerTrySetLifeState(PlayerLifeStateKind.Eliminated, reason);
+        }
+
+        public bool ServerTrySetDiffused(string reason = "Diffused by flood")
+        {
+            return ServerTrySetLifeState(PlayerLifeStateKind.DiffusedByFlood, reason);
+        }
+
+        public bool ServerTrySetBackfired(string reason = "Backfired")
+        {
+            return ServerTrySetLifeState(PlayerLifeStateKind.Backfired, reason);
+        }
+
+        public bool ServerTrySetLifeState(PlayerLifeStateKind nextState, string reason)
+        {
+            if (!IsServer || !IsSpawned || !IsAlive)
+            {
+                return false;
+            }
+
+            _lifeState.Value = (byte)nextState;
+            _lastStateReason.Value = string.IsNullOrWhiteSpace(reason)
+                ? new FixedString64Bytes(nextState.ToString())
+                : new FixedString64Bytes(reason);
+
+            Debug.Log($"Player {OwnerClientId} marked {nextState}. Reason={_lastStateReason.Value}");
+            return true;
+        }
+
+        public bool ServerTryMarkRemainsSpawned()
+        {
+            if (!IsServer || _hasSpawnedRemains.Value)
+            {
+                return false;
+            }
+
+            _hasSpawnedRemains.Value = true;
+            return true;
+        }
+
+        private void HandleLifeStateChanged(byte previousValue, byte currentValue)
+        {
+            LifeStateChanged?.Invoke((PlayerLifeStateKind)previousValue, (PlayerLifeStateKind)currentValue);
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerLifeStateKind.cs =====
+
+// File: Assets/_Project/Gameplay/Elimination/PlayerLifeStateKind.cs
+namespace HueDoneIt.Gameplay.Elimination
+{
+    public enum PlayerLifeStateKind : byte
+    {
+        Alive = 0,
+        Eliminated = 1,
+        DiffusedByFlood = 2,
+        Backfired = 3
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Elimination\PlayerRemains.cs =====
+
+// File: Assets/_Project/Gameplay/Elimination/PlayerRemains.cs
+using HueDoneIt.Gameplay.Interaction;
+using HueDoneIt.Gameplay.Round;
+using Unity.Collections;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Elimination
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public sealed class PlayerRemains : NetworkInteractable
+    {
+        private readonly NetworkVariable<ulong> _victimClientId =
+            new(ulong.MaxValue, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<ulong> _victimPlayerObjectId =
+            new(ulong.MaxValue, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<FixedString64Bytes> _victimName =
+            new(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<bool> _isInitialized =
+            new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<bool> _isReported =
+            new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        public ulong VictimClientId => _victimClientId.Value;
+        public ulong VictimPlayerObjectId => _victimPlayerObjectId.Value;
+        public string VictimName => _victimName.Value.ToString();
+        public bool IsReported => _isReported.Value;
+
+        public void ServerInitialize(ulong victimClientId, ulong victimPlayerObjectId, string victimName)
+        {
+            if (!IsServer || _isInitialized.Value)
+            {
+                return;
+            }
+
+            _victimClientId.Value = victimClientId;
+            _victimPlayerObjectId.Value = victimPlayerObjectId;
+            _victimName.Value = string.IsNullOrWhiteSpace(victimName)
+                ? new FixedString64Bytes($"Player {victimClientId}")
+                : new FixedString64Bytes(victimName);
+            _isInitialized.Value = true;
+        }
+
+        public bool ServerTryMarkReported()
+        {
+            if (!IsServer || _isReported.Value || !_isInitialized.Value)
+            {
+                return false;
+            }
+
+            _isReported.Value = true;
+            return true;
+        }
+
+        public override bool CanInteract(in InteractionContext context)
+        {
+            if (!_isInitialized.Value || _isReported.Value)
+            {
+                return false;
+            }
+
+            if (context.InteractorObject == null || !context.InteractorObject.TryGetComponent(out PlayerLifeState lifeState) || !lifeState.IsAlive)
+            {
+                return false;
+            }
+
+            NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();
+            return roundState == null || roundState.CurrentPhase == RoundPhase.FreeRoam;
+        }
+
+        public override string GetPromptText(in InteractionContext context)
+        {
+            if (_isReported.Value)
+            {
+                return "Body already reported";
+            }
+
+            if (context.InteractorObject != null &&
+                context.InteractorObject.TryGetComponent(out PlayerLifeState lifeState) &&
+                !lifeState.IsAlive)
+            {
+                return "Eliminated players cannot report";
+            }
+
+            NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();
+            if (roundState != null && roundState.CurrentPhase != RoundPhase.FreeRoam)
+            {
+                return "Body reporting unavailable";
+            }
+
+            string targetName = string.IsNullOrWhiteSpace(VictimName) ? $"Player {VictimClientId}" : VictimName;
+            return $"Report Body ({targetName})";
+        }
+
+        public override bool TryInteract(in InteractionContext context)
+        {
+            if (!context.IsServer)
+            {
+                return false;
+            }
+
+            BodyReportManager reportManager = FindFirstObjectByType<BodyReportManager>();
+            if (reportManager == null)
+            {
+                Debug.LogError("No BodyReportManager found in scene.");
+                return false;
+            }
+
+            return reportManager.TryReportBody(context.InteractorObject, this);
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\GameplayBetaSceneInstaller.cs =====
+
+// File: Assets/_Project/Gameplay/GameplayBetaSceneInstaller.cs
+using System.Collections.Generic;
+using HueDoneIt.Flood;
+using HueDoneIt.Tasks;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace HueDoneIt.Gameplay
+{
+    public sealed class GameplayBetaSceneInstaller : MonoBehaviour
+    {
+        private const string RuntimeRootName = "_BetaArenaRuntime";
+        private const string GameplaySceneName = "Gameplay_Undertint";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void InstallAfterSceneLoad()
+        {
+            Scene activeScene = SceneManager.GetActiveScene();
+            if (!activeScene.IsValid() || activeScene.name != GameplaySceneName)
+            {
+                return;
+            }
+
+            if (FindFirstObjectByType<GameplayBetaSceneInstaller>() != null)
+            {
+                return;
+            }
+
+            GameObject go = new(nameof(GameplayBetaSceneInstaller));
+            go.hideFlags = HideFlags.DontSave;
+            go.AddComponent<GameplayBetaSceneInstaller>();
+        }
+
+        private void Start()
+        {
+            if (SceneManager.GetActiveScene().name != GameplaySceneName)
+            {
+                return;
+            }
+
+            EnsureArena();
+            ConfigureGameplayObjects();
+        }
+
+        private void EnsureArena()
+        {
+            if (GameObject.Find(RuntimeRootName) != null)
+            {
+                return;
+            }
+
+            GameObject root = new(RuntimeRootName);
+            root.transform.position = Vector3.zero;
+
+            EnsureFloor();
+            BuildOuterWalls(root.transform);
+            BuildCenterPieces(root.transform);
+            BuildRaisedLanes(root.transform);
+            BuildZoneMarkers(root.transform);
+        }
+
+        private void ConfigureGameplayObjects()
+        {
+            PlaceSpawnPoints();
+            ConfigurePumpTask();
+            ConfigureFloodZones();
+            ConfigureSceneLighting();
+        }
+
+        private void EnsureFloor()
+        {
+            GameObject floor = GameObject.Find("Floor");
+            if (floor == null)
+            {
+                floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                floor.name = "Floor";
+                floor.transform.position = Vector3.zero;
+            }
+
+            floor.transform.position = Vector3.zero;
+            floor.transform.localScale = new Vector3(18f, 1f, 18f);
+
+            Renderer renderer = floor.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = CreateMaterial(new Color(0.11f, 0.12f, 0.15f));
+            }
+
+            Collider colliderRef = floor.GetComponent<Collider>();
+            if (colliderRef == null)
+            {
+                floor.AddComponent<BoxCollider>();
+            }
+        }
+
+        private void BuildOuterWalls(Transform parent)
+        {
+            CreateBlock(parent, "Wall_North", new Vector3(0f, 1.5f, 9.25f), new Vector3(19f, 3f, 0.5f), new Color(0.17f, 0.18f, 0.22f));
+            CreateBlock(parent, "Wall_South", new Vector3(0f, 1.5f, -9.25f), new Vector3(19f, 3f, 0.5f), new Color(0.17f, 0.18f, 0.22f));
+            CreateBlock(parent, "Wall_East", new Vector3(9.25f, 1.5f, 0f), new Vector3(0.5f, 3f, 19f), new Color(0.17f, 0.18f, 0.22f));
+            CreateBlock(parent, "Wall_West", new Vector3(-9.25f, 1.5f, 0f), new Vector3(0.5f, 3f, 19f), new Color(0.17f, 0.18f, 0.22f));
+        }
+
+        private void BuildCenterPieces(Transform parent)
+        {
+            CreateBlock(parent, "PumpPedestal", new Vector3(0f, 0.35f, 0f), new Vector3(2.4f, 0.7f, 2.4f), new Color(0.26f, 0.28f, 0.34f));
+            CreateBlock(parent, "CenterCover_NW", new Vector3(-2.8f, 1f, -2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.25f, 0.36f, 0.52f));
+            CreateBlock(parent, "CenterCover_NE", new Vector3(2.8f, 1f, -2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.52f, 0.31f, 0.25f));
+            CreateBlock(parent, "CenterCover_SW", new Vector3(-2.8f, 1f, 2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.25f, 0.52f, 0.33f));
+            CreateBlock(parent, "CenterCover_SE", new Vector3(2.8f, 1f, 2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.52f, 0.25f, 0.48f));
+        }
+
+        private void BuildRaisedLanes(Transform parent)
+        {
+            CreateBlock(parent, "Lane_West", new Vector3(-5.7f, 0.55f, 0f), new Vector3(2f, 1.1f, 10f), new Color(0.2f, 0.24f, 0.29f));
+            CreateBlock(parent, "Lane_East", new Vector3(5.7f, 0.55f, 0f), new Vector3(2f, 1.1f, 10f), new Color(0.2f, 0.24f, 0.29f));
+            CreateBlock(parent, "Ramp_NW", new Vector3(-5.7f, 0.28f, -5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
+            CreateBlock(parent, "Ramp_SW", new Vector3(-5.7f, 0.28f, 5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
+            CreateBlock(parent, "Ramp_NE", new Vector3(5.7f, 0.28f, -5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
+            CreateBlock(parent, "Ramp_SE", new Vector3(5.7f, 0.28f, 5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
+        }
+
+        private void BuildZoneMarkers(Transform parent)
+        {
+            CreateMarker(parent, "ZoneMarker_Bilge", new Vector3(-4.5f, 0.02f, 0f), new Vector3(7.5f, 0.04f, 16f), new Color(0.16f, 0.45f, 0.82f, 0.3f));
+            CreateMarker(parent, "ZoneMarker_Bridge", new Vector3(4.5f, 0.02f, 0f), new Vector3(7.5f, 0.04f, 16f), new Color(0.92f, 0.72f, 0.2f, 0.3f));
+        }
+
+        private void PlaceSpawnPoints()
+        {
+            Dictionary<string, Vector3> positions = new()
+            {
+                ["SpawnPoint_01"] = new Vector3(-7f, 1.1f, -7f),
+                ["SpawnPoint_02"] = new Vector3(-7f, 1.1f, 7f),
+                ["SpawnPoint_03"] = new Vector3(7f, 1.1f, -7f),
+                ["SpawnPoint_04"] = new Vector3(7f, 1.1f, 7f)
+            };
+
+            foreach (KeyValuePair<string, Vector3> pair in positions)
+            {
+                GameObject go = GameObject.Find(pair.Key);
+                if (go == null)
+                {
+                    continue;
+                }
+
+                go.transform.position = pair.Value;
+                go.transform.rotation = Quaternion.LookRotation((Vector3.zero - pair.Value).normalized.WithY(0f), Vector3.up);
+            }
+        }
+
+        private void ConfigurePumpTask()
+        {
+            PumpRepairTask pump = FindFirstObjectByType<PumpRepairTask>();
+            if (pump == null)
+            {
+                return;
+            }
+
+            pump.transform.position = new Vector3(0f, 0.9f, 0f);
+
+            if (pump.GetComponent<Collider>() == null)
+            {
+                BoxCollider colliderRef = pump.gameObject.AddComponent<BoxCollider>();
+                colliderRef.size = new Vector3(1.6f, 1.5f, 1.6f);
+                colliderRef.center = new Vector3(0f, 0.75f, 0f);
+            }
+
+            if (pump.GetComponentInChildren<Renderer>() == null)
+            {
+                CreateBlock(pump.transform, "PumpVisual", new Vector3(0f, 0.35f, 0f), new Vector3(0.9f, 0.7f, 0.9f), new Color(0.95f, 0.64f, 0.14f));
+                CreateBlock(pump.transform, "PumpHandle", new Vector3(0f, 0.95f, 0f), new Vector3(0.25f, 0.9f, 0.25f), new Color(0.82f, 0.84f, 0.88f));
+            }
+        }
+
+        private void ConfigureFloodZones()
+        {
+            ConfigureFloodZone("FloodZone_Bilge", new Vector3(-4.5f, 1.2f, 0f), new Vector3(7.5f, 2.5f, 16f));
+            ConfigureFloodZone("FloodZone_Bridge", new Vector3(4.5f, 1.2f, 0f), new Vector3(7.5f, 2.5f, 16f));
+        }
+
+        private void ConfigureFloodZone(string objectName, Vector3 position, Vector3 boxSize)
+        {
+            GameObject go = GameObject.Find(objectName);
+            if (go == null)
+            {
+                return;
+            }
+
+            go.transform.position = position;
+
+            BoxCollider colliderRef = go.GetComponent<BoxCollider>();
+            if (colliderRef == null)
+            {
+                colliderRef = go.AddComponent<BoxCollider>();
+            }
+
+            colliderRef.isTrigger = true;
+            colliderRef.size = boxSize;
+            colliderRef.center = Vector3.zero;
+        }
+
+        private void ConfigureSceneLighting()
+        {
+            Light directional = FindFirstObjectByType<Light>();
+            if (directional != null && directional.type == LightType.Directional)
+            {
+                directional.transform.rotation = Quaternion.Euler(42f, -36f, 0f);
+                directional.intensity = 1.35f;
+            }
+        }
+
+        private static GameObject CreateBlock(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Color color)
+        {
+            GameObject go = parent.Find(name)?.gameObject;
+            if (go == null)
+            {
+                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                go.name = name;
+                go.transform.SetParent(parent, false);
+            }
+
+            go.transform.localPosition = localPosition;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = localScale;
+
+            Renderer renderer = go.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.sharedMaterial = CreateMaterial(color);
+            }
+
+            return go;
+        }
+
+        private static GameObject CreateMarker(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Color color)
+        {
+            GameObject go = parent.Find(name)?.gameObject;
+            if (go == null)
+            {
+                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
+                go.name = name;
+                go.transform.SetParent(parent, false);
+            }
+
+            go.transform.localPosition = localPosition;
+            go.transform.localRotation = Quaternion.identity;
+            go.transform.localScale = localScale;
+
+            Collider colliderRef = go.GetComponent<Collider>();
+            if (colliderRef != null)
+            {
+                Destroy(colliderRef);
+            }
+
+            Renderer renderer = go.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+                renderer.receiveShadows = false;
+                renderer.sharedMaterial = CreateMaterial(color);
+            }
+
+            return go;
+        }
+
+        private static Material CreateMaterial(Color color)
+        {
+            Material material = new(Shader.Find("Universal Render Pipeline/Lit"));
+            material.color = color;
+            return material;
+        }
+    }
+
+    internal static class Vector3Extensions
+    {
+        public static Vector3 WithY(this Vector3 value, float y)
+        {
+            value.y = y;
+            return value;
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\IInteractable.cs =====
+
+// File: Assets/_Project/Gameplay/Interaction/IInteractable.cs
+namespace HueDoneIt.Gameplay.Interaction
+{
+    public interface IInteractable
+    {
+        float MaxUseDistance { get; }
+        bool CanInteract(in InteractionContext context);
+        string GetPromptText(in InteractionContext context);
+        bool TryInteract(in InteractionContext context);
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\InteractionContext.cs =====
+
+// File: Assets/_Project/Gameplay/Interaction/InteractionContext.cs
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Interaction
+{
+    public readonly struct InteractionContext
+    {
+        public InteractionContext(NetworkObject interactorObject, ulong interactorClientId, bool isServer)
+        {
+            InteractorObject = interactorObject;
+            InteractorClientId = interactorClientId;
+            IsServer = isServer;
+            InteractorTransform = interactorObject != null ? interactorObject.transform : null;
+        }
+
+        public NetworkObject InteractorObject { get; }
+        public ulong InteractorClientId { get; }
+        public bool IsServer { get; }
+        public Transform InteractorTransform { get; }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\NetworkInteractable.cs =====
+
+// File: Assets/_Project/Gameplay/Interaction/NetworkInteractable.cs
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Interaction
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public abstract class NetworkInteractable : NetworkBehaviour, IInteractable
+    {
+        [SerializeField] private float maxUseDistance = 2.5f;
+
+        public float MaxUseDistance => maxUseDistance;
+
+        public abstract bool CanInteract(in InteractionContext context);
+        public abstract string GetPromptText(in InteractionContext context);
+        public abstract bool TryInteract(in InteractionContext context);
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\PlayerInteractionController.cs =====
+
+// File: Assets/_Project/Gameplay/Interaction/PlayerInteractionController.cs
+using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Tasks;
+using Unity.Netcode;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace HueDoneIt.Gameplay.Interaction
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    [RequireComponent(typeof(PlayerInteractionDetector))]
+    public sealed class PlayerInteractionController : NetworkBehaviour
+    {
+        [SerializeField] private Key interactKey = Key.E;
+
+        private PlayerInteractionDetector _detector;
+        private PlayerLifeState _lifeState;
+
+        private void Awake()
+        {
+            _detector = GetComponent<PlayerInteractionDetector>();
+            _lifeState = GetComponent<PlayerLifeState>();
+        }
+
+        private void Update()
+        {
+            if (!IsSpawned || !IsOwner || !IsClient)
+            {
+                return;
+            }
+
+            if (_lifeState != null && !_lifeState.IsAlive)
+            {
+                return;
+            }
+
+            Keyboard keyboard = Keyboard.current;
+            if (keyboard == null || !keyboard[interactKey].wasPressedThisFrame)
+            {
+                return;
+            }
+
+            NetworkInteractable interactable = _detector.CurrentInteractable;
+            if (interactable == null)
+            {
+                return;
+            }
+
+            RequestInteractServerRpc(interactable.NetworkObjectId);
+        }
+
+        [ServerRpc]
+        private void RequestInteractServerRpc(ulong interactableNetworkObjectId, ServerRpcParams rpcParams = default)
+        {
+            ulong senderClientId = rpcParams.Receive.SenderClientId;
+            if (!NetworkManager.ConnectedClients.TryGetValue(senderClientId, out NetworkClient client) || client.PlayerObject == null)
+            {
+                Debug.LogWarning($"Interaction rejected: invalid sender {senderClientId}.");
+                return;
+            }
+
+            if (!NetworkManager.SpawnManager.SpawnedObjects.TryGetValue(interactableNetworkObjectId, out NetworkObject objectRef))
+            {
+                Debug.LogWarning($"Interaction rejected: missing object {interactableNetworkObjectId}.");
+                return;
+            }
+
+            if (!objectRef.TryGetComponent(out NetworkInteractable interactable))
+            {
+                Debug.LogWarning($"Interaction rejected: object {interactableNetworkObjectId} is not interactable.");
+                return;
+            }
+
+            if (client.PlayerObject.TryGetComponent(out PlayerLifeState interactorLifeState) && !interactorLifeState.IsAlive)
+            {
+                Debug.LogWarning($"Interaction rejected: eliminated client {senderClientId}.");
+                return;
+            }
+
+            float distance = Vector3.Distance(client.PlayerObject.transform.position, interactable.transform.position);
+            if (distance > interactable.MaxUseDistance)
+            {
+                Debug.LogWarning($"Interaction rejected: client {senderClientId} out of range.");
+                return;
+            }
+
+            InteractionContext context = new(client.PlayerObject, senderClientId, true);
+            if (!interactable.CanInteract(context))
+            {
+                return;
+            }
+
+            bool success = interactable.TryInteract(context);
+            if (!success)
+            {
+                return;
+            }
+
+            if (interactable is NetworkRepairTask repairTask &&
+                client.PlayerObject.TryGetComponent(out PlayerRepairTaskParticipant participant))
+            {
+                participant.ServerRegisterTaskStart(repairTask, senderClientId);
+            }
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\PlayerInteractionDetector.cs =====
+
+// File: Assets/_Project/Gameplay/Interaction/PlayerInteractionDetector.cs
+using System;
+using HueDoneIt.Gameplay.Elimination;
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Interaction
+{
+    [DisallowMultipleComponent]
+    [RequireComponent(typeof(NetworkObject))]
+    public sealed class PlayerInteractionDetector : NetworkBehaviour
+    {
+        [SerializeField] private float interactionRange = 2.5f;
+        [SerializeField] private LayerMask detectionMask = ~0;
+        [SerializeField] private int overlapBufferSize = 16;
+        [SerializeField, Min(0.01f)] private float screenCenterProbeRadius = 0.18f;
+
+        private Collider[] _overlapResults;
+        private NetworkInteractable _currentInteractable;
+        private PlayerLifeState _lifeState;
+
+        public event Action<string, bool> PromptChanged;
+
+        public NetworkInteractable CurrentInteractable => _currentInteractable;
+
+        private void Awake()
+        {
+            _overlapResults = new Collider[Mathf.Max(1, overlapBufferSize)];
+            _lifeState = GetComponent<PlayerLifeState>();
+        }
+
+        private void Update()
+        {
+            if (!IsSpawned || !IsOwner || !IsClient)
+            {
+                SetCurrentInteractable(null);
+                return;
+            }
+
+            if (_lifeState != null && !_lifeState.IsAlive)
+            {
+                SetCurrentInteractable(null);
+                return;
+            }
+
+            SetCurrentInteractable(FindBestInteractable());
+        }
+
+        private NetworkInteractable FindBestInteractable()
+        {
+            InteractionContext context = new(NetworkObject, OwnerClientId, false);
+            if (TryFindCenterScreenInteractable(context, out NetworkInteractable focused))
+            {
+                return focused;
+            }
+
+            int hitCount = Physics.OverlapSphereNonAlloc(transform.position, interactionRange, _overlapResults, detectionMask, QueryTriggerInteraction.Collide);
+            float bestScore = float.MinValue;
+            NetworkInteractable best = null;
+            Vector3 fallbackForward = GetFallbackForward();
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider hit = _overlapResults[i];
+                if (hit == null)
+                {
+                    continue;
+                }
+
+                NetworkInteractable interactable = hit.GetComponentInParent<NetworkInteractable>();
+                if (!IsLocallyViable(interactable, context))
+                {
+                    continue;
+                }
+
+                Vector3 closest = hit.ClosestPoint(transform.position);
+                Vector3 toTarget = closest - transform.position;
+                float distance = toTarget.magnitude;
+                if (distance > Mathf.Max(interactionRange, interactable.MaxUseDistance))
+                {
+                    continue;
+                }
+
+                Vector3 direction = distance > 0.001f ? toTarget / distance : fallbackForward;
+                float facing = Vector3.Dot(fallbackForward, direction);
+                float score = (facing * 4f) - distance;
+                if (score > bestScore)
+                {
+                    bestScore = score;
+                    best = interactable;
+                }
+            }
+
+            return best;
+        }
+
+        private bool TryFindCenterScreenInteractable(in InteractionContext context, out NetworkInteractable interactable)
+        {
+            interactable = null;
+            Camera cameraRef = Camera.main;
+            if (cameraRef == null)
+            {
+                return false;
+            }
+
+            Ray ray = cameraRef.ViewportPointToRay(new Vector3(0.5f, 0.5f, 0f));
+            if (!Physics.SphereCast(ray, screenCenterProbeRadius, out RaycastHit hit, interactionRange, detectionMask, QueryTriggerInteraction.Collide))
+            {
+                return false;
+            }
+
+            interactable = hit.collider != null ? hit.collider.GetComponentInParent<NetworkInteractable>() : null;
+            return IsLocallyViable(interactable, context);
+        }
+
+        private bool IsLocallyViable(NetworkInteractable interactable, in InteractionContext context)
+        {
+            return interactable != null && interactable.IsSpawned && interactable.CanInteract(context);
+        }
+
+        private Vector3 GetFallbackForward()
+        {
+            Camera cameraRef = Camera.main;
+            if (cameraRef != null)
+            {
+                Vector3 cameraForward = cameraRef.transform.forward;
+                cameraForward.y = 0f;
+                if (cameraForward.sqrMagnitude > 0.001f)
+                {
+                    return cameraForward.normalized;
+                }
+            }
+
+            Vector3 forward = transform.forward;
+            forward.y = 0f;
+            return forward.sqrMagnitude > 0.001f ? forward.normalized : Vector3.forward;
+        }
+
+        private void SetCurrentInteractable(NetworkInteractable interactable)
+        {
+            if (_currentInteractable == interactable)
+            {
+                if (_currentInteractable != null)
+                {
+                    InteractionContext context = new(NetworkObject, OwnerClientId, false);
+                    string prompt = _currentInteractable.GetPromptText(context);
+                    PromptChanged?.Invoke(prompt, !string.IsNullOrWhiteSpace(prompt));
+                }
+
+                return;
+            }
+
+            _currentInteractable = interactable;
+            if (_currentInteractable == null)
+            {
+                PromptChanged?.Invoke(string.Empty, false);
+                return;
+            }
+
+            InteractionContext newContext = new(NetworkObject, OwnerClientId, false);
+            string newPrompt = _currentInteractable.GetPromptText(newContext);
+            PromptChanged?.Invoke(newPrompt, !string.IsNullOrWhiteSpace(newPrompt));
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Interaction\SampleConsoleInteractable.cs =====
+
+// File: Assets/_Project/Gameplay/Interaction/SampleConsoleInteractable.cs
+using Unity.Netcode;
+using UnityEngine;
+
+namespace HueDoneIt.Gameplay.Interaction
+{
+    public sealed class SampleConsoleInteractable : NetworkInteractable
+    {
+        [SerializeField] private string availablePrompt = "Press [E] Use Console";
+        [SerializeField] private string unavailablePrompt = "Console Already Used";
+
+        private readonly NetworkVariable<bool> _isAvailable =
+            new(true, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        public override bool CanInteract(in InteractionContext context)
+        {
+            return _isAvailable.Value;
+        }
+
+        public override string GetPromptText(in InteractionContext context)
+        {
+            return _isAvailable.Value ? availablePrompt : unavailablePrompt;
+        }
+
+        public override bool TryInteract(in InteractionContext context)
+        {
+            if (!IsServer || !_isAvailable.Value)
+            {
+                return false;
+            }
+
+            _isAvailable.Value = false;
+            Debug.Log($"SampleConsoleInteractable used by client {context.InteractorClientId}.");
+            return true;
+        }
+    }
+}
+
+
+===== C:\HueDoneIt\game\Hue Done It\Assets\_Project\Gameplay\Players\LocalPlayerCameraBinder.cs =====
+
+// File: Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
+using Unity.Netcode;
+using UnityEngine;
+using UnityEngine.InputSystem;
+
+namespace HueDoneIt.Gameplay.Players
+{
+    [DisallowMultipleComponent]
+    public sealed class LocalPlayerCameraBinder : NetworkBehaviour
+    {
+        [SerializeField] private Transform cameraAnchor;
+        [SerializeField] private Vector3 ownerCameraAnchorLocalPosition = new(0f, 0.75f, 0f);
+        [SerializeField] private float mouseSensitivity = 0.12f;
+        [SerializeField] private float minPitch = -85f;
+        [SerializeField] private float maxPitch = 85f;
+        [SerializeField] private bool lockCursorOnStart = true;
+
+        private Camera _mainCamera;
+        private float _pitch;
+        private MeshRenderer[] _ownerRenderers;
+        private bool _cameraBound;
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+
+            if (!IsOwner)
+            {
+                enabled = false;
+                return;
+            }
+
+            BindOwnerCamera();
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            if (IsOwner)
+            {
+                LockCursor(false);
+            }
+
+            _cameraBound = false;
+            base.OnNetworkDespawn();
+        }
+
+        private void LateUpdate()
+        {
+            if (!IsSpawned || !IsOwner || !IsClient)
+            {
+                return;
+            }
+
+            if (!_cameraBound)
+            {
+                BindOwnerCamera();
+                if (!_cameraBound)
+                {
+                    return;
+                }
+            }
+
+            Keyboard keyboard = Keyboard.current;
+            Mouse mouse = Mouse.current;
+            if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
+            {
+                LockCursor(false);
+            }
+            else if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+            {
+                LockCursor(true);
+            }
+
+            if (mouse == null || Cursor.lockState != CursorLockMode.Locked)
+            {
+                return;
+            }
+
+            Vector2 delta = mouse.delta.ReadValue() * mouseSensitivity;
+            transform.Rotate(0f, delta.x, 0f, Space.Self);
+            _pitch = Mathf.Clamp(_pitch - delta.y, minPitch, maxPitch);
+            cameraAnchor.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+        }
+
+        private void BindOwnerCamera()
+        {
+            _mainCamera = Camera.main;
+            if (_mainCamera == null)
+            {
+                return;
+            }
+
+            EnsureCameraAnchor();
+            cameraAnchor.localPosition = ownerCameraAnchorLocalPosition;
+            cameraAnchor.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
+
+            Transform cameraTransform = _mainCamera.transform;
+            cameraTransform.SetParent(cameraAnchor, false);
+            cameraTransform.localPosition = Vector3.zero;
+            cameraTransform.localRotation = Quaternion.identity;
+
+            _ownerRenderers ??= GetComponentsInChildren<MeshRenderer>(true);
+            foreach (MeshRenderer renderer in _ownerRenderers)
+            {
+                if (renderer != null)
+                {
+                    renderer.enabled = false;
+                }
+            }
+
+            _cameraBound = true;
+            if (lockCursorOnStart)
+            {
+                LockCursor(true);
+            }
+        }
+
+        private void EnsureCameraAnchor()
+        {
+            if (cameraAnchor != null)
+            {
+                return;
+            }
+
+            GameObject anchorObject = new(nameof(LocalPlayerCameraBinder) + "_Anchor");
+            anchorObject.transform.SetParent(transform, false);
+            cameraAnchor = anchorObject.transform;
+        }
+
+        private static void LockCursor(bool locked)
+        {
+            Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
+            Cursor.visible = !locked;
+        }
+    }
+}
+
+
