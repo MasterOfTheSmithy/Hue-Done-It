@@ -9,9 +9,12 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(NetworkObject))]
     public sealed class NetworkPlayerInputReader : NetworkBehaviour
     {
+        [SerializeField, Min(0.01f)] private float jumpPressBufferSeconds = 0.15f;
+        [SerializeField, Min(0.01f)] private float punchPressBufferSeconds = 0.12f;
+
         private bool _loggedMissingKeyboard;
-        private bool _jumpConsumed;
-        private bool _punchConsumed;
+        private float _jumpPressBufferRemaining;
+        private float _punchPressBufferRemaining;
 
         public Vector2 CurrentMoveInput { get; private set; }
         public Vector3 CurrentWorldMoveInput { get; private set; }
@@ -37,27 +40,37 @@ namespace HueDoneIt.Gameplay.Players
             JumpPressedThisFrame = ReadJumpPressed();
             PunchPressedThisFrame = ReadPunchPressed();
             BurstHeld = ReadBurstHeld();
+
+            if (_jumpPressBufferRemaining > 0f)
+            {
+                _jumpPressBufferRemaining = Mathf.Max(0f, _jumpPressBufferRemaining - Time.deltaTime);
+            }
+
+            if (_punchPressBufferRemaining > 0f)
+            {
+                _punchPressBufferRemaining = Mathf.Max(0f, _punchPressBufferRemaining - Time.deltaTime);
+            }
         }
 
         public bool ConsumeJumpPressedThisFrame()
         {
-            if (_jumpConsumed || !JumpPressedThisFrame)
+            if (_jumpPressBufferRemaining <= 0f)
             {
                 return false;
             }
 
-            _jumpConsumed = true;
+            _jumpPressBufferRemaining = 0f;
             return true;
         }
 
         public bool ConsumePunchPressedThisFrame()
         {
-            if (_punchConsumed || !PunchPressedThisFrame)
+            if (_punchPressBufferRemaining <= 0f)
             {
                 return false;
             }
 
-            _punchConsumed = true;
+            _punchPressBufferRemaining = 0f;
             return true;
         }
 
@@ -98,7 +111,11 @@ namespace HueDoneIt.Gameplay.Players
         {
             Keyboard keyboard = Keyboard.current;
             bool pressed = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
-            _jumpConsumed = false;
+            if (pressed)
+            {
+                _jumpPressBufferRemaining = jumpPressBufferSeconds;
+            }
+
             return pressed;
         }
 
@@ -106,7 +123,11 @@ namespace HueDoneIt.Gameplay.Players
         {
             Mouse mouse = Mouse.current;
             bool pressed = mouse != null && mouse.rightButton.wasPressedThisFrame;
-            _punchConsumed = false;
+            if (pressed)
+            {
+                _punchPressBufferRemaining = punchPressBufferSeconds;
+            }
+
             return pressed;
         }
 

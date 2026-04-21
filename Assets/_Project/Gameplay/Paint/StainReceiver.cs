@@ -16,6 +16,9 @@ namespace HueDoneIt.Gameplay.Paint
         private Color _baseColor;
         private Color _stainColor;
         private bool _hasBaseColor;
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int ColorId = Shader.PropertyToID("_Color");
+        private bool _useBaseColorProperty = true;
 
         private void Awake()
         {
@@ -70,8 +73,11 @@ namespace HueDoneIt.Gameplay.Paint
             }
 
             _baseColor = targetRenderer.sharedMaterial != null && targetRenderer.sharedMaterial.HasProperty("_BaseColor")
-                ? targetRenderer.sharedMaterial.GetColor("_BaseColor")
-                : Color.gray;
+                ? targetRenderer.sharedMaterial.GetColor(BaseColorId)
+                : targetRenderer.sharedMaterial != null && targetRenderer.sharedMaterial.HasProperty("_Color")
+                    ? targetRenderer.sharedMaterial.GetColor(ColorId)
+                    : Color.gray;
+            _useBaseColorProperty = targetRenderer.sharedMaterial != null && targetRenderer.sharedMaterial.HasProperty("_BaseColor");
             _stainColor = _baseColor;
             _hasBaseColor = true;
             ApplyTint(_baseColor);
@@ -85,7 +91,7 @@ namespace HueDoneIt.Gameplay.Paint
             }
 
             targetRenderer.GetPropertyBlock(_propertyBlock);
-            _propertyBlock.SetColor("_BaseColor", color);
+            _propertyBlock.SetColor(_useBaseColorProperty ? BaseColorId : ColorId, color);
             targetRenderer.SetPropertyBlock(_propertyBlock);
         }
 
