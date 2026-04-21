@@ -1,7 +1,10 @@
-// File: Assets/_Project/Gameplay/GameplayBetaSceneInstaller.cs
+using System;
 using System.Collections.Generic;
 using HueDoneIt.Flood;
+using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Tasks;
+using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
@@ -26,9 +29,9 @@ namespace HueDoneIt.Gameplay
                 return;
             }
 
-            GameObject go = new(nameof(GameplayBetaSceneInstaller));
-            go.hideFlags = HideFlags.DontSave;
-            go.AddComponent<GameplayBetaSceneInstaller>();
+            GameObject installerObject = new(nameof(GameplayBetaSceneInstaller));
+            installerObject.hideFlags = HideFlags.DontSave;
+            installerObject.AddComponent<GameplayBetaSceneInstaller>();
         }
 
         private void Start()
@@ -38,237 +41,385 @@ namespace HueDoneIt.Gameplay
                 return;
             }
 
-            EnsureArena();
-            ConfigureGameplayObjects();
-        }
-
-        private void EnsureArena()
-        {
-            if (GameObject.Find(RuntimeRootName) != null)
-            {
-                return;
-            }
-
-            GameObject root = new(RuntimeRootName);
-            root.transform.position = Vector3.zero;
-
-            EnsureFloor();
-            BuildOuterWalls(root.transform);
-            BuildCenterPieces(root.transform);
-            BuildRaisedLanes(root.transform);
-            BuildZoneMarkers(root.transform);
-        }
-
-        private void ConfigureGameplayObjects()
-        {
-            PlaceSpawnPoints();
-            ConfigurePumpTask();
-            ConfigureFloodZones();
+            GameObject root = EnsureRuntimeRoot();
+            EnsureArenaLayout(root.transform);
+            EnsureSpawnPoints(root.transform);
+            EnsureNetworkGameplaySystems(root.transform);
+            EnsurePump(root.transform);
+            EnsureFloodZones(root.transform);
+            EnsureFloodController(root.transform);
+            EnsureOptionalMatchSimulationRunner(root.transform);
             ConfigureSceneLighting();
         }
 
-        private void EnsureFloor()
+        private static GameObject EnsureRuntimeRoot()
         {
-            GameObject floor = GameObject.Find("Floor");
-            if (floor == null)
+            GameObject root = GameObject.Find(RuntimeRootName);
+            if (root == null)
             {
-                floor = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                floor.name = "Floor";
-                floor.transform.position = Vector3.zero;
+                root = new GameObject(RuntimeRootName);
             }
 
-            floor.transform.position = Vector3.zero;
-            floor.transform.localScale = new Vector3(18f, 1f, 18f);
+            root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            return root;
+        }
 
-            Renderer renderer = floor.GetComponent<Renderer>();
-            if (renderer != null)
+        private static void EnsureArenaLayout(Transform root)
+        {
+            EnsureGround(root, "Platform_Arena", new Vector3(0f, -0.5f, 0f), new Vector3(30f, 1f, 30f), new Color(0.10f, 0.11f, 0.14f));
+
+            // Boundary walls.
+            EnsureBlock(root, "Wall_North", new Vector3(0f, 2f, 15.25f), new Vector3(30.5f, 4f, 0.5f), new Color(0.18f, 0.2f, 0.23f));
+            EnsureBlock(root, "Wall_South", new Vector3(0f, 2f, -15.25f), new Vector3(30.5f, 4f, 0.5f), new Color(0.18f, 0.2f, 0.23f));
+            EnsureBlock(root, "Wall_East", new Vector3(15.25f, 2f, 0f), new Vector3(0.5f, 4f, 30.5f), new Color(0.18f, 0.2f, 0.23f));
+            EnsureBlock(root, "Wall_West", new Vector3(-15.25f, 2f, 0f), new Vector3(0.5f, 4f, 30.5f), new Color(0.18f, 0.2f, 0.23f));
+
+            // Central arena and lanes.
+            EnsureBlock(root, "Platform_Center", new Vector3(0f, 0.3f, 0f), new Vector3(9f, 0.6f, 9f), new Color(0.20f, 0.23f, 0.30f));
+            EnsureBlock(root, "Platform_Lane_North", new Vector3(0f, 0.1f, 10f), new Vector3(22f, 0.2f, 3f), new Color(0.17f, 0.20f, 0.25f));
+            EnsureBlock(root, "Platform_Lane_South", new Vector3(0f, 0.1f, -10f), new Vector3(22f, 0.2f, 3f), new Color(0.17f, 0.20f, 0.25f));
+            EnsureBlock(root, "Platform_Lane_East", new Vector3(10f, 0.1f, 0f), new Vector3(3f, 0.2f, 22f), new Color(0.17f, 0.20f, 0.25f));
+            EnsureBlock(root, "Platform_Lane_West", new Vector3(-10f, 0.1f, 0f), new Vector3(3f, 0.2f, 22f), new Color(0.17f, 0.20f, 0.25f));
+
+            // Elevation and traversal routes.
+            EnsureBlock(root, "Platform_High_North", new Vector3(0f, 2.1f, 6f), new Vector3(6f, 0.4f, 4f), new Color(0.22f, 0.22f, 0.29f));
+            EnsureBlock(root, "Platform_High_South", new Vector3(0f, 2.1f, -6f), new Vector3(6f, 0.4f, 4f), new Color(0.22f, 0.22f, 0.29f));
+            EnsureBlock(root, "Platform_Ramp_NW", new Vector3(-6f, 1.0f, 6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
+            EnsureBlock(root, "Platform_Ramp_NE", new Vector3(6f, 1.0f, 6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
+            EnsureBlock(root, "Platform_Ramp_SW", new Vector3(-6f, 1.0f, -6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
+            EnsureBlock(root, "Platform_Ramp_SE", new Vector3(6f, 1.0f, -6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
+            EnsureBlock(root, "Platform_JumpGap_A", new Vector3(-1.8f, 1.2f, 0f), new Vector3(1.5f, 0.3f, 3f), new Color(0.25f, 0.25f, 0.33f));
+            EnsureBlock(root, "Platform_JumpGap_B", new Vector3(1.8f, 1.2f, 0f), new Vector3(1.5f, 0.3f, 3f), new Color(0.25f, 0.25f, 0.33f));
+
+            // Cover and line-of-sight blockers.
+            EnsureBlock(root, "Cover_01", new Vector3(-3.5f, 1f, -2f), new Vector3(1f, 2f, 1f), new Color(0.28f, 0.34f, 0.45f));
+            EnsureBlock(root, "Cover_02", new Vector3(3.5f, 1f, -2f), new Vector3(1f, 2f, 1f), new Color(0.45f, 0.31f, 0.27f));
+            EnsureBlock(root, "Cover_03", new Vector3(-3.5f, 1f, 2f), new Vector3(1f, 2f, 1f), new Color(0.27f, 0.45f, 0.34f));
+            EnsureBlock(root, "Cover_04", new Vector3(3.5f, 1f, 2f), new Vector3(1f, 2f, 1f), new Color(0.45f, 0.27f, 0.41f));
+            EnsureBlock(root, "Cover_05", new Vector3(-8f, 1f, 0f), new Vector3(1.5f, 2f, 1.5f), new Color(0.24f, 0.33f, 0.50f));
+            EnsureBlock(root, "Cover_06", new Vector3(8f, 1f, 0f), new Vector3(1.5f, 2f, 1.5f), new Color(0.50f, 0.33f, 0.24f));
+
+            // Alternate routes and secrets.
+            EnsureBlock(root, "Tunnel_01", new Vector3(-12f, 0.8f, 8f), new Vector3(5f, 1.6f, 2f), new Color(0.55f, 0.25f, 0.72f));
+            EnsureBlock(root, "Tunnel_02", new Vector3(12f, 0.8f, -8f), new Vector3(5f, 1.6f, 2f), new Color(0.55f, 0.25f, 0.72f));
+            EnsureCapsule(root, "EasterEgg_01", new Vector3(0f, 0.8f, 12f), new Vector3(1f, 1.6f, 1f), new Color(1f, 0.25f, 0.78f));
+        }
+
+        private static void EnsureSpawnPoints(Transform root)
+        {
+            Vector3[] points =
             {
-                renderer.sharedMaterial = CreateMaterial(new Color(0.11f, 0.12f, 0.15f));
-            }
-
-            Collider colliderRef = floor.GetComponent<Collider>();
-            if (colliderRef == null)
-            {
-                floor.AddComponent<BoxCollider>();
-            }
-        }
-
-        private void BuildOuterWalls(Transform parent)
-        {
-            CreateBlock(parent, "Wall_North", new Vector3(0f, 1.5f, 9.25f), new Vector3(19f, 3f, 0.5f), new Color(0.17f, 0.18f, 0.22f));
-            CreateBlock(parent, "Wall_South", new Vector3(0f, 1.5f, -9.25f), new Vector3(19f, 3f, 0.5f), new Color(0.17f, 0.18f, 0.22f));
-            CreateBlock(parent, "Wall_East", new Vector3(9.25f, 1.5f, 0f), new Vector3(0.5f, 3f, 19f), new Color(0.17f, 0.18f, 0.22f));
-            CreateBlock(parent, "Wall_West", new Vector3(-9.25f, 1.5f, 0f), new Vector3(0.5f, 3f, 19f), new Color(0.17f, 0.18f, 0.22f));
-        }
-
-        private void BuildCenterPieces(Transform parent)
-        {
-            CreateBlock(parent, "PumpPedestal", new Vector3(0f, 0.35f, 0f), new Vector3(2.4f, 0.7f, 2.4f), new Color(0.26f, 0.28f, 0.34f));
-            CreateBlock(parent, "CenterCover_NW", new Vector3(-2.8f, 1f, -2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.25f, 0.36f, 0.52f));
-            CreateBlock(parent, "CenterCover_NE", new Vector3(2.8f, 1f, -2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.52f, 0.31f, 0.25f));
-            CreateBlock(parent, "CenterCover_SW", new Vector3(-2.8f, 1f, 2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.25f, 0.52f, 0.33f));
-            CreateBlock(parent, "CenterCover_SE", new Vector3(2.8f, 1f, 2.8f), new Vector3(1.1f, 2f, 1.1f), new Color(0.52f, 0.25f, 0.48f));
-        }
-
-        private void BuildRaisedLanes(Transform parent)
-        {
-            CreateBlock(parent, "Lane_West", new Vector3(-5.7f, 0.55f, 0f), new Vector3(2f, 1.1f, 10f), new Color(0.2f, 0.24f, 0.29f));
-            CreateBlock(parent, "Lane_East", new Vector3(5.7f, 0.55f, 0f), new Vector3(2f, 1.1f, 10f), new Color(0.2f, 0.24f, 0.29f));
-            CreateBlock(parent, "Ramp_NW", new Vector3(-5.7f, 0.28f, -5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
-            CreateBlock(parent, "Ramp_SW", new Vector3(-5.7f, 0.28f, 5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
-            CreateBlock(parent, "Ramp_NE", new Vector3(5.7f, 0.28f, -5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
-            CreateBlock(parent, "Ramp_SE", new Vector3(5.7f, 0.28f, 5.7f), new Vector3(2f, 0.55f, 2f), new Color(0.34f, 0.36f, 0.4f));
-        }
-
-        private void BuildZoneMarkers(Transform parent)
-        {
-            CreateMarker(parent, "ZoneMarker_Bilge", new Vector3(-4.5f, 0.02f, 0f), new Vector3(7.5f, 0.04f, 16f), new Color(0.16f, 0.45f, 0.82f, 0.3f));
-            CreateMarker(parent, "ZoneMarker_Bridge", new Vector3(4.5f, 0.02f, 0f), new Vector3(7.5f, 0.04f, 16f), new Color(0.92f, 0.72f, 0.2f, 0.3f));
-        }
-
-        private void PlaceSpawnPoints()
-        {
-            Dictionary<string, Vector3> positions = new()
-            {
-                ["SpawnPoint_01"] = new Vector3(-7f, 1.1f, -7f),
-                ["SpawnPoint_02"] = new Vector3(-7f, 1.1f, 7f),
-                ["SpawnPoint_03"] = new Vector3(7f, 1.1f, -7f),
-                ["SpawnPoint_04"] = new Vector3(7f, 1.1f, 7f)
+                new(-11f, 0.6f, -11f),
+                new(-11f, 0.6f, 11f),
+                new(11f, 0.6f, -11f),
+                new(11f, 0.6f, 11f),
+                new(0f, 0.6f, -13f),
+                new(0f, 0.6f, 13f),
+                new(-13f, 0.6f, 0f),
+                new(13f, 0.6f, 0f)
             };
 
-            foreach (KeyValuePair<string, Vector3> pair in positions)
+            for (int i = 0; i < points.Length; i++)
             {
-                GameObject go = GameObject.Find(pair.Key);
-                if (go == null)
-                {
-                    continue;
-                }
+                string name = $"SpawnPoint_{i + 1:00}";
+                GameObject spawn = FindOrCreate(name, PrimitiveType.Cube, root);
+                spawn.transform.SetPositionAndRotation(points[i], Quaternion.LookRotation((Vector3.zero - points[i]).WithY(0f).normalized, Vector3.up));
+                spawn.transform.localScale = new Vector3(0.45f, 0.2f, 0.45f);
+                ApplyMaterial(spawn, new Color(0.2f, 0.85f, 0.3f), transparent: false);
 
-                go.transform.position = pair.Value;
-                go.transform.rotation = Quaternion.LookRotation((Vector3.zero - pair.Value).normalized.WithY(0f), Vector3.up);
+                Collider spawnCollider = spawn.GetComponent<Collider>();
+                if (spawnCollider != null)
+                {
+                    spawnCollider.isTrigger = true;
+                }
             }
         }
 
-        private void ConfigurePumpTask()
+        private static void EnsureNetworkGameplaySystems(Transform root)
+        {
+            EnsureNetworkManagerObject<NetworkRoundState>(root, "RoundState_Main");
+            EnsureNetworkManagerObject<EliminationManager>(root, "EliminationManager_Main");
+            EnsureNetworkManagerObject<BodyReportManager>(root, "BodyReportManager_Main");
+        }
+
+        private static void EnsurePump(Transform root)
         {
             PumpRepairTask pump = FindFirstObjectByType<PumpRepairTask>();
             if (pump == null)
             {
-                return;
+                GameObject pumpObject = FindOrCreate("Pump_Main", PrimitiveType.Cube, root);
+                pumpObject.transform.position = new Vector3(0f, 1f, 0f);
+                pumpObject.transform.localScale = new Vector3(1.6f, 2f, 1.6f);
+                if (pumpObject.GetComponent<NetworkObject>() == null)
+                {
+                    pumpObject.AddComponent<NetworkObject>();
+                }
+
+                pump = pumpObject.GetComponent<PumpRepairTask>();
+                if (pump == null)
+                {
+                    pump = pumpObject.AddComponent<PumpRepairTask>();
+                }
+                TrySpawnNetworkObject(pumpObject);
+            }
+            else
+            {
+                pump.gameObject.name = "Pump_Main";
             }
 
-            pump.transform.position = new Vector3(0f, 0.9f, 0f);
+            pump.transform.position = new Vector3(0f, 1f, 0f);
+            ApplyMaterial(pump.gameObject, new Color(0.95f, 0.85f, 0.15f), transparent: false);
 
             if (pump.GetComponent<Collider>() == null)
             {
                 BoxCollider colliderRef = pump.gameObject.AddComponent<BoxCollider>();
-                colliderRef.size = new Vector3(1.6f, 1.5f, 1.6f);
-                colliderRef.center = new Vector3(0f, 0.75f, 0f);
+                colliderRef.size = new Vector3(1.6f, 2f, 1.6f);
             }
+        }
 
-            if (pump.GetComponentInChildren<Renderer>() == null)
+        private static void EnsureFloodZones(Transform root)
+        {
+            EnsureFloodZone(root, "FloodZone_Main", "Flood_Main", FloodZoneState.Wet, new Vector3(0f, 0.6f, 0f), new Vector3(24f, 1.2f, 24f), new Color(0.1f, 0.35f, 0.95f, 0.32f));
+            EnsureFloodZone(root, "FloodZone_LowArea", "Flood_LowArea", FloodZoneState.Submerged, new Vector3(0f, -0.2f, -12f), new Vector3(10f, 1.2f, 6f), new Color(0.95f, 0.1f, 0.12f, 0.32f));
+        }
+
+        private static void EnsureFloodZone(Transform root, string objectName, string zoneId, FloodZoneState initialState, Vector3 position, Vector3 scale, Color color)
+        {
+            FloodZone zone = FindFloodZoneByName(objectName);
+            if (zone == null)
             {
-                CreateBlock(pump.transform, "PumpVisual", new Vector3(0f, 0.35f, 0f), new Vector3(0.9f, 0.7f, 0.9f), new Color(0.95f, 0.64f, 0.14f));
-                CreateBlock(pump.transform, "PumpHandle", new Vector3(0f, 0.95f, 0f), new Vector3(0.25f, 0.9f, 0.25f), new Color(0.82f, 0.84f, 0.88f));
+                GameObject zoneObject = FindOrCreate(objectName, PrimitiveType.Cube, root);
+                zoneObject.transform.position = position;
+                zoneObject.transform.localScale = scale;
+
+                NetworkObject networkObject = zoneObject.GetComponent<NetworkObject>();
+                if (networkObject == null)
+                {
+                    networkObject = zoneObject.AddComponent<NetworkObject>();
+                }
+
+                zone = zoneObject.GetComponent<FloodZone>();
+                if (zone == null)
+                {
+                    zone = zoneObject.AddComponent<FloodZone>();
+                }
+
+                ApplyFloodZoneSerializedDefaults(zone, zoneId, initialState);
+                TrySpawnNetworkObject(zoneObject);
+            }
+            else
+            {
+                zone.gameObject.name = objectName;
+            }
+
+            zone.transform.position = position;
+            zone.transform.localScale = scale;
+
+            BoxCollider colliderRef = zone.GetComponent<BoxCollider>();
+            if (colliderRef == null)
+            {
+                colliderRef = zone.gameObject.AddComponent<BoxCollider>();
+            }
+
+            colliderRef.isTrigger = true;
+            colliderRef.size = Vector3.one;
+            colliderRef.center = Vector3.zero;
+
+            ApplyMaterial(zone.gameObject, color, transparent: true);
+        }
+
+        private static void EnsureFloodController(Transform root)
+        {
+            FloodSequenceController controller = FindFirstObjectByType<FloodSequenceController>();
+            if (controller == null)
+            {
+                GameObject controllerObject = new("FloodController_Main");
+                controllerObject.transform.SetParent(root, false);
+                controllerObject.AddComponent<NetworkObject>();
+                controller = controllerObject.AddComponent<FloodSequenceController>();
+                TrySpawnNetworkObject(controllerObject);
             }
         }
 
-        private void ConfigureFloodZones()
+        private static void EnsureOptionalMatchSimulationRunner(Transform root)
         {
-            ConfigureFloodZone("FloodZone_Bilge", new Vector3(-4.5f, 1.2f, 0f), new Vector3(7.5f, 2.5f, 16f));
-            ConfigureFloodZone("FloodZone_Bridge", new Vector3(4.5f, 1.2f, 0f), new Vector3(7.5f, 2.5f, 16f));
-        }
-
-        private void ConfigureFloodZone(string objectName, Vector3 position, Vector3 boxSize)
-        {
-            GameObject go = GameObject.Find(objectName);
-            if (go == null)
+            if (!HasCommandLineArg("-simulateMatch"))
             {
                 return;
             }
 
-            go.transform.position = position;
-
-            BoxCollider colliderRef = go.GetComponent<BoxCollider>();
-            if (colliderRef == null)
-            {
-                colliderRef = go.AddComponent<BoxCollider>();
-            }
-
-            colliderRef.isTrigger = true;
-            colliderRef.size = boxSize;
-            colliderRef.center = Vector3.zero;
+            EnsureNetworkManagerObject<NetworkMatchSimulationRunner>(root, "MatchSimulationRunner_Main");
         }
 
-        private void ConfigureSceneLighting()
+        private static T EnsureNetworkManagerObject<T>(Transform root, string objectName) where T : Component
+        {
+            T existing = FindFirstObjectByType<T>();
+            if (existing != null)
+            {
+                return existing;
+            }
+
+            GameObject go = new(objectName);
+            go.transform.SetParent(root, false);
+            go.AddComponent<NetworkObject>();
+            T component = go.AddComponent<T>();
+            TrySpawnNetworkObject(go);
+            return component;
+        }
+
+        private static void EnsureGround(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
+        {
+            GameObject ground = FindOrCreate(name, PrimitiveType.Cube, parent);
+            ground.transform.position = position;
+            ground.transform.localScale = scale;
+            ApplyMaterial(ground, color, transparent: false);
+        }
+
+        private static GameObject EnsureBlock(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
+        {
+            GameObject block = FindOrCreate(name, PrimitiveType.Cube, parent);
+            block.transform.position = position;
+            block.transform.rotation = Quaternion.identity;
+            block.transform.localScale = scale;
+            ApplyMaterial(block, color, transparent: false);
+            return block;
+        }
+
+        private static void EnsureCapsule(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
+        {
+            GameObject capsule = FindOrCreate(name, PrimitiveType.Capsule, parent);
+            capsule.transform.position = position;
+            capsule.transform.rotation = Quaternion.identity;
+            capsule.transform.localScale = scale;
+            ApplyMaterial(capsule, color, transparent: false);
+        }
+
+        private static GameObject FindOrCreate(string name, PrimitiveType primitiveType, Transform parent)
+        {
+            GameObject go = GameObject.Find(name);
+            if (go == null)
+            {
+                go = GameObject.CreatePrimitive(primitiveType);
+                go.name = name;
+            }
+
+            if (go.transform.parent != parent)
+            {
+                go.transform.SetParent(parent, true);
+            }
+
+            return go;
+        }
+
+        private static FloodZone FindFloodZoneByName(string objectName)
+        {
+            FloodZone[] zones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
+            foreach (FloodZone zone in zones)
+            {
+                if (zone != null && zone.gameObject.name == objectName)
+                {
+                    return zone;
+                }
+            }
+
+            return null;
+        }
+
+        private static void TrySpawnNetworkObject(GameObject gameObject)
+        {
+            if (gameObject == null || NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return;
+            }
+
+            NetworkObject networkObject = gameObject.GetComponent<NetworkObject>();
+            if (networkObject != null && !networkObject.IsSpawned)
+            {
+                networkObject.Spawn(destroyWithScene: true);
+            }
+        }
+
+        private static void ApplyFloodZoneSerializedDefaults(FloodZone zone, string zoneId, FloodZoneState initialState)
+        {
+            if (zone == null)
+            {
+                return;
+            }
+
+            SerializedFloodZoneAccess.SetZoneId(zone, zoneId);
+            SerializedFloodZoneAccess.SetInitialState(zone, initialState);
+        }
+
+        private static void ApplyMaterial(GameObject target, Color color, bool transparent)
+        {
+            if (target == null)
+            {
+                return;
+            }
+
+            Renderer renderer = target.GetComponent<Renderer>();
+            if (renderer == null)
+            {
+                return;
+            }
+
+            Material material = new Material(Shader.Find("Universal Render Pipeline/Lit"));
+            material.color = color;
+
+            if (transparent)
+            {
+                material.SetFloat("_Surface", 1f);
+                material.SetFloat("_Blend", 0f);
+                material.SetFloat("_AlphaClip", 0f);
+                material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
+            }
+
+            renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
+            renderer.receiveShadows = false;
+            renderer.sharedMaterial = material;
+        }
+
+        private static void ConfigureSceneLighting()
         {
             Light directional = FindFirstObjectByType<Light>();
             if (directional != null && directional.type == LightType.Directional)
             {
-                directional.transform.rotation = Quaternion.Euler(42f, -36f, 0f);
+                directional.transform.rotation = Quaternion.Euler(45f, -35f, 0f);
                 directional.intensity = 1.35f;
             }
         }
 
-        private static GameObject CreateBlock(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Color color)
+        private static bool HasCommandLineArg(string arg)
         {
-            GameObject go = parent.Find(name)?.gameObject;
-            if (go == null)
+            string[] args = Environment.GetCommandLineArgs();
+            for (int i = 0; i < args.Length; i++)
             {
-                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                go.name = name;
-                go.transform.SetParent(parent, false);
+                if (string.Equals(args[i], arg, StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
             }
 
-            go.transform.localPosition = localPosition;
-            go.transform.localRotation = Quaternion.identity;
-            go.transform.localScale = localScale;
-
-            Renderer renderer = go.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.sharedMaterial = CreateMaterial(color);
-            }
-
-            return go;
+            return false;
         }
 
-        private static GameObject CreateMarker(Transform parent, string name, Vector3 localPosition, Vector3 localScale, Color color)
+        private static class SerializedFloodZoneAccess
         {
-            GameObject go = parent.Find(name)?.gameObject;
-            if (go == null)
+            private static readonly System.Reflection.FieldInfo ZoneIdField =
+                typeof(FloodZone).GetField("zoneId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            private static readonly System.Reflection.FieldInfo InitialStateField =
+                typeof(FloodZone).GetField("initialState", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic);
+
+            public static void SetZoneId(FloodZone zone, string zoneId)
             {
-                go = GameObject.CreatePrimitive(PrimitiveType.Cube);
-                go.name = name;
-                go.transform.SetParent(parent, false);
+                ZoneIdField?.SetValue(zone, zoneId);
             }
 
-            go.transform.localPosition = localPosition;
-            go.transform.localRotation = Quaternion.identity;
-            go.transform.localScale = localScale;
-
-            Collider colliderRef = go.GetComponent<Collider>();
-            if (colliderRef != null)
+            public static void SetInitialState(FloodZone zone, FloodZoneState state)
             {
-                Destroy(colliderRef);
+                InitialStateField?.SetValue(zone, state);
             }
-
-            Renderer renderer = go.GetComponent<Renderer>();
-            if (renderer != null)
-            {
-                renderer.shadowCastingMode = UnityEngine.Rendering.ShadowCastingMode.Off;
-                renderer.receiveShadows = false;
-                renderer.sharedMaterial = CreateMaterial(color);
-            }
-
-            return go;
-        }
-
-        private static Material CreateMaterial(Color color)
-        {
-            Material material = new(Shader.Find("Universal Render Pipeline/Lit"));
-            material.color = color;
-            return material;
         }
     }
 
