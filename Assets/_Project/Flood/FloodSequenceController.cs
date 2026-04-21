@@ -1,6 +1,7 @@
 // File: Assets/_Project/Flood/FloodSequenceController.cs
 using System.Collections;
 using System.Collections.Generic;
+using System.Reflection;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -92,12 +93,84 @@ namespace HueDoneIt.Flood
             }
 
             StopSequences();
+            EnsureDefaultSequencesIfNeeded();
             ResetZonesToInitialState();
             _completionApplied = false;
             _lockEscalationStarted = false;
             StartSequences();
         }
 
+
+        private void EnsureDefaultSequencesIfNeeded()
+        {
+            if (sequences != null && sequences.Count > 0)
+            {
+                return;
+            }
+
+            FloodZone mainZone = FindZoneByName("FloodZone_Main") ?? FindZoneByName("FloodZone_Bilge");
+            FloodZone lowZone = FindZoneByName("FloodZone_LowArea") ?? FindZoneByName("FloodZone_Bridge");
+
+            if (mainZone == null && lowZone == null)
+            {
+                return;
+            }
+
+            sequences = new List<ZoneSequence>();
+            if (mainZone != null)
+            {
+                ApplyZoneInitialState(mainZone, FloodZoneState.Wet);
+                sequences.Add(new ZoneSequence
+                {
+                    zone = mainZone,
+                    initialDelaySeconds = 0f,
+                    loop = true,
+                    states = new List<StateDuration>
+                    {
+                        new() { state = FloodZoneState.Wet, durationSeconds = 14f },
+                        new() { state = FloodZoneState.Flooding, durationSeconds = 16f },
+                        new() { state = FloodZoneState.Wet, durationSeconds = 12f }
+                    }
+                });
+            }
+
+            if (lowZone != null)
+            {
+                ApplyZoneInitialState(lowZone, FloodZoneState.Flooding);
+                sequences.Add(new ZoneSequence
+                {
+                    zone = lowZone,
+                    initialDelaySeconds = 6f,
+                    loop = true,
+                    states = new List<StateDuration>
+                    {
+                        new() { state = FloodZoneState.Flooding, durationSeconds = 10f },
+                        new() { state = FloodZoneState.Submerged, durationSeconds = 8f },
+                        new() { state = FloodZoneState.Flooding, durationSeconds = 10f }
+                    }
+                });
+            }
+        }
+
+        private static FloodZone FindZoneByName(string name)
+        {
+            FloodZone[] zones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
+            foreach (FloodZone zone in zones)
+            {
+                if (zone != null && zone.gameObject.name == name)
+                {
+                    return zone;
+                }
+            }
+
+            return null;
+        }
+
+        private static void ApplyZoneInitialState(FloodZone zone, FloodZoneState state)
+        {
+            FieldInfo field = typeof(FloodZone).GetField("initialState", BindingFlags.Instance | BindingFlags.NonPublic);
+            field?.SetValue(zone, state);
+        }
         private void StartSequences()
         {
             StopSequences();
