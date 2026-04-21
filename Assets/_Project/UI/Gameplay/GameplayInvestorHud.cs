@@ -1,5 +1,6 @@
 // File: Assets/_Project/UI/Gameplay/GameplayInvestorHud.cs
 using HueDoneIt.Flood.Integration;
+using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Interaction;
 using HueDoneIt.Gameplay.Players;
@@ -31,6 +32,7 @@ namespace HueDoneIt.UI.Gameplay
         private PlayerInteractionDetector _interactionDetector;
         private NetworkRoundState _roundState;
         private PumpRepairTask _pumpTask;
+        private FloodSequenceController _floodSequenceController;
 
         private bool _boundPrompt;
 
@@ -122,6 +124,10 @@ namespace HueDoneIt.UI.Gameplay
             if (_pumpTask == null)
             {
                 _pumpTask = FindFirstObjectByType<PumpRepairTask>();
+            }
+            if (_floodSequenceController == null)
+            {
+                _floodSequenceController = FindFirstObjectByType<FloodSequenceController>();
             }
 
             if (_localAvatar == null)
@@ -218,7 +224,9 @@ namespace HueDoneIt.UI.Gameplay
             string locomotion = _localMover != null ? _localMover.CurrentState.ToString() : "Unknown";
             string phase = _roundState.CurrentPhase.ToString();
             string flood = _localFlood != null ? _localFlood.CurrentZoneState.ToString() : "Dry";
-            return $"Phase: {phase}   Flood: {flood}   Move: {locomotion}";
+            string pressure = _roundState.CurrentPressureStage.ToString();
+            string danger = _floodSequenceController != null ? _floodSequenceController.BuildRoundPressureHint() : "Danger: Unknown";
+            return $"Phase: {phase}   Pressure: {pressure}   Flood: {flood}   Move: {locomotion}\nDanger: {danger}";
         }
 
         private string BuildDebugText()
@@ -226,7 +234,8 @@ namespace HueDoneIt.UI.Gameplay
             bool grounded = _localMover != null && _localMover.CurrentState == NetworkPlayerAuthoritativeMover.LocomotionState.Grounded;
             float stamina = _localStamina != null ? _localStamina.Normalized : (_localMover != null ? _localMover.Stamina01 : 1f);
             float floodLevel = _localFlood != null ? _localFlood.CurrentWaterLevel01 : 0f;
-            return $"Grounded: {grounded}\nStamina: {stamina:0.00}\nFloodLevel: {floodLevel:0.00}\nLocomotion: {_localMover?.CurrentState}";
+            string pulse = _floodSequenceController != null ? _floodSequenceController.BuildRoundPressureHint() : "No flood controller";
+            return $"Grounded: {grounded}\nCohesion: {stamina:0.00}\nFloodLevel: {floodLevel:0.00}\nLocomotion: {_localMover?.CurrentState}\n{pulse}";
         }
 
         private static Text CreateText(string name, Transform parent, Font font, int fontSize, TextAnchor align, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
