@@ -225,7 +225,8 @@ namespace HueDoneIt.UI.Gameplay
             string phase = _roundState.CurrentPhase.ToString();
             string flood = _localFlood != null ? _localFlood.CurrentZoneState.ToString() : "Dry";
             string pressure = _roundState.CurrentPressureStage.ToString();
-            return $"Phase: {phase}   Pressure: {pressure}   Flood: {flood}   Move: {locomotion}";
+            string danger = _floodSequenceController != null ? _floodSequenceController.BuildRoundPressureHint() : "Danger: Unknown";
+            return $"Phase: {phase}   Pressure: {pressure}   Flood: {flood}   Move: {locomotion}\nDanger: {danger}";
         }
 
         private string BuildDebugText()
