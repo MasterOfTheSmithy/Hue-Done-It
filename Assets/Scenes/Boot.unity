@@ -984,6 +984,51 @@ CanvasRenderer:
   m_PrefabAsset: {fileID: 0}
   m_GameObject: {fileID: 946849103}
   m_CullTransparentMesh: 1
+--- !u!1 &1028979927
+GameObject:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  serializedVersion: 6
+  m_Component:
+  - component: {fileID: 1028979929}
+  - component: {fileID: 1028979928}
+  m_Layer: 0
+  m_Name: GameplayBetaSceneInstaller
+  m_TagString: Untagged
+  m_Icon: {fileID: 0}
+  m_NavMeshLayer: 0
+  m_StaticEditorFlags: 0
+  m_IsActive: 1
+--- !u!114 &1028979928
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1028979927}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 9554eaafe5161f84e853192f3b84da24, type: 3}
+  m_Name: 
+  m_EditorClassIdentifier: Assembly-CSharp::HueDoneIt.Gameplay.GameplayBetaSceneInstaller
+  verboseLogging: 1
+--- !u!4 &1028979929
+Transform:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 1028979927}
+  serializedVersion: 2
+  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
+  m_LocalPosition: {x: -276.45712, y: -0.00001, z: 260.32205}
+  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_ConstrainProportionsScale: 0
+  m_Children: []
+  m_Father: {fileID: 0}
+  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &1176445283
 GameObject:
   m_ObjectHideFlags: 0
@@ -1029,6 +1074,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HueDoneIt.UI.Boot.BootNetworkButtons
   networkManager: {fileID: 1282079460}
+  gameplaySceneName: Gameplay_Undertint
+  defaultPort: 7777
+  defaultAddress: 127.0.0.1
 --- !u!1 &1282079457
 GameObject:
   m_ObjectHideFlags: 0
@@ -1624,3 +1672,4 @@ SceneRoots:
   - {fileID: 1745262071}
   - {fileID: 914688092}
   - {fileID: 1176445284}
+  - {fileID: 1028979929}
