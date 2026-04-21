@@ -333,7 +333,7 @@ namespace HueDoneIt.Gameplay.Players
 
             if (_paintEmitter != null)
             {
-                _paintEmitter.ServerEmitPaint(PaintEventKind.Punch, transform.position + (Vector3.up * 0.7f), -impulse.normalized, 0.52f, 0.85f);
+                EmitPaint(PaintEventKind.Punch, transform.position + (Vector3.up * 0.7f), -impulse.normalized, 0.52f, 0.85f, impulse.magnitude, impulse.normalized, PaintSplatPermanence.Permanent);
             }
         }
 
@@ -425,7 +425,7 @@ namespace HueDoneIt.Gameplay.Players
                     grounded = false;
                     consumedJump = true;
                     _locomotionState.Value = (byte)LocomotionState.Airborne;
-                    EmitPaint(PaintEventKind.Move, transform.position + (Vector3.down * 0.45f), Vector3.up, 0.28f, 0.6f);
+                    EmitPaint(PaintEventKind.Move, transform.position + (Vector3.down * 0.45f), Vector3.up, 0.28f, 0.6f, jumpVelocity, transform.forward);
                 }
 
                 if (grounded)
@@ -476,7 +476,7 @@ namespace HueDoneIt.Gameplay.Players
                             _jumpBufferTimeRemaining = 0f;
                             _locomotionState.Value = (byte)LocomotionState.WallLaunch;
                             consumedJump = true;
-                            EmitPaint(PaintEventKind.WallLaunch, wallHit.point, wallHit.normal, 0.45f, 0.95f);
+                            EmitPaint(PaintEventKind.WallLaunch, wallHit.point, wallHit.normal, 0.45f, 0.95f, _horizontalVelocity.magnitude, _horizontalVelocity.normalized);
                         }
                         else if (movingIntoWall)
                         {
@@ -503,7 +503,7 @@ namespace HueDoneIt.Gameplay.Players
                                 if (Time.time >= _nextWallPaintTime)
                                 {
                                     _nextWallPaintTime = Time.time + (lowGravity ? 0.18f : 0.25f);
-                                    EmitPaint(PaintEventKind.WallStick, wallHit.point, wallHit.normal, 0.22f, lowGravity ? 0.9f : 0.55f);
+                                    EmitPaint(PaintEventKind.WallStick, wallHit.point, wallHit.normal, 0.22f, lowGravity ? 0.9f : 0.55f, _horizontalVelocity.magnitude, _horizontalVelocity.normalized);
                                 }
                             }
                             else
@@ -575,7 +575,12 @@ namespace HueDoneIt.Gameplay.Players
                 _verticalVelocity = -stickToGroundVelocity;
                 if (landingImpact > 5f)
                 {
-                    EmitPaint(PaintEventKind.Land, nextPosition + (Vector3.down * 0.45f), groundNormal, 0.35f + (landingImpact * 0.02f), landingImpact * 0.1f);
+                    EmitPaint(PaintEventKind.Land, nextPosition + (Vector3.down * 0.45f), groundNormal, 0.35f + (landingImpact * 0.02f), landingImpact * 0.1f, landingImpact, Vector3.down);
+                }
+
+                if (CurrentState == LocomotionState.Ragdoll && landingImpact > 4.5f)
+                {
+                    EmitPaint(PaintEventKind.RagdollImpact, nextPosition + (Vector3.down * 0.45f), groundNormal, 0.55f, 1.1f, landingImpact * 1.2f, _authoritativeVelocity.Value.normalized, PaintSplatPermanence.Permanent);
                 }
             }
             else
@@ -599,8 +604,8 @@ namespace HueDoneIt.Gameplay.Players
                 Vector3 direction = (nextPosition - previousPosition).sqrMagnitude > 0.001f
                     ? (nextPosition - previousPosition).normalized
                     : transform.forward;
-                EmitPaint(PaintEventKind.Move, nextPosition + (Vector3.down * 0.48f), Vector3.up, lowGravity ? 0.2f : 0.14f, lowGravity ? 0.9f : 0.45f);
-                EmitPaint(PaintEventKind.Move, nextPosition + (direction * 0.25f) + (Vector3.down * 0.48f), Vector3.up, 0.11f, 0.4f);
+                EmitPaint(PaintEventKind.Move, nextPosition + (Vector3.down * 0.48f), Vector3.up, lowGravity ? 0.2f : 0.14f, lowGravity ? 0.9f : 0.45f, _horizontalVelocity.magnitude, direction);
+                EmitPaint(PaintEventKind.Move, nextPosition + (direction * 0.25f) + (Vector3.down * 0.48f), Vector3.up, 0.11f, 0.4f, _horizontalVelocity.magnitude * 0.8f, direction);
             }
 
             _wasGroundedLastFrame = groundedAfterMove;
@@ -694,7 +699,7 @@ namespace HueDoneIt.Gameplay.Players
                 Vector3 impulse = (direction * knockbackImpulse) + (Vector3.up * knockbackUpwardBoost);
                 targetMover.ServerApplyKnockback(impulse);
                 _punchCooldownEndServerTime.Value = GetServerTime() + punchCooldownSeconds;
-                EmitPaint(PaintEventKind.Punch, hitPoint, -direction, 0.48f, 1f);
+                EmitPaint(PaintEventKind.Punch, hitPoint, -direction, 0.48f, 1f, impulse.magnitude, direction, PaintSplatPermanence.Permanent);
             }
             else
             {
@@ -808,14 +813,50 @@ namespace HueDoneIt.Gameplay.Players
             return state is FloodZoneState.Flooding or FloodZoneState.Submerged;
         }
 
-        private void EmitPaint(PaintEventKind kind, Vector3 position, Vector3 normal, float radius, float intensity)
+        private void EmitPaint(
+            PaintEventKind kind,
+            Vector3 position,
+            Vector3 normal,
+            float radius,
+            float intensity,
+            float forceMagnitude = -1f,
+            Vector3? velocityDirection = null,
+            PaintSplatPermanence permanence = PaintSplatPermanence.Temporary)
         {
             if (_paintEmitter == null)
             {
                 return;
             }
 
-            _paintEmitter.ServerEmitPaint(kind, position, normal, radius, intensity);
+            Vector3 direction = velocityDirection ?? (_authoritativeVelocity.Value.sqrMagnitude > 0.001f ? _authoritativeVelocity.Value.normalized : transform.forward);
+            float resolvedForce = forceMagnitude >= 0f ? forceMagnitude : _authoritativeVelocity.Value.magnitude;
+            _paintEmitter.ServerEmitPaint(
+                kind,
+                position,
+                normal,
+                radius,
+                intensity,
+                resolvedForce,
+                direction,
+                ResolveSplatType(kind),
+                permanence,
+                -1);
+        }
+
+        private static PaintSplatType ResolveSplatType(PaintEventKind kind)
+        {
+            return kind switch
+            {
+                PaintEventKind.Move => PaintSplatType.Footstep,
+                PaintEventKind.Land => PaintSplatType.Landing,
+                PaintEventKind.WallStick => PaintSplatType.WallImpact,
+                PaintEventKind.WallLaunch => PaintSplatType.WallImpact,
+                PaintEventKind.Punch => PaintSplatType.Punch,
+                PaintEventKind.RagdollImpact => PaintSplatType.RagdollImpact,
+                PaintEventKind.TaskInteract => PaintSplatType.TaskInteract,
+                PaintEventKind.ThrownObjectImpact => PaintSplatType.ThrownObject,
+                _ => PaintSplatType.Generic
+            };
         }
 
         private void EnterRagdoll(float duration)

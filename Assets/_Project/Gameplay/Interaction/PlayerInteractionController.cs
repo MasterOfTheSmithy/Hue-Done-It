@@ -1,5 +1,7 @@
 // File: Assets/_Project/Gameplay/Interaction/PlayerInteractionController.cs
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Paint;
+using HueDoneIt.Gameplay.Players;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
 using UnityEngine;
@@ -106,6 +108,24 @@ namespace HueDoneIt.Gameplay.Interaction
             if (!success)
             {
                 return;
+            }
+
+            if (client.PlayerObject.TryGetComponent(out NetworkPlayerPaintEmitter paintEmitter))
+            {
+                Vector3 interactionNormal = (origin - target).sqrMagnitude > 0.0001f
+                    ? (origin - target).normalized
+                    : Vector3.up;
+                paintEmitter.ServerEmitPaint(
+                    PaintEventKind.TaskInteract,
+                    target,
+                    interactionNormal,
+                    0.24f,
+                    0.65f,
+                    6.25f,
+                    toTarget.normalized,
+                    PaintSplatType.TaskInteract,
+                    PaintSplatPermanence.Permanent,
+                    -1);
             }
 
             if (interactable is NetworkRepairTask repairTask &&
