@@ -15,6 +15,7 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(PlayerLifeState))]
     [RequireComponent(typeof(PlayerFloodZoneTracker))]
     [RequireComponent(typeof(NetworkPlayerPaintEmitter))]
+    [RequireComponent(typeof(PlayerStaminaState))]
     [RequireComponent(typeof(CapsuleCollider))]
     public sealed class NetworkPlayerAuthoritativeMover : NetworkBehaviour
     {
@@ -134,6 +135,7 @@ namespace HueDoneIt.Gameplay.Players
         private NetworkPlayerInputReader _inputReader;
         private PlayerLifeState _lifeState;
         private PlayerFloodZoneTracker _floodTracker;
+        private PlayerStaminaState _staminaState;
         private NetworkPlayerPaintEmitter _paintEmitter;
         private CapsuleCollider _capsuleCollider;
         private NetworkRoundState _roundState;
@@ -196,17 +198,18 @@ namespace HueDoneIt.Gameplay.Players
             }
         }
 
-        public float Cohesion01 => 1f;
+        public float Cohesion01 => _staminaState != null ? _staminaState.Normalized : 1f;
 
         // Temporary HUD compatibility shim.
         // Replace HUD references with Cohesion01 later.
-        public float Stamina01 => Cohesion01;
+        public float Stamina01 => _staminaState != null ? _staminaState.Normalized : 1f;
 
         private void Awake()
         {
             _inputReader = GetComponent<NetworkPlayerInputReader>();
             _lifeState = GetComponent<PlayerLifeState>();
             _floodTracker = GetComponent<PlayerFloodZoneTracker>();
+            _staminaState = GetComponent<PlayerStaminaState>();
             _paintEmitter = GetComponent<NetworkPlayerPaintEmitter>();
             _capsuleCollider = GetComponent<CapsuleCollider>();
 
@@ -397,7 +400,8 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             Vector3 desiredMoveDir = Vector3.ClampMagnitude(_serverMoveWorldInput, 1f);
-            float targetSpeed = _serverBurstHeld ? burstMoveSpeed : moveSpeed;
+            bool burstAllowed = _serverBurstHeld && (_staminaState == null || _staminaState.CanBurst);
+            float targetSpeed = burstAllowed ? burstMoveSpeed : moveSpeed;
             Vector3 desiredHorizontalVelocity = desiredMoveDir * targetSpeed;
 
             if (_ragdollTimeRemaining > 0f)
@@ -483,6 +487,10 @@ namespace HueDoneIt.Gameplay.Players
                             bool allowStick = lowGravity && allowUnlimitedLowGravityWallStick
                                 ? true
                                 : _wallStickTimeRemaining > 0f;
+                            if (allowStick && _staminaState != null && !_staminaState.ServerTryConsumeWallStick(deltaTime))
+                            {
+                                allowStick = false;
+                            }
 
                             if (allowStick)
                             {
@@ -557,6 +565,19 @@ namespace HueDoneIt.Gameplay.Players
             if (!groundedAfterMove)
             {
                 groundedAfterMove = IsGrounded(nextPosition, out refreshGroundHit);
+            }
+
+            if (_staminaState != null)
+            {
+                if (burstAllowed && desiredMoveDir.sqrMagnitude > 0.05f)
+                {
+                    _staminaState.ServerTryConsumeBurst(deltaTime);
+                }
+                else
+                {
+                    bool idle = desiredMoveDir.sqrMagnitude <= 0.01f && groundedAfterMove;
+                    _staminaState.ServerRegenerate(deltaTime, groundedAfterMove, idle);
+                }
             }
 
             Vector3 groundNormal = hitGroundBySweep
