@@ -369,6 +369,7 @@ namespace HueDoneIt.Gameplay.Round
             List<Transform> spawnPoints = CollectSpawnPoints();
             List<NetworkClient> sortedClients = new(NetworkManager.ConnectedClientsList);
             sortedClients.Sort((a, b) => a.ClientId.CompareTo(b.ClientId));
+            HashSet<ulong> movedNetworkObjectIds = new();
 
             int spawnIndex = 0;
             foreach (NetworkClient client in sortedClients)
@@ -396,20 +397,66 @@ namespace HueDoneIt.Gameplay.Round
                 if (spawnPoints.Count > 0)
                 {
                     Transform spawnPoint = spawnPoints[spawnIndex % spawnPoints.Count];
-                    Vector3 spawnPosition = spawnPoint.position + (Vector3.up * spawnHeightOffset);
-                    float spawnYaw = spawnPoint.rotation.eulerAngles.y;
-
-                    if (client.PlayerObject.TryGetComponent(out NetworkPlayerAuthoritativeMover mover))
-                    {
-                        mover.ServerTeleportTo(spawnPosition, spawnYaw);
-                    }
-                    else
-                    {
-                        client.PlayerObject.transform.SetPositionAndRotation(spawnPosition, Quaternion.Euler(0f, spawnYaw, 0f));
-                    }
-
+                    MoveObjectToSpawn(client.PlayerObject, spawnPoint);
+                    movedNetworkObjectIds.Add(client.PlayerObject.NetworkObjectId);
                     spawnIndex++;
                 }
+            }
+
+            NetworkPlayerAvatar[] avatars = FindObjectsByType<NetworkPlayerAvatar>(FindObjectsSortMode.None);
+            foreach (NetworkPlayerAvatar avatar in avatars)
+            {
+                if (avatar == null || !avatar.IsSpawned || avatar.NetworkObject == null)
+                {
+                    continue;
+                }
+
+                if (movedNetworkObjectIds.Contains(avatar.NetworkObjectId))
+                {
+                    continue;
+                }
+
+                if (avatar.TryGetComponent(out PlayerLifeState lifeState))
+                {
+                    lifeState.ServerResetForRound();
+                }
+
+                if (avatar.TryGetComponent(out PlayerFloodZoneTracker floodTracker))
+                {
+                    floodTracker.ServerResetFloodState();
+                }
+
+                if (avatar.TryGetComponent(out PlayerStaminaState staminaState))
+                {
+                    staminaState.ServerResetForRound();
+                }
+
+                if (spawnPoints.Count > 0)
+                {
+                    Transform spawnPoint = spawnPoints[spawnIndex % spawnPoints.Count];
+                    MoveObjectToSpawn(avatar.gameObject, spawnPoint);
+                    spawnIndex++;
+                }
+            }
+        }
+
+        private void MoveObjectToSpawn(GameObject targetObject, Transform spawnPoint)
+        {
+            if (targetObject == null || spawnPoint == null)
+            {
+                return;
+            }
+
+            Vector3 spawnPosition = spawnPoint.position + (Vector3.up * spawnHeightOffset);
+            float spawnYaw = spawnPoint.rotation.eulerAngles.y;
+
+            if (targetObject.TryGetComponent(out NetworkPlayerAuthoritativeMover mover))
+            {
+                mover.ServerTeleportTo(spawnPosition, spawnYaw);
+            }
+            else
+            {
+                targetObject.transform.SetPositionAndRotation(spawnPosition, Quaternion.Euler(0f, spawnYaw, 0f));
             }
         }
 

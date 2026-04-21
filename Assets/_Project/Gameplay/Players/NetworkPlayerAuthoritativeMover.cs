@@ -163,6 +163,8 @@ namespace HueDoneIt.Gameplay.Players
         private Vector3 _lastSentMoveWorldInput;
         private float _lastSentVisualYaw;
         private bool _lastSentBurstHeld;
+        private bool _useExternalServerInput;
+        private float _externalServerInputExpiresAt;
 
         private float _nextMovementPaintTime;
         private float _nextWallPaintTime;
@@ -340,6 +342,37 @@ namespace HueDoneIt.Gameplay.Players
             }
         }
 
+        public void ServerSetExternalInput(Vector3 worldMoveInput, float visualYaw, bool jumpRequested, bool punchRequested = false, bool burstHeld = false, float holdSeconds = 0.16f)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _useExternalServerInput = true;
+            _externalServerInputExpiresAt = Time.time + Mathf.Max(0.05f, holdSeconds);
+            _serverMoveWorldInput = Vector3.ClampMagnitude(worldMoveInput, 1f);
+            _serverVisualYaw = visualYaw;
+            _serverJumpRequested |= jumpRequested;
+            _serverPunchRequested |= punchRequested;
+            _serverBurstHeld = burstHeld;
+        }
+
+        public void ServerClearExternalInput()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _useExternalServerInput = false;
+            _externalServerInputExpiresAt = 0f;
+            _serverMoveWorldInput = Vector3.zero;
+            _serverJumpRequested = false;
+            _serverPunchRequested = false;
+            _serverBurstHeld = false;
+        }
+
         private void ConsumeLatestInput()
         {
             if (_lifeState != null && !_lifeState.IsAlive)
@@ -351,13 +384,21 @@ namespace HueDoneIt.Gameplay.Players
                 return;
             }
 
-            if (IsOwner && IsClient && _inputReader != null)
+            bool externalInputActive = _useExternalServerInput && Time.time <= _externalServerInputExpiresAt;
+            if (!externalInputActive && IsOwner && IsClient && _inputReader != null)
             {
                 _serverMoveWorldInput = _inputReader.CurrentWorldMoveInput;
                 _serverVisualYaw = _inputReader.CurrentVisualYaw;
                 _serverJumpRequested |= _inputReader.ConsumeJumpPressedThisFrame();
                 _serverPunchRequested |= _inputReader.ConsumePunchPressedThisFrame();
                 _serverBurstHeld = _inputReader.BurstHeld;
+            }
+            else if (!externalInputActive)
+            {
+                _serverMoveWorldInput = Vector3.zero;
+                _serverJumpRequested = false;
+                _serverPunchRequested = false;
+                _serverBurstHeld = false;
             }
 
             if (_roundState != null && _roundState.CurrentPhase != RoundPhase.FreeRoam)

@@ -235,7 +235,8 @@ namespace HueDoneIt.UI.Gameplay
             float stamina = _localStamina != null ? _localStamina.Normalized : (_localMover != null ? _localMover.Stamina01 : 1f);
             float floodLevel = _localFlood != null ? _localFlood.CurrentWaterLevel01 : 0f;
             string pulse = _floodSequenceController != null ? _floodSequenceController.BuildRoundPressureHint() : "No flood controller";
-            return $"Grounded: {grounded}\nCohesion: {stamina:0.00}\nFloodLevel: {floodLevel:0.00}\nLocomotion: {_localMover?.CurrentState}\n{pulse}";
+            float opacity = (_localLifeState != null && _localLifeState.IsAlive) ? 1f : 0f;
+            return $"Grounded: {grounded}\nOpacity: {opacity:0.00}\nCohesion: {stamina:0.00}\nFloodLevel: {floodLevel:0.00}\nLocomotion: {_localMover?.CurrentState}\n{pulse}";
         }
 
         private static Text CreateText(string name, Transform parent, Font font, int fontSize, TextAnchor align, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
