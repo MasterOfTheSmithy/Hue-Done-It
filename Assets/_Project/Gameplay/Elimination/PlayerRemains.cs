@@ -1,5 +1,6 @@
 // File: Assets/_Project/Gameplay/Elimination/PlayerRemains.cs
 using HueDoneIt.Gameplay.Interaction;
+using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Round;
 using Unity.Collections;
 using Unity.Netcode;
@@ -11,6 +12,13 @@ namespace HueDoneIt.Gameplay.Elimination
     [RequireComponent(typeof(NetworkObject))]
     public sealed class PlayerRemains : NetworkInteractable
     {
+        [Header("Evidence Presentation")]
+        [SerializeField] private Renderer[] evidenceRenderers;
+        [SerializeField] private StainReceiver[] nearbyStainReceivers;
+        [SerializeField] private Color unreportedEvidenceColor = new(1f, 0.12f, 0.2f, 1f);
+        [SerializeField] private Color reportedEvidenceColor = new(0.46f, 0.46f, 0.5f, 1f);
+        [SerializeField, Range(0f, 1f)] private float remainsEvidenceIntensity = 0.92f;
+
         private readonly NetworkVariable<ulong> _victimClientId =
             new(ulong.MaxValue, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -26,10 +34,42 @@ namespace HueDoneIt.Gameplay.Elimination
         private readonly NetworkVariable<bool> _isReported =
             new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private MaterialPropertyBlock _propertyBlock;
+        private static readonly int BaseColorId = Shader.PropertyToID("_BaseColor");
+        private static readonly int ColorId = Shader.PropertyToID("_Color");
+
         public ulong VictimClientId => _victimClientId.Value;
         public ulong VictimPlayerObjectId => _victimPlayerObjectId.Value;
         public string VictimName => _victimName.Value.ToString();
         public bool IsReported => _isReported.Value;
+
+        private void Awake()
+        {
+            if (evidenceRenderers == null || evidenceRenderers.Length == 0)
+            {
+                evidenceRenderers = GetComponentsInChildren<Renderer>(true);
+            }
+
+            if (nearbyStainReceivers == null || nearbyStainReceivers.Length == 0)
+            {
+                nearbyStainReceivers = GetComponentsInChildren<StainReceiver>(true);
+            }
+
+            _propertyBlock = new MaterialPropertyBlock();
+        }
+
+        public override void OnNetworkSpawn()
+        {
+            base.OnNetworkSpawn();
+            _isReported.OnValueChanged += HandleReportedChanged;
+            ApplyEvidenceVisual(_isReported.Value, true);
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            _isReported.OnValueChanged -= HandleReportedChanged;
+            base.OnNetworkDespawn();
+        }
 
         public void ServerInitialize(ulong victimClientId, ulong victimPlayerObjectId, string victimName)
         {
@@ -112,6 +152,63 @@ namespace HueDoneIt.Gameplay.Elimination
             }
 
             return reportManager.TryReportBody(context.InteractorObject, this);
+        }
+
+        private void HandleReportedChanged(bool previous, bool current)
+        {
+            ApplyEvidenceVisual(current, false);
+        }
+
+        private void ApplyEvidenceVisual(bool reported, bool immediate)
+        {
+            Color targetColor = reported ? reportedEvidenceColor : unreportedEvidenceColor;
+            ApplyRendererTint(targetColor);
+
+            if (immediate)
+            {
+                return;
+            }
+
+            for (int i = 0; i < nearbyStainReceivers.Length; i++)
+            {
+                StainReceiver receiver = nearbyStainReceivers[i];
+                if (receiver == null)
+                {
+                    continue;
+                }
+
+                Vector3 offset = new(((i % 3) - 1) * 0.15f, 0f, ((i / 3) - 1) * 0.13f);
+                receiver.SpawnEnvironmentalEvidence(
+                    targetColor,
+                    transform.position + offset,
+                    Vector3.up,
+                    PaintEventKind.RagdollImpact,
+                    !reported,
+                    reported ? 0.2f : 0.32f,
+                    remainsEvidenceIntensity * (reported ? 0.6f : 1f));
+            }
+        }
+
+        private void ApplyRendererTint(Color color)
+        {
+            if (evidenceRenderers == null)
+            {
+                return;
+            }
+
+            for (int i = 0; i < evidenceRenderers.Length; i++)
+            {
+                Renderer renderer = evidenceRenderers[i];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                renderer.GetPropertyBlock(_propertyBlock);
+                _propertyBlock.SetColor(BaseColorId, color);
+                _propertyBlock.SetColor(ColorId, color);
+                renderer.SetPropertyBlock(_propertyBlock);
+            }
         }
     }
 }

@@ -109,6 +109,8 @@ namespace HueDoneIt.Gameplay.Players
                 permanence = PaintSplatPermanence.Permanent;
             }
 
+            ApplyEventTuning(kind, ref splatType, ref permanence, ref scaledRadius, ref scaledIntensity, clampedForce);
+
             return new PaintSplatData
             {
                 EventKind = kind,
@@ -122,6 +124,81 @@ namespace HueDoneIt.Gameplay.Players
                 VelocityDirection = normalizedVelocity,
                 PatternIndex = selectedPatternIndex
             };
+        }
+
+        private void ApplyEventTuning(
+            PaintEventKind kind,
+            ref PaintSplatType splatType,
+            ref PaintSplatPermanence permanence,
+            ref float radius,
+            ref float intensity,
+            float forceMagnitude)
+        {
+            switch (kind)
+            {
+                case PaintEventKind.Move:
+                    splatType = PaintSplatType.Footstep;
+                    permanence = PaintSplatPermanence.Temporary;
+                    radius *= 0.58f;
+                    intensity *= 0.72f;
+                    break;
+                case PaintEventKind.Land:
+                    splatType = PaintSplatType.Landing;
+                    radius *= Mathf.Lerp(0.92f, 1.28f, Mathf.InverseLerp(3f, forceClamp.y, forceMagnitude));
+                    intensity *= Mathf.Lerp(0.88f, 1.18f, Mathf.InverseLerp(2f, forceClamp.y, forceMagnitude));
+                    break;
+                case PaintEventKind.WallStick:
+                    splatType = PaintSplatType.WallImpact;
+                    permanence = PaintSplatPermanence.Temporary;
+                    radius *= 0.78f;
+                    intensity *= 0.88f;
+                    break;
+                case PaintEventKind.WallLaunch:
+                    splatType = PaintSplatType.WallImpact;
+                    radius *= 1.05f;
+                    intensity *= 1.18f;
+                    break;
+                case PaintEventKind.Punch:
+                    splatType = PaintSplatType.Punch;
+                    radius *= 0.9f;
+                    intensity *= 1.22f;
+                    break;
+                case PaintEventKind.RagdollImpact:
+                    splatType = PaintSplatType.RagdollImpact;
+                    permanence = PaintSplatPermanence.Permanent;
+                    radius *= 1.5f;
+                    intensity *= 1.26f;
+                    break;
+                case PaintEventKind.TaskInteract:
+                    splatType = PaintSplatType.TaskInteract;
+                    permanence = PaintSplatPermanence.Permanent;
+                    radius *= 0.88f;
+                    intensity *= 0.95f;
+                    break;
+                case PaintEventKind.ThrownObjectImpact:
+                    splatType = PaintSplatType.ThrownObject;
+                    radius *= 1.1f;
+                    intensity *= 1.12f;
+                    if (forceMagnitude >= permanentForceThreshold * 0.9f)
+                    {
+                        permanence = PaintSplatPermanence.Permanent;
+                    }
+
+                    break;
+                case PaintEventKind.FloodBurst:
+                    splatType = PaintSplatType.Flood;
+                    permanence = PaintSplatPermanence.Temporary;
+                    break;
+                case PaintEventKind.FloodDrip:
+                    splatType = PaintSplatType.Flood;
+                    permanence = PaintSplatPermanence.Temporary;
+                    radius *= 0.72f;
+                    intensity *= 0.68f;
+                    break;
+            }
+
+            radius = Mathf.Clamp(radius, radiusClamp.x, radiusClamp.y);
+            intensity = Mathf.Clamp(intensity, intensityClamp.x, intensityClamp.y);
         }
 
         private static int ComputeStablePatternIndex(Vector3 position, PaintEventKind kind, float force)
