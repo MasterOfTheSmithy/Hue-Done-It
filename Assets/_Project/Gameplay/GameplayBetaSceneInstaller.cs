@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
@@ -469,6 +470,8 @@ namespace HueDoneIt.Gameplay
             ground.transform.position = position;
             ground.transform.rotation = Quaternion.identity;
             ground.transform.localScale = scale;
+            ApplyMaterial(ground, color, transparent: false);
+            EnsureStainReceiver(ground);
             ApplyMaterial(ground, color, false);
         }
 
@@ -478,6 +481,8 @@ namespace HueDoneIt.Gameplay
             block.transform.position = position;
             block.transform.rotation = Quaternion.identity;
             block.transform.localScale = scale;
+            ApplyMaterial(block, color, transparent: false);
+            EnsureStainReceiver(block);
             ApplyMaterial(block, color, false);
             return block;
         }
@@ -488,6 +493,18 @@ namespace HueDoneIt.Gameplay
             capsule.transform.position = position;
             capsule.transform.rotation = Quaternion.identity;
             capsule.transform.localScale = scale;
+            ApplyMaterial(capsule, color, transparent: false);
+            EnsureStainReceiver(capsule);
+        }
+
+        private static void EnsureStainReceiver(GameObject gameObject)
+        {
+            if (gameObject == null || gameObject.GetComponent<StainReceiver>() != null)
+            {
+                return;
+            }
+
+            gameObject.AddComponent<StainReceiver>();
             ApplyMaterial(capsule, color, false);
         }
 

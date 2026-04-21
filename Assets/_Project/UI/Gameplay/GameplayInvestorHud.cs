@@ -23,6 +23,7 @@ namespace HueDoneIt.UI.Gameplay
         private Image _crosshair;
 
         private PlayerKillInputController _localKillController;
+        private NetworkPlayerAuthoritativeMover _localMover;
         private PlayerFloodZoneTracker _localFloodTracker;
         private PlayerLifeState _localLifeState;
         private PumpRepairTask _pumpRepairTask;
@@ -101,7 +102,7 @@ namespace HueDoneIt.UI.Gameplay
 
             GameObject bottomRight = CreatePanel("InvestorHud_BottomRight", new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-24f, 24f), new Vector2(460f, 170f));
             _controlsText = CreateText(bottomRight.transform, font, 14, TextAnchor.UpperLeft, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(14f, -14f), new Vector2(-14f, -14f));
-            _controlsText.text = "Controls\nWASD move\nMouse look\nSpace jump\nE interact / confirm pump\nF bleach inject\nQ bleach secondary\nEsc unlock cursor\nLeft click relock cursor";
+            _controlsText.text = "Controls\nWASD move\nMouse look\nSpace jump\nLeft Shift burst\nRight Mouse punch / shove\nE interact / confirm pump\nF bleach inject\nQ bleach secondary\nEsc unlock cursor\nLeft click relock cursor";
 
             GameObject bottomCenter = CreatePanel("InvestorHud_BottomCenter", new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(0f, 24f), new Vector2(620f, 92f));
             _statusText = CreateText(bottomCenter.transform, font, 18, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(12f, 12f), new Vector2(-12f, -12f));
@@ -121,7 +122,7 @@ namespace HueDoneIt.UI.Gameplay
                 _pumpRepairTask = FindFirstObjectByType<PumpRepairTask>();
             }
 
-            if (_localKillController == null || _localFloodTracker == null || _localLifeState == null)
+            if (_localKillController == null || _localFloodTracker == null || _localLifeState == null || _localMover == null)
             {
                 NetworkPlayerAvatar[] avatars = FindObjectsByType<NetworkPlayerAvatar>(FindObjectsSortMode.None);
                 foreach (NetworkPlayerAvatar avatar in avatars)
@@ -132,6 +133,7 @@ namespace HueDoneIt.UI.Gameplay
                     }
 
                     _localKillController = avatar.GetComponent<PlayerKillInputController>();
+                    _localMover = avatar.GetComponent<NetworkPlayerAuthoritativeMover>();
                     _localFloodTracker = avatar.GetComponent<PlayerFloodZoneTracker>();
                     _localLifeState = avatar.GetComponent<PlayerLifeState>();
                     break;
@@ -244,9 +246,13 @@ namespace HueDoneIt.UI.Gameplay
                 return "Abilities\nUnavailable";
             }
 
+            string movementState = _localMover != null
+                ? $"\nMovement: {_localMover.CurrentState} | Punch CD: {_localMover.PunchCooldownRemaining:0.0}s"
+                : string.Empty;
+
             if (_localKillController.CurrentRole != PlayerRole.Bleach)
             {
-                return "Abilities\nColor role: repair the pump, report bodies, and avoid flood saturation.\nFlood-safe movement matters more than aggression.";
+                return $"Abilities\nColor role: repair the pump, report bodies, and avoid flood saturation.\nFlood-safe movement matters more than aggression.{movementState}";
             }
 
             string primary = _localKillController.IsPrimaryWindupActive
@@ -263,7 +269,7 @@ namespace HueDoneIt.UI.Gameplay
                 _ => "Secondary: none"
             };
 
-            return $"Abilities\n{primary}\n{secondary}";
+            return $"Abilities\n{primary}\n{secondary}{movementState}";
         }
 
         private string BuildFloodText()

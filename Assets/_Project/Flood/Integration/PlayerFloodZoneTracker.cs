@@ -1,6 +1,8 @@
 // File: Assets/_Project/Flood/Integration/PlayerFloodZoneTracker.cs
 using System;
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Paint;
+using HueDoneIt.Gameplay.Players;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -26,6 +28,9 @@ namespace HueDoneIt.Flood.Integration
         [SerializeField, Range(0f, 1f)] private float deathThreshold = 1f;
         [SerializeField] private bool instantlyDiffuseInSubmerged = true;
 
+        [Header("Flood Paint")]
+        [SerializeField, Min(0.05f)] private float floodDripIntervalSeconds = 0.35f;
+
         private readonly NetworkVariable<ulong> _serverZoneNetworkObjectId =
             new(ulong.MaxValue, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -38,7 +43,9 @@ namespace HueDoneIt.Flood.Integration
         private Collider[] _overlapResults;
         private FloodZone _currentZone;
         private PlayerLifeState _lifeState;
+        private NetworkPlayerPaintEmitter _paintEmitter;
         private float _nextReportTime;
+        private float _nextFloodDripTime;
 
         public event Action<FloodZone> ZoneChanged;
 
@@ -52,6 +59,7 @@ namespace HueDoneIt.Flood.Integration
         {
             _overlapResults = new Collider[Mathf.Max(1, overlapBufferSize)];
             _lifeState = GetComponent<PlayerLifeState>();
+            _paintEmitter = GetComponent<NetworkPlayerPaintEmitter>();
         }
 
         public override void OnNetworkSpawn()
@@ -156,6 +164,7 @@ namespace HueDoneIt.Flood.Integration
                 if (_lifeState != null && _lifeState.ServerTrySetDiffused("Caught in fast-moving flood"))
                 {
                     _saturation.Value = deathThreshold;
+                    EmitFloodPaint(PaintEventKind.FloodBurst, 1.15f);
                 }
 
                 return;
@@ -171,10 +180,31 @@ namespace HueDoneIt.Flood.Integration
             };
 
             _saturation.Value = Mathf.Clamp01(_saturation.Value + (delta * deltaTime));
+            if (state is FloodZoneState.Flooding or FloodZoneState.Submerged && Time.time >= _nextFloodDripTime)
+            {
+                _nextFloodDripTime = Time.time + floodDripIntervalSeconds;
+                float intensity = state == FloodZoneState.Submerged ? 0.95f : 0.65f;
+                EmitFloodPaint(PaintEventKind.FloodDrip, intensity);
+            }
+
             if (_saturation.Value >= deathThreshold && _lifeState != null)
             {
-                _lifeState.ServerTrySetDiffused("Flood saturation reached critical mass");
+                if (_lifeState.ServerTrySetDiffused("Flood saturation reached critical mass"))
+                {
+                    EmitFloodPaint(PaintEventKind.FloodBurst, 1.1f);
+                }
             }
+        }
+
+        private void EmitFloodPaint(PaintEventKind kind, float intensity)
+        {
+            if (_paintEmitter == null)
+            {
+                return;
+            }
+
+            Vector3 origin = transform.position + (Vector3.down * 0.45f);
+            _paintEmitter.ServerEmitPaint(kind, origin, Vector3.up, 0.35f + (intensity * 0.18f), intensity);
         }
 
         [ServerRpc]
