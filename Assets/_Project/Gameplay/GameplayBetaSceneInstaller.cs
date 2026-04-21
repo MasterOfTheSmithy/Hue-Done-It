@@ -68,6 +68,7 @@ namespace HueDoneIt.Gameplay
             EnsurePump(runtimeRoot.transform);
             EnsureFloodZones(runtimeRoot.transform);
             EnsureFloodController(runtimeRoot.transform);
+            EnsureSoloCpuOpponent(runtimeRoot.transform);
             EnsureOptionalMatchSimulationRunner(runtimeRoot.transform);
             LogMissingCriticalSystems();
 
@@ -376,6 +377,54 @@ namespace HueDoneIt.Gameplay
             GameObject runnerObject = CreateAuthoritativeNetworkObject(root, "MatchSimulationRunner_Main", Vector3.zero);
             GetOrAddComponent<NetworkMatchSimulationRunner>(runnerObject);
             TrySpawnNetworkObject(runnerObject);
+        }
+
+        private static void EnsureSoloCpuOpponent(Transform root)
+        {
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsServer)
+            {
+                return;
+            }
+
+            var agents = FindObjectsByType<Players.SimpleCpuOpponentAgent>(FindObjectsSortMode.None);
+            if (agents != null && agents.Length > 0)
+            {
+                return;
+            }
+
+            if (NetworkManager.Singleton.ConnectedClientsList.Count >= 2)
+            {
+                return;
+            }
+
+            GameObject playerPrefab = NetworkManager.Singleton.NetworkConfig != null
+                ? NetworkManager.Singleton.NetworkConfig.PlayerPrefab
+                : null;
+
+            if (playerPrefab == null)
+            {
+                Debug.LogWarning("GameplayBetaSceneInstaller: cannot spawn solo CPU because NetworkConfig.PlayerPrefab is missing.");
+                return;
+            }
+
+            GameObject bot = Instantiate(playerPrefab, new Vector3(2f, 1f, -2f), Quaternion.identity, root);
+            bot.name = "CPU_Opponent_01";
+
+            if (bot.GetComponent<Players.SimpleCpuOpponentAgent>() == null)
+            {
+                bot.AddComponent<Players.SimpleCpuOpponentAgent>();
+            }
+
+            NetworkObject networkObject = bot.GetComponent<NetworkObject>();
+            if (networkObject == null)
+            {
+                networkObject = bot.AddComponent<NetworkObject>();
+            }
+
+            if (!networkObject.IsSpawned)
+            {
+                networkObject.Spawn(true);
+            }
         }
 
         private static void LogMissingCriticalSystems()
