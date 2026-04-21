@@ -1,0 +1,23 @@
+===== Tue 04/21/2026  1:37:28.68 =====
+STEP 1: starting in C:\HueDoneIt\game\Hue Done It
+STEP 2: cd done (err=0) in C:\HueDoneIt\game\Hue Done It
+C:\Program Files\Git\cmd\git.exe
+STEP 3: git found
+true
+STEP 4: confirmed inside git work tree
+STEP 5: current origin=https://github.com/MasterOfTheSmithy/Hue-Done-It.git
+STEP 6: branch=codex/prepare-hue-done-it-for-production-beta-t4yv58
+STEP 7: commit message=chore: update project state
+STEP 8: git status --short before add
+ M Assembly-CSharp.csproj
+ M Assets/_Project/Gameplay/GameplayBetaSceneInstaller.cs
+?? commit_push_log.txt
+STEP 9: git add -A
+warning: in the working copy of 'commit_push_log.txt', LF will be replaced by CRLF the next time Git touches it
+STEP 10: staged_diff_exit=1 unstaged_diff_exit=
+STEP 11: git commit -m "chore: update project state"
+[codex/prepare-hue-done-it-for-production-beta-t4yv58 3991060] chore: update project state
+ 3 files changed, 22 insertions(+), 49 deletions(-)
+ create mode 100644 commit_push_log.txt
+STEP 11b: commit exit code=
+ERROR: git commit failed
