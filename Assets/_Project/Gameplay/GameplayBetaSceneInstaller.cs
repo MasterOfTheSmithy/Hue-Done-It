@@ -1,6 +1,7 @@
 using System.Collections.Generic;
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
@@ -261,6 +262,7 @@ namespace HueDoneIt.Gameplay
             ground.transform.position = position;
             ground.transform.localScale = scale;
             ApplyMaterial(ground, color, transparent: false);
+            EnsureStainReceiver(ground);
         }
 
         private static GameObject EnsureBlock(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
@@ -270,6 +272,7 @@ namespace HueDoneIt.Gameplay
             block.transform.rotation = Quaternion.identity;
             block.transform.localScale = scale;
             ApplyMaterial(block, color, transparent: false);
+            EnsureStainReceiver(block);
             return block;
         }
 
@@ -280,6 +283,17 @@ namespace HueDoneIt.Gameplay
             capsule.transform.rotation = Quaternion.identity;
             capsule.transform.localScale = scale;
             ApplyMaterial(capsule, color, transparent: false);
+            EnsureStainReceiver(capsule);
+        }
+
+        private static void EnsureStainReceiver(GameObject gameObject)
+        {
+            if (gameObject == null || gameObject.GetComponent<StainReceiver>() != null)
+            {
+                return;
+            }
+
+            gameObject.AddComponent<StainReceiver>();
         }
 
         private static GameObject FindOrCreate(string name, PrimitiveType primitiveType, Transform parent)

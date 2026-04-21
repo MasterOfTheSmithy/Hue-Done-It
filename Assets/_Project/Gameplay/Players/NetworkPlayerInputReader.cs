@@ -11,10 +11,13 @@ namespace HueDoneIt.Gameplay.Players
     {
         private bool _loggedMissingKeyboard;
         private bool _jumpConsumed;
+        private bool _punchConsumed;
 
         public Vector2 CurrentMoveInput { get; private set; }
         public Vector3 CurrentWorldMoveInput { get; private set; }
         public bool JumpPressedThisFrame { get; private set; }
+        public bool PunchPressedThisFrame { get; private set; }
+        public bool BurstHeld { get; private set; }
         public float CurrentVisualYaw => transform.eulerAngles.y;
 
         private void Update()
@@ -24,12 +27,16 @@ namespace HueDoneIt.Gameplay.Players
                 CurrentMoveInput = Vector2.zero;
                 CurrentWorldMoveInput = Vector3.zero;
                 JumpPressedThisFrame = false;
+                PunchPressedThisFrame = false;
+                BurstHeld = false;
                 return;
             }
 
             CurrentMoveInput = ReadMoveInput();
             CurrentWorldMoveInput = ResolveWorldMove(CurrentMoveInput);
             JumpPressedThisFrame = ReadJumpPressed();
+            PunchPressedThisFrame = ReadPunchPressed();
+            BurstHeld = ReadBurstHeld();
         }
 
         public bool ConsumeJumpPressedThisFrame()
@@ -40,6 +47,17 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             _jumpConsumed = true;
+            return true;
+        }
+
+        public bool ConsumePunchPressedThisFrame()
+        {
+            if (_punchConsumed || !PunchPressedThisFrame)
+            {
+                return false;
+            }
+
+            _punchConsumed = true;
             return true;
         }
 
@@ -82,6 +100,20 @@ namespace HueDoneIt.Gameplay.Players
             bool pressed = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
             _jumpConsumed = false;
             return pressed;
+        }
+
+        private bool ReadPunchPressed()
+        {
+            Mouse mouse = Mouse.current;
+            bool pressed = mouse != null && mouse.rightButton.wasPressedThisFrame;
+            _punchConsumed = false;
+            return pressed;
+        }
+
+        private static bool ReadBurstHeld()
+        {
+            Keyboard keyboard = Keyboard.current;
+            return keyboard != null && keyboard.leftShiftKey.isPressed;
         }
 
         private Vector3 ResolveWorldMove(Vector2 input)

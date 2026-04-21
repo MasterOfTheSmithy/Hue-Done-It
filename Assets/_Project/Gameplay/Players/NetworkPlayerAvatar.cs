@@ -12,6 +12,8 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(NetworkObject))]
     [RequireComponent(typeof(NetworkPlayerInputReader))]
     [RequireComponent(typeof(NetworkPlayerAuthoritativeMover))]
+    [RequireComponent(typeof(PlayerColorProfile))]
+    [RequireComponent(typeof(NetworkPlayerPaintEmitter))]
     [RequireComponent(typeof(PlayerInteractionDetector))]
     [RequireComponent(typeof(PlayerInteractionController))]
     [RequireComponent(typeof(PlayerFloodZoneTracker))]
