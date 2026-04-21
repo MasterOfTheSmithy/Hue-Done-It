@@ -200,7 +200,11 @@ namespace HueDoneIt.Gameplay.Paint
                 Intensity = Mathf.Clamp(intensity, 0.1f, 1.6f),
                 ForceMagnitude = Mathf.Clamp(intensity * 10f, 0f, 20f),
                 VelocityDirection = Vector3.forward,
+                TangentDirection = Vector3.right,
                 PatternIndex = Mathf.RoundToInt(position.x * 37f + position.z * 17f),
+                PatternSeed = Mathf.Abs(Mathf.RoundToInt(position.sqrMagnitude * 100f)),
+                StretchAmount = 1.15f,
+                RotationDegrees = 0f
             };
 
             ApplyStain(color, data, _roomWashout01 > 0.25f);
@@ -219,7 +223,7 @@ namespace HueDoneIt.Gameplay.Paint
             decal.GameObject.SetActive(true);
             decal.Transform.position = splatData.Position + (splatData.Normal * 0.01f);
 
-            Vector3 tangent = Vector3.ProjectOnPlane(splatData.VelocityDirection, splatData.Normal);
+            Vector3 tangent = Vector3.ProjectOnPlane(splatData.TangentDirection, splatData.Normal);
             if (tangent.sqrMagnitude < 0.0001f)
             {
                 tangent = Vector3.Cross(splatData.Normal, Mathf.Abs(splatData.Normal.y) > 0.7f ? Vector3.right : Vector3.up);
@@ -228,7 +232,7 @@ namespace HueDoneIt.Gameplay.Paint
             decal.Transform.rotation = Quaternion.LookRotation(splatData.Normal, tangent.normalized);
 
             float baseScale = Mathf.Clamp(splatData.Radius, 0.06f, 2.6f);
-            float stretch = Mathf.Clamp((1f + (splatData.ForceMagnitude * 0.08f)), 1f, 3.5f);
+            float stretch = Mathf.Clamp(splatData.StretchAmount, 1f, 3.5f);
             decal.Transform.localScale = new Vector3(baseScale * stretch, baseScale, 1f);
 
             float alpha = Mathf.Clamp01((wet ? 0.28f : 0.44f) * Mathf.Clamp(splatData.Intensity, 0.35f, 1.5f));
@@ -264,11 +268,12 @@ namespace HueDoneIt.Gameplay.Paint
         {
             PaintSplatData wear = fromSplat;
             wear.EventKind = PaintEventKind.Move;
-            wear.SplatType = PaintSplatType.Footstep;
+            wear.SplatType = PaintSplatType.MoveSmear;
             wear.Permanence = PaintSplatPermanence.Permanent;
             wear.Radius *= 0.65f;
             wear.Intensity *= 0.55f;
-                        wear.PatternIndex += 97;
+            wear.StretchAmount *= 1.2f;
+            wear.PatternSeed += 97;
             SpawnDensityAdjustedSplats(color, wear, _roomWashout01 > 0.25f);
         }
 
@@ -536,7 +541,7 @@ namespace HueDoneIt.Gameplay.Paint
             {
                 RadiusMultiplier = 1f,
                 AlphaMultiplier = wet ? 0.75f : 1f,
-                StretchMultiplier = Mathf.Clamp((1f + (splatData.ForceMagnitude * 0.08f)) * stretchMultiplier, stretchClamp.x, stretchClamp.y),
+                StretchMultiplier = Mathf.Clamp(splatData.StretchAmount * stretchMultiplier, stretchClamp.x, stretchClamp.y),
                 AdditionalSplats = 0,
                 Lifetime = temporaryLifetimeSeconds,
                 ForceTemporary = false,
@@ -639,8 +644,8 @@ namespace HueDoneIt.Gameplay.Paint
 
         private Vector3 ResolveDragDirection(PaintSplatData splatData, Vector3 normal)
         {
-            Vector3 preferredDirection = splatData.VelocityDirection.sqrMagnitude > 0.0001f
-                ? splatData.VelocityDirection
+            Vector3 preferredDirection = splatData.TangentDirection.sqrMagnitude > 0.0001f
+                ? splatData.TangentDirection
                 : splatData.VelocityDirection;
 
             Vector3 dragDirection = Vector3.ProjectOnPlane(preferredDirection, normal);
@@ -679,18 +684,18 @@ namespace HueDoneIt.Gameplay.Paint
             float randomAngle = 0f;
             if (randomizeRotation)
             {
-                int rotationSeed = splatData.PatternIndex + (localIndex * 131);
+                int rotationSeed = splatData.PatternSeed + (localIndex * 131);
                 randomAngle = Mathf.Repeat(rotationSeed * 13.137f, 360f);
             }
 
-            rotation = Quaternion.AngleAxis(randomAngle, normal) * rotation;
+            rotation = Quaternion.AngleAxis(splatData.RotationDegrees + randomAngle, normal) * rotation;
             instance.Transform.rotation = rotation;
 
             float baseScale = Mathf.Clamp(splatData.Radius * localRadiusMultiplier, 0.05f, 3.1f);
             float stretchForce = Mathf.Lerp(1f, localStretch, Mathf.InverseLerp(0f, 24f, splatData.ForceMagnitude));
             float xScale = baseScale * stretchForce;
             float yScale = baseScale;
-            if (randomizeFlip && ((splatData.PatternIndex + localIndex) & 1) == 0)
+            if (randomizeFlip && ((splatData.PatternSeed + localIndex) & 1) == 0)
             {
                 xScale *= -1f;
             }
@@ -764,7 +769,7 @@ namespace HueDoneIt.Gameplay.Paint
 
             if (_patternLookup.TryGetValue(splatData.SplatType, out int[] preferredIndices) && preferredIndices != null && preferredIndices.Length > 0)
             {
-                int preferredIndex = Mathf.Abs(splatData.PatternIndex + (localIndex * 17)) % preferredIndices.Length;
+                int preferredIndex = Mathf.Abs(splatData.PatternSeed + (localIndex * 17)) % preferredIndices.Length;
                 return Mathf.Clamp(preferredIndices[preferredIndex], 0, _patternMaterials.Count - 1);
             }
 

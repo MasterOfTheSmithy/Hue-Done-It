@@ -18,9 +18,11 @@ namespace HueDoneIt.Gameplay.Players
         [Header("Force Scaling")]
         [SerializeField, Min(0.01f)] private float forceToRadiusMultiplier = 0.06f;
         [SerializeField, Min(0.01f)] private float forceToIntensityMultiplier = 0.08f;
+        [SerializeField, Min(0f)] private float stretchMultiplier = 0.085f;
         [SerializeField] private Vector2 forceClamp = new(0f, 24f);
         [SerializeField] private Vector2 radiusClamp = new(0.06f, 2.8f);
         [SerializeField] private Vector2 intensityClamp = new(0.08f, 1.65f);
+        [SerializeField] private Vector2 stretchClamp = new(1f, 4.25f);
         [SerializeField, Min(0f)] private float permanentForceThreshold = 9.5f;
 
         [Header("Air/Fallback Splat")]
@@ -79,9 +81,13 @@ namespace HueDoneIt.Gameplay.Players
                 scaled.Intensity,
                 scaled.ForceMagnitude,
                 scaled.VelocityDirection,
+                scaled.TangentDirection,
                 (byte)scaled.SplatType,
                 (byte)scaled.Permanence,
                 scaled.PatternIndex,
+                scaled.PatternSeed,
+                scaled.StretchAmount,
+                scaled.RotationDegrees,
                 _colorProfile != null ? _colorProfile.PlayerColor : Color.white);
         }
 
@@ -102,14 +108,16 @@ namespace HueDoneIt.Gameplay.Players
             float scaledIntensity = Mathf.Clamp(intensity + (clampedForce * forceToIntensityMultiplier), intensityClamp.x, intensityClamp.y);
             Vector3 normalizedNormal = normal.sqrMagnitude > 0.0001f ? normal.normalized : Vector3.up;
             Vector3 normalizedVelocity = velocityDirection.sqrMagnitude > 0.0001f ? velocityDirection.normalized : transform.forward;
+            Vector3 tangentDirection = BuildSurfaceTangent(normalizedNormal, normalizedVelocity);
             int selectedPatternIndex = patternIndex >= 0 ? patternIndex : ComputeStablePatternIndex(position, kind, clampedForce);
+            int patternSeed = ComputePatternSeed(kind, clampedForce, position);
 
             if (permanence == PaintSplatPermanence.Temporary && clampedForce >= permanentForceThreshold)
             {
                 permanence = PaintSplatPermanence.Permanent;
             }
 
-            ApplyEventTuning(kind, ref splatType, ref permanence, ref scaledRadius, ref scaledIntensity, clampedForce);
+            ApplyEventTuning(kind, ref splatType, ref permanence, ref scaledRadius, ref scaledIntensity, clampedForce, normalizedNormal, normalizedVelocity, ref tangentDirection, out float stretchAmount, out float rotationDegrees);
 
             return new PaintSplatData
             {
@@ -122,7 +130,11 @@ namespace HueDoneIt.Gameplay.Players
                 Intensity = scaledIntensity,
                 ForceMagnitude = clampedForce,
                 VelocityDirection = normalizedVelocity,
-                PatternIndex = selectedPatternIndex
+                TangentDirection = tangentDirection,
+                PatternIndex = selectedPatternIndex,
+                PatternSeed = patternSeed,
+                StretchAmount = stretchAmount,
+                RotationDegrees = rotationDegrees
             };
         }
 
@@ -132,73 +144,121 @@ namespace HueDoneIt.Gameplay.Players
             ref PaintSplatPermanence permanence,
             ref float radius,
             ref float intensity,
-            float forceMagnitude)
+            float forceMagnitude,
+            Vector3 normal,
+            Vector3 velocityDirection,
+            ref Vector3 tangentDirection,
+            out float stretchAmount,
+            out float rotationDegrees)
         {
+            stretchAmount = Mathf.Clamp(1f + (forceMagnitude * stretchMultiplier), stretchClamp.x, stretchClamp.y);
+            rotationDegrees = 0f;
+
             switch (kind)
             {
                 case PaintEventKind.Move:
-                    splatType = PaintSplatType.Footstep;
+                    splatType = PaintSplatType.MoveSmear;
                     permanence = PaintSplatPermanence.Temporary;
                     radius *= 0.58f;
                     intensity *= 0.72f;
+                    stretchAmount *= 1.45f;
+                    tangentDirection = BuildSurfaceTangent(normal, tangentDirection);
                     break;
+
                 case PaintEventKind.Land:
                     splatType = PaintSplatType.Landing;
                     radius *= Mathf.Lerp(0.92f, 1.28f, Mathf.InverseLerp(3f, forceClamp.y, forceMagnitude));
                     intensity *= Mathf.Lerp(0.88f, 1.18f, Mathf.InverseLerp(2f, forceClamp.y, forceMagnitude));
+                    stretchAmount *= 1.15f;
                     break;
+
                 case PaintEventKind.WallStick:
-                    splatType = PaintSplatType.WallImpact;
+                    splatType = PaintSplatType.WallScrape;
                     permanence = PaintSplatPermanence.Temporary;
                     radius *= 0.78f;
                     intensity *= 0.88f;
+                    stretchAmount *= 2.35f;
+                    tangentDirection = BuildSurfaceTangent(normal, Vector3.down);
+                    rotationDegrees = 90f;
                     break;
+
                 case PaintEventKind.WallLaunch:
-                    splatType = PaintSplatType.WallImpact;
+                    splatType = PaintSplatType.WallLaunchBurst;
                     radius *= 1.05f;
                     intensity *= 1.18f;
+                    stretchAmount *= 1.85f;
+                    tangentDirection = BuildSurfaceTangent(normal, velocityDirection);
                     break;
+
                 case PaintEventKind.Punch:
                     splatType = PaintSplatType.Punch;
                     radius *= 0.9f;
                     intensity *= 1.22f;
+                    stretchAmount *= 1.95f;
+                    tangentDirection = BuildSurfaceTangent(normal, velocityDirection);
                     break;
+
                 case PaintEventKind.RagdollImpact:
-                    splatType = PaintSplatType.RagdollImpact;
+                    splatType = PaintSplatType.HeavyImpact;
                     permanence = PaintSplatPermanence.Permanent;
                     radius *= 1.5f;
                     intensity *= 1.26f;
+                    stretchAmount *= 2.15f;
+                    tangentDirection = BuildSurfaceTangent(normal, velocityDirection);
                     break;
+
                 case PaintEventKind.TaskInteract:
                     splatType = PaintSplatType.TaskInteract;
                     permanence = PaintSplatPermanence.Permanent;
                     radius *= 0.88f;
                     intensity *= 0.95f;
+                    stretchAmount *= 1.08f;
+                    tangentDirection = BuildSurfaceTangent(normal, tangentDirection);
                     break;
+
                 case PaintEventKind.ThrownObjectImpact:
                     splatType = PaintSplatType.ThrownObject;
                     radius *= 1.1f;
                     intensity *= 1.12f;
+                    stretchAmount *= 1.5f;
                     if (forceMagnitude >= permanentForceThreshold * 0.9f)
                     {
                         permanence = PaintSplatPermanence.Permanent;
                     }
 
+                    tangentDirection = BuildSurfaceTangent(normal, velocityDirection);
                     break;
+
                 case PaintEventKind.FloodBurst:
                     splatType = PaintSplatType.Flood;
                     permanence = PaintSplatPermanence.Temporary;
+                    stretchAmount *= 0.95f;
                     break;
+
                 case PaintEventKind.FloodDrip:
                     splatType = PaintSplatType.Flood;
                     permanence = PaintSplatPermanence.Temporary;
                     radius *= 0.72f;
                     intensity *= 0.68f;
+                    stretchAmount *= 1.55f;
+                    tangentDirection = BuildSurfaceTangent(normal, Vector3.down);
                     break;
             }
 
             radius = Mathf.Clamp(radius, radiusClamp.x, radiusClamp.y);
             intensity = Mathf.Clamp(intensity, intensityClamp.x, intensityClamp.y);
+            stretchAmount = Mathf.Clamp(stretchAmount, stretchClamp.x, stretchClamp.y);
+        }
+
+        private static Vector3 BuildSurfaceTangent(Vector3 normal, Vector3 preferredDirection)
+        {
+            Vector3 tangent = Vector3.ProjectOnPlane(preferredDirection, normal);
+            if (tangent.sqrMagnitude < 0.0001f)
+            {
+                tangent = Vector3.Cross(normal, Mathf.Abs(normal.y) > 0.7f ? Vector3.right : Vector3.up);
+            }
+
+            return tangent.sqrMagnitude > 0.0001f ? tangent.normalized : Vector3.right;
         }
 
         private static int ComputeStablePatternIndex(Vector3 position, PaintEventKind kind, float force)
@@ -211,17 +271,27 @@ namespace HueDoneIt.Gameplay.Players
             return Mathf.Abs(hash);
         }
 
+        private static int ComputePatternSeed(PaintEventKind kind, float forceMagnitude, Vector3 position)
+        {
+            int seed = ((int)kind + 11) * 16777619;
+            seed ^= Mathf.RoundToInt(forceMagnitude * 100f) * 31;
+            seed ^= Mathf.RoundToInt(position.x * 100f) * 17;
+            seed ^= Mathf.RoundToInt(position.y * 100f) * 13;
+            seed ^= Mathf.RoundToInt(position.z * 100f) * 7;
+            return seed & int.MaxValue;
+        }
+
         private static PaintSplatType MapSplatType(PaintEventKind kind)
         {
             return kind switch
             {
-                PaintEventKind.Move => PaintSplatType.Footstep,
+                PaintEventKind.Move => PaintSplatType.MoveSmear,
                 PaintEventKind.Land => PaintSplatType.Landing,
-                PaintEventKind.WallStick => PaintSplatType.WallImpact,
-                PaintEventKind.WallLaunch => PaintSplatType.WallImpact,
+                PaintEventKind.WallStick => PaintSplatType.WallScrape,
+                PaintEventKind.WallLaunch => PaintSplatType.WallLaunchBurst,
                 PaintEventKind.Punch => PaintSplatType.Punch,
                 PaintEventKind.TaskInteract => PaintSplatType.TaskInteract,
-                PaintEventKind.RagdollImpact => PaintSplatType.RagdollImpact,
+                PaintEventKind.RagdollImpact => PaintSplatType.HeavyImpact,
                 PaintEventKind.ThrownObjectImpact => PaintSplatType.ThrownObject,
                 PaintEventKind.FloodBurst => PaintSplatType.Flood,
                 PaintEventKind.FloodDrip => PaintSplatType.Flood,
@@ -260,9 +330,13 @@ namespace HueDoneIt.Gameplay.Players
             float intensity,
             float forceMagnitude,
             Vector3 velocityDirection,
+            Vector3 tangentDirection,
             byte splatType,
             byte permanence,
             int patternIndex,
+            int patternSeed,
+            float stretchAmount,
+            float rotationDegrees,
             Color color)
         {
             PaintSplatData splatData = new()
@@ -276,7 +350,11 @@ namespace HueDoneIt.Gameplay.Players
                 Intensity = intensity,
                 ForceMagnitude = forceMagnitude,
                 VelocityDirection = velocityDirection,
-                PatternIndex = patternIndex
+                TangentDirection = tangentDirection,
+                PatternIndex = patternIndex,
+                PatternSeed = patternSeed,
+                StretchAmount = stretchAmount,
+                RotationDegrees = rotationDegrees
             };
 
             bool wet = IsWetPresentation();
