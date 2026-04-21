@@ -2,6 +2,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using HueDoneIt.Core.Bootstrap;
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Paint;
@@ -386,13 +387,11 @@ namespace HueDoneIt.Gameplay
                 return;
             }
 
+            int targetCpuCount = Mathf.Clamp(BootSessionConfig.RequestedCpuCount, 0, 7);
             var agents = FindObjectsByType<Players.SimpleCpuOpponentAgent>(FindObjectsSortMode.None);
-            if (agents != null && agents.Length > 0)
-            {
-                return;
-            }
+            int existingCount = agents != null ? agents.Length : 0;
 
-            if (NetworkManager.Singleton.ConnectedClientsList.Count >= 2)
+            if (existingCount >= targetCpuCount)
             {
                 return;
             }
@@ -403,27 +402,31 @@ namespace HueDoneIt.Gameplay
 
             if (playerPrefab == null)
             {
-                Debug.LogWarning("GameplayBetaSceneInstaller: cannot spawn solo CPU because NetworkConfig.PlayerPrefab is missing.");
+                Debug.LogWarning("GameplayBetaSceneInstaller: cannot spawn CPU because NetworkConfig.PlayerPrefab is missing.");
                 return;
             }
 
-            GameObject bot = Instantiate(playerPrefab, new Vector3(2f, 1f, -2f), Quaternion.identity, root);
-            bot.name = "CPU_Opponent_01";
-
-            if (bot.GetComponent<Players.SimpleCpuOpponentAgent>() == null)
+            for (int i = existingCount; i < targetCpuCount; i++)
             {
-                bot.AddComponent<Players.SimpleCpuOpponentAgent>();
-            }
+                Vector3 spawnPos = new Vector3(2f + (i * 1.4f), 1f, -2f - (i * 0.8f));
+                GameObject bot = Instantiate(playerPrefab, spawnPos, Quaternion.identity, root);
+                bot.name = $"CPU_Opponent_{i + 1:00}";
 
-            NetworkObject networkObject = bot.GetComponent<NetworkObject>();
-            if (networkObject == null)
-            {
-                networkObject = bot.AddComponent<NetworkObject>();
-            }
+                if (bot.GetComponent<Players.SimpleCpuOpponentAgent>() == null)
+                {
+                    bot.AddComponent<Players.SimpleCpuOpponentAgent>();
+                }
 
-            if (!networkObject.IsSpawned)
-            {
-                networkObject.Spawn(true);
+                NetworkObject networkObject = bot.GetComponent<NetworkObject>();
+                if (networkObject == null)
+                {
+                    networkObject = bot.AddComponent<NetworkObject>();
+                }
+
+                if (!networkObject.IsSpawned)
+                {
+                    networkObject.Spawn(true);
+                }
             }
         }
 

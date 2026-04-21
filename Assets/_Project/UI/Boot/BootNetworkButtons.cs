@@ -1,5 +1,7 @@
+// File: Assets/_Project/UI/Boot/BootNetworkButtons.cs
 using System;
 using System.Reflection;
+using HueDoneIt.Core.Bootstrap;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
@@ -16,67 +18,66 @@ namespace HueDoneIt.UI.Boot
         [SerializeField] private ushort defaultPort = 7777;
         [SerializeField] private string defaultAddress = "127.0.0.1";
 
+        public bool IsNetworkActive => TryResolveNetworkManager(out NetworkManager manager) && manager.IsListening;
+        public bool IsHost => TryResolveNetworkManager(out NetworkManager manager) && manager.IsHost;
+
         public void StartHost()
         {
-            Debug.Log("BootNetworkButtons.StartHost() clicked.");
-
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
+                return;
+            }
+
+            if (manager.IsListening)
+            {
+                LoadGameplaySceneIfHost(manager);
                 return;
             }
 
             ConfigureTransportForHost(manager);
-
             bool started = manager.StartHost();
             Debug.Log($"NetworkManager.StartHost() returned: {started}");
-
-            if (!started)
+            if (started)
             {
-                Debug.LogError("BootNetworkButtons: Host failed to start.");
-                return;
+                RuntimeGameSettings.Apply();
             }
-
-            if (!manager.NetworkConfig.EnableSceneManagement)
-            {
-                Debug.LogWarning("BootNetworkButtons: Enable Scene Management is off. Loading Gameplay locally only.");
-                SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
-                return;
-            }
-
-            manager.SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
         }
 
         public void StartClient()
         {
-            Debug.Log("BootNetworkButtons.StartClient() clicked.");
-
             if (!TryResolveNetworkManager(out NetworkManager manager))
+            {
+                return;
+            }
+
+            if (manager.IsListening)
             {
                 return;
             }
 
             ConfigureTransportForClient(manager);
-
             bool started = manager.StartClient();
             Debug.Log($"NetworkManager.StartClient() returned: {started}");
+        }
 
-            if (!started)
+        public void StartMatchFromLobby()
+        {
+            if (!TryResolveNetworkManager(out NetworkManager manager) || !manager.IsHost)
             {
-                Debug.LogError("BootNetworkButtons: Client failed to start.");
+                return;
             }
+
+            LoadGameplaySceneIfHost(manager);
         }
 
         public void Shutdown()
         {
-            Debug.Log("BootNetworkButtons.Shutdown() clicked.");
-
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
                 return;
             }
 
             manager.Shutdown();
-            Debug.Log("NetworkManager shutdown complete.");
         }
 
         public static string GetConfiguredAddress(string fallback = "127.0.0.1")
@@ -99,6 +100,17 @@ namespace HueDoneIt.UI.Boot
         public static void SetConfiguredPort(ushort port)
         {
             PlayerPrefs.SetInt(PortPrefsKey, port);
+        }
+
+        private void LoadGameplaySceneIfHost(NetworkManager manager)
+        {
+            if (!manager.NetworkConfig.EnableSceneManagement)
+            {
+                SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
+                return;
+            }
+
+            manager.SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
         }
 
         private bool TryResolveNetworkManager(out NetworkManager manager)
@@ -138,7 +150,7 @@ namespace HueDoneIt.UI.Boot
             Component transport = manager.GetComponent("UnityTransport");
             if (transport == null)
             {
-                Debug.LogWarning("BootNetworkButtons: UnityTransport component not found. Using existing transport config.");
+                Debug.LogWarning("BootNetworkButtons: UnityTransport component not found.");
                 return;
             }
 
@@ -147,7 +159,6 @@ namespace HueDoneIt.UI.Boot
             if (method != null)
             {
                 method.Invoke(transport, new object[] { address, port, string.IsNullOrWhiteSpace(listenAddress) ? null : listenAddress });
-                Debug.Log($"BootNetworkButtons: transport configured. Address={address}, Port={port}, Listen={listenAddress ?? "<client>"}");
                 return;
             }
 
@@ -155,11 +166,10 @@ namespace HueDoneIt.UI.Boot
             if (legacyMethod != null)
             {
                 legacyMethod.Invoke(transport, new object[] { address, port });
-                Debug.Log($"BootNetworkButtons: legacy transport configured. Address={address}, Port={port}");
                 return;
             }
 
-            Debug.LogWarning("BootNetworkButtons: UnityTransport.SetConnectionData was not found by reflection. Existing transport settings were left unchanged.");
+            Debug.LogWarning("BootNetworkButtons: UnityTransport.SetConnectionData not found.");
         }
     }
 }

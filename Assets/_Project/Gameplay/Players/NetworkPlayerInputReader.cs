@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Players/NetworkPlayerInputReader.cs
+using HueDoneIt.Core.Bootstrap;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -93,10 +94,10 @@ namespace HueDoneIt.Gameplay.Players
             float x = 0f;
             float y = 0f;
 
-            if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) x -= 1f;
-            if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) x += 1f;
-            if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) y -= 1f;
-            if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) y += 1f;
+            if (keyboard.IsPressed(RuntimeInputBindings.Left) || keyboard.leftArrowKey.isPressed) x -= 1f;
+            if (keyboard.IsPressed(RuntimeInputBindings.Right) || keyboard.rightArrowKey.isPressed) x += 1f;
+            if (keyboard.IsPressed(RuntimeInputBindings.Back) || keyboard.downArrowKey.isPressed) y -= 1f;
+            if (keyboard.IsPressed(RuntimeInputBindings.Forward) || keyboard.upArrowKey.isPressed) y += 1f;
 
             Vector2 input = new(x, y);
             if (input.sqrMagnitude > 1f)
@@ -110,7 +111,7 @@ namespace HueDoneIt.Gameplay.Players
         private bool ReadJumpPressed()
         {
             Keyboard keyboard = Keyboard.current;
-            bool pressed = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
+            bool pressed = keyboard.WasPressedThisFrame(RuntimeInputBindings.Jump);
             if (pressed)
             {
                 _jumpPressBufferRemaining = jumpPressBufferSeconds;
@@ -134,7 +135,7 @@ namespace HueDoneIt.Gameplay.Players
         private static bool ReadBurstHeld()
         {
             Keyboard keyboard = Keyboard.current;
-            return keyboard != null && keyboard.leftShiftKey.isPressed;
+            return keyboard.IsPressed(RuntimeInputBindings.Burst);
         }
 
         private Vector3 ResolveWorldMove(Vector2 input)
