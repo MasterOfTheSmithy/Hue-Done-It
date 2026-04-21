@@ -1,0 +1,30 @@
+===== Tue 04/21/2026  1:05:36.21 =====
+STEP 1: Starting in C:\HueDoneIt\game\Hue Done It
+STEP 2: cd done (err=0) in C:\HueDoneIt\game\Hue Done It
+C:\Program Files\Git\cmd\git.exe
+STEP 3: git found
+true
+STEP 4: confirmed inside git work tree
+https://github.com/MasterOfTheSmithy/Hue-Done-It
+STEP 5: git status
+On branch codex/prepare-hue-done-it-for-production-beta-t4yv58
+Your branch is up to date with 'origin/codex/prepare-hue-done-it-for-production-beta-t4yv58'.
+
+Changes not staged for commit:
+  (use "git add <file>..." to update what will be committed)
+  (use "git restore <file>..." to discard changes in working directory)
+	modified:   Assembly-CSharp.csproj
+	modified:   Assets/Scenes/Boot.unity
+	modified:   Assets/Scenes/Gameplay_Undertint.unity
+	modified:   Assets/_Project/Gameplay/GameplayBetaSceneInstaller.cs
+
+Untracked files:
+  (use "git add <file>..." to include in what will be committed)
+	Assets/_Project/ScriptDump.meta
+	Assets/_Project/ScriptDump/
+	Assets/_Project/script_dump_self_extracting.bat
+	Assets/_Project/script_dump_self_extracting.bat.meta
+	commit_push_log.txt
+
+no changes added to commit (use "git add" and/or "git commit -a")
+STEP 6: git add .
