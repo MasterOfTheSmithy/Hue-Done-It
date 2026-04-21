@@ -55,7 +55,7 @@ namespace HueDoneIt.Flood
             StateChanged?.Invoke(previousState, currentState);
             if (IsServer)
             {
-                Debug.Log($"Flood zone '{zoneId}' transitioned {previousState} -> {currentState}.");
+                UnityEngine.Debug.Log($"Flood zone '{zoneId}' transitioned {previousState} -> {currentState}.");
             }
         }
     }

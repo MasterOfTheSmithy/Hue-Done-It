@@ -48,7 +48,67 @@
     <Analyzer Include="C:\Program Files\Unity\Hub\Editor\6000.3.2f1\Editor\Data\Tools\BuildPipeline\Unity.SourceGenerators\Unity.UIToolkit.SourceGenerator.dll" />
   </ItemGroup>
   <ItemGroup>
+    <Compile Include="Assets\_Project\Gameplay\Round\NetworkRoundState.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Players\NetworkPlayerInputReader.cs" />
+    <Compile Include="Assets\_Project\Tasks\RepairTaskState.cs" />
+    <Compile Include="Assets\_Project\Flood\FloodZoneState.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Elimination\BodyReportManager.cs" />
+    <Compile Include="Assets\_Project\Flood\FloodZone.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Elimination\PlayerKillInputController.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Interaction\SampleConsoleInteractable.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Elimination\EliminationManager.cs" />
+    <Compile Include="Assets\_Project\UI\Boot\BootNetworkButtons.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Interaction\InteractionContext.cs" />
+    <Compile Include="Assets\_Project\Tasks\PumpRepairTask.cs" />
+    <Compile Include="Assets\_Project\Core\Bootstrap\BootSceneEntrypoint.cs" />
+    <Compile Include="Assets\_Project\Core\Scenes\UnitySceneLoader.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Elimination\PlayerLifeStateKind.cs" />
+    <Compile Include="Assets\_Project\UI\Tasks\RepairTaskStatusView.cs" />
+    <Compile Include="Assets\_Project\Tasks\PlayerRepairTaskParticipant.cs" />
+    <Compile Include="Assets\_Project\Flood\Integration\PlayerFloodZoneTracker.cs" />
+    <Compile Include="Assets\_Project\Core\Bootstrap\AppBootstrap.cs" />
+    <Compile Include="Assets\_Project\Core\Scenes\ISceneLoader.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Players\NetworkPlayerAuthoritativeMover.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Round\RoundPhase.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Interaction\IInteractable.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
+    <Compile Include="Assets\_Project\Tasks\IRepairTaskFloodSafetyProvider.cs" />
+    <Compile Include="Assets\_Project\Flood\FloodSequenceController.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Interaction\NetworkInteractable.cs" />
+    <Compile Include="Assets\_Project\Flood\Debug\FloodZoneStateLabel.cs" />
+    <Compile Include="Assets\_Project\UI\Interaction\InteractionPromptView.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Players\NetworkPlayerAvatar.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Elimination\PlayerRemains.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Elimination\IPlayerLifeStateReader.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Interaction\PlayerInteractionDetector.cs" />
+    <Compile Include="Assets\_Project\Tasks\NetworkRepairTask.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Interaction\PlayerInteractionController.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Elimination\PlayerLifeState.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="Assets\TextMesh Pro\Shaders\TMPro.cginc" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile Overlay.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile-2-Pass.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_Bitmap.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMPro_Mobile.cginc" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF SSD.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Surface-Mobile.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\SDFFunctions.hlsl" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Surface.shader" />
+    <None Include="Assets\TextMesh Pro\Sprites\EmojiOne Attribution.txt" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_Bitmap-Custom-Atlas.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile SSD.shader" />
+    <None Include="Assets\TextMesh Pro\Resources\LineBreaking Leading Characters.txt" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMPro_Properties.cginc" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMPro_Surface.cginc" />
+    <None Include="Assets\TextMesh Pro\Resources\LineBreaking Following Characters.txt" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile Masking.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF Overlay.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_Bitmap-Mobile.shader" />
+    <None Include="Assets\TextMesh Pro\Fonts\LiberationSans - OFL.txt" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_SDF-Mobile.shader" />
+    <None Include="Assets\TextMesh Pro\Shaders\TMP_Sprite.shader" />
   </ItemGroup>
   <ItemGroup>
     <Reference Include="UnityEngine">
@@ -1103,6 +1163,10 @@
       <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.Core.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Unity.Netcode.Editor">
+      <HintPath>Library\ScriptAssemblies\Unity.Netcode.Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.TextMeshPro">
       <HintPath>Library\ScriptAssemblies\Unity.TextMeshPro.dll</HintPath>
       <Private>False</Private>
@@ -1115,12 +1179,20 @@
       <HintPath>Library\ScriptAssemblies\Unity.AI.Navigation.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Unity.Netcode.Runtime">
+      <HintPath>Library\ScriptAssemblies\Unity.Netcode.Runtime.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.RenderPipelines.Core.ShaderLibrary">
       <HintPath>Library\ScriptAssemblies\Unity.RenderPipelines.Core.ShaderLibrary.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.VisualScripting.SettingsProvider.Editor">
       <HintPath>Library\ScriptAssemblies\Unity.VisualScripting.SettingsProvider.Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.Networking.Editor">
+      <HintPath>Library\ScriptAssemblies\Unity.Networking.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.RenderPipelines.Universal.2D.Editor.Overrides">
@@ -1207,6 +1279,10 @@
       <HintPath>Library\ScriptAssemblies\Unity.TextMeshPro.Editor.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="Unity.Netcode.PackageChecker.Editor">
+      <HintPath>Library\ScriptAssemblies\Unity.Netcode.PackageChecker.Editor.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="Unity.VisualScripting.Flow.Editor">
       <HintPath>Library\ScriptAssemblies\Unity.VisualScripting.Flow.Editor.dll</HintPath>
       <Private>False</Private>
@@ -1221,6 +1297,10 @@
     </Reference>
     <Reference Include="Unity.InputSystem.ForUI">
       <HintPath>Library\ScriptAssemblies\Unity.InputSystem.ForUI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Unity.Networking.Transport">
+      <HintPath>Library\ScriptAssemblies\Unity.Networking.Transport.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.RenderPipelines.GPUDriven.Runtime">
