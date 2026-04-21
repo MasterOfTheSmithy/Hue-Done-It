@@ -18,8 +18,11 @@ namespace HueDoneIt.Gameplay.Players
 
         public Vector2 CurrentMoveInput { get; private set; }
         public Vector3 CurrentWorldMoveInput { get; private set; }
-        public bool JumpPressedThisFrame { get; private set; }
-        public bool PunchPressedThisFrame { get; private set; }
+
+        // Non-consuming state for client send path.
+        public bool JumpPressedThisFrame => _jumpPressBufferRemaining > 0f;
+        public bool PunchPressedThisFrame => _punchPressBufferRemaining > 0f;
+
         public bool BurstHeld { get; private set; }
         public float CurrentVisualYaw => transform.eulerAngles.y;
 
@@ -29,16 +32,16 @@ namespace HueDoneIt.Gameplay.Players
             {
                 CurrentMoveInput = Vector2.zero;
                 CurrentWorldMoveInput = Vector3.zero;
-                JumpPressedThisFrame = false;
-                PunchPressedThisFrame = false;
                 BurstHeld = false;
+                _jumpPressBufferRemaining = 0f;
+                _punchPressBufferRemaining = 0f;
                 return;
             }
 
             CurrentMoveInput = ReadMoveInput();
             CurrentWorldMoveInput = ResolveWorldMove(CurrentMoveInput);
-            JumpPressedThisFrame = ReadJumpPressed();
-            PunchPressedThisFrame = ReadPunchPressed();
+            ReadJumpPressed();
+            ReadPunchPressed();
             BurstHeld = ReadBurstHeld();
 
             if (_jumpPressBufferRemaining > 0f)
@@ -98,7 +101,7 @@ namespace HueDoneIt.Gameplay.Players
             if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) y -= 1f;
             if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) y += 1f;
 
-            Vector2 input = new(x, y);
+            Vector2 input = new Vector2(x, y);
             if (input.sqrMagnitude > 1f)
             {
                 input.Normalize();
@@ -107,34 +110,28 @@ namespace HueDoneIt.Gameplay.Players
             return input;
         }
 
-        private bool ReadJumpPressed()
+        private void ReadJumpPressed()
         {
             Keyboard keyboard = Keyboard.current;
-            bool pressed = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
-            if (pressed)
+            if (keyboard != null && keyboard.spaceKey.wasPressedThisFrame)
             {
                 _jumpPressBufferRemaining = jumpPressBufferSeconds;
             }
-
-            return pressed;
         }
 
-        private bool ReadPunchPressed()
+        private void ReadPunchPressed()
         {
             Mouse mouse = Mouse.current;
-            bool pressed = mouse != null && mouse.rightButton.wasPressedThisFrame;
-            if (pressed)
+            if (mouse != null && mouse.rightButton.wasPressedThisFrame)
             {
                 _punchPressBufferRemaining = punchPressBufferSeconds;
             }
-
-            return pressed;
         }
 
         private static bool ReadBurstHeld()
         {
             Keyboard keyboard = Keyboard.current;
-            return keyboard != null && keyboard.leftShiftKey.isPressed;
+            return keyboard != null && (keyboard.leftShiftKey.isPressed || keyboard.rightShiftKey.isPressed);
         }
 
         private Vector3 ResolveWorldMove(Vector2 input)

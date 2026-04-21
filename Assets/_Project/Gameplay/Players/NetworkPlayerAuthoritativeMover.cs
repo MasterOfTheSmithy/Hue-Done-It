@@ -53,6 +53,9 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0f)] private float wallLaunchSeparationBoost = 2.4f;
         [SerializeField, Min(0.01f)] private float wallDetachGraceSeconds = 0.2f;
         [SerializeField, Range(0f, 1f)] private float wallDetachNormalDotThreshold = 0.5f;
+        [SerializeField, Min(0.01f)] private float wallLaunchControlSeconds = 0.22f;
+        [SerializeField, Min(0.01f)] private float postWallLaunchAirAccelerationMultiplier = 1.35f;
+        [SerializeField, Min(0f)] private float wallGlidePlanarAssist = 0.75f;
 
         [Header("Punch / Knockback")]
         [SerializeField, Min(0.1f)] private float punchCooldownSeconds = 0.75f;
@@ -94,8 +97,10 @@ namespace HueDoneIt.Gameplay.Players
 
         private readonly NetworkVariable<byte> _locomotionState =
             new((byte)LocomotionState.Airborne, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<Vector3> _authoritativeVelocity =
             new(Vector3.zero, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<Vector3> _supportNormal =
             new(Vector3.up, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -120,6 +125,9 @@ namespace HueDoneIt.Gameplay.Players
         private float _wallStickTimeRemaining;
         private float _wallDetachTimeRemaining;
         private float _knockbackTimeRemaining;
+        private float _wallLaunchControlTimeRemaining;
+        private float _ragdollTimeRemaining;
+        private float _ragdollRecoveryTimeRemaining;
         private Vector3 _lastWallNormal;
         private float _jumpBufferTimeRemaining;
 
@@ -127,6 +135,8 @@ namespace HueDoneIt.Gameplay.Players
         private Vector3 _lastSentMoveWorldInput;
         private float _lastSentVisualYaw;
         private bool _lastSentBurstHeld;
+        private bool _lastSentJumpBuffered;
+        private bool _lastSentPunchBuffered;
 
         private float _nextMovementPaintTime;
         private float _nextWallPaintTime;
@@ -149,6 +159,7 @@ namespace HueDoneIt.Gameplay.Players
         {
             base.OnNetworkSpawn();
             ResolveRoundState();
+
             if (IsServer)
             {
                 ResolveInitialOverlaps();
@@ -212,6 +223,9 @@ namespace HueDoneIt.Gameplay.Players
             _horizontalVelocity = Vector3.zero;
             _knockbackTimeRemaining = 0f;
             _wallDetachTimeRemaining = 0f;
+            _wallLaunchControlTimeRemaining = 0f;
+            _ragdollTimeRemaining = 0f;
+            _ragdollRecoveryTimeRemaining = 0f;
             _jumpBufferTimeRemaining = 0f;
             _serverVisualYaw = yawDegrees;
             _locomotionState.Value = (byte)LocomotionState.Airborne;
@@ -233,6 +247,7 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             bool wasAirborne = !IsGrounded(transform.position);
+
             _horizontalVelocity = new Vector3(impulse.x, 0f, impulse.z);
             _verticalVelocity = Mathf.Max(impulse.y, 0f);
             _knockbackTimeRemaining = knockbackLockSeconds;
@@ -259,6 +274,7 @@ namespace HueDoneIt.Gameplay.Players
                 _serverMoveWorldInput = Vector3.zero;
                 _serverJumpRequested = false;
                 _serverPunchRequested = false;
+                _serverBurstHeld = false;
                 return;
             }
 
@@ -290,25 +306,40 @@ namespace HueDoneIt.Gameplay.Players
             bool lowGravity = IsInLowGravityZone();
             bool grounded = IsGrounded(transform.position);
             bool hasWall = TryFindWall(transform.position, out RaycastHit wallHit);
+
             _wallDetachTimeRemaining = Mathf.Max(0f, _wallDetachTimeRemaining - deltaTime);
             _jumpBufferTimeRemaining = Mathf.Max(0f, _jumpBufferTimeRemaining - deltaTime);
+            _wallLaunchControlTimeRemaining = Mathf.Max(0f, _wallLaunchControlTimeRemaining - deltaTime);
 
-            if (hasWall && _wallDetachTimeRemaining > 0f && Vector3.Dot(wallHit.normal, _lastWallNormal) >= wallDetachNormalDotThreshold)
+            if (_ragdollTimeRemaining > 0f)
             {
-                hasWall = false;
-            }
+                _ragdollTimeRemaining -= deltaTime;
+                _locomotionState.Value = (byte)LocomotionState.Ragdoll;
+                _supportNormal.Value = Vector3.up;
 
-                _supportNormal.Value = hasWall ? wallHit.normal : Vector3.up;
+                _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, ragdollHorizontalDamping * deltaTime);
+                _verticalVelocity -= GetGravity(lowGravity) * ragdollGravityMultiplier * deltaTime;
+
+                if (_ragdollTimeRemaining <= 0f)
+                {
+                    _ragdollRecoveryTimeRemaining = ragdollRecoveryLockSeconds;
+                    _locomotionState.Value = (byte)LocomotionState.Knockback;
+                }
             }
             else if (_knockbackTimeRemaining > 0f)
             {
                 _knockbackTimeRemaining -= deltaTime;
                 _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, knockbackDamping * deltaTime);
-                _verticalVelocity += -GetGravity(lowGravity) * deltaTime;
+                _verticalVelocity -= GetGravity(lowGravity) * deltaTime;
                 _supportNormal.Value = hasWall ? wallHit.normal : Vector3.up;
             }
             else
             {
+                if (hasWall && _wallDetachTimeRemaining > 0f && Vector3.Dot(wallHit.normal, _lastWallNormal) >= wallDetachNormalDotThreshold)
+                {
+                    hasWall = false;
+                }
+
                 float targetSpeed = _serverBurstHeld ? burstMoveSpeed : moveSpeed;
                 Vector3 desiredHorizontalVelocity = Vector3.ClampMagnitude(_serverMoveWorldInput, 1f) * targetSpeed;
                 float effectiveAirAcceleration = _wallLaunchControlTimeRemaining > 0f
@@ -319,6 +350,7 @@ namespace HueDoneIt.Gameplay.Players
                 {
                     _wallStickTimeRemaining = wallStickDuration;
                     _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, desiredHorizontalVelocity, groundAcceleration * deltaTime);
+
                     if (desiredHorizontalVelocity.sqrMagnitude < 0.0001f)
                     {
                         _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, dragDamping * deltaTime);
@@ -332,6 +364,7 @@ namespace HueDoneIt.Gameplay.Players
                     _locomotionState.Value = _ragdollRecoveryTimeRemaining > 0f
                         ? (byte)LocomotionState.Knockback
                         : (byte)LocomotionState.Grounded;
+
                     _supportNormal.Value = Vector3.up;
 
                     if (_jumpBufferTimeRemaining > 0f)
@@ -353,16 +386,19 @@ namespace HueDoneIt.Gameplay.Players
                         bool movingIntoWall = Vector3.Dot(_serverMoveWorldInput, -wallHit.normal) > 0.2f;
                         _supportNormal.Value = wallHit.normal;
 
-                        if (_serverJumpRequested && _ragdollRecoveryTimeRemaining <= 0f)
+                        if (_jumpBufferTimeRemaining > 0f && _ragdollRecoveryTimeRemaining <= 0f)
                         {
                             Vector3 planarInput = Vector3.ProjectOnPlane(_serverMoveWorldInput, wallHit.normal);
                             Vector3 awayLaunch = wallHit.normal * (wallLaunchHorizontalForce + wallLaunchSeparationBoost);
+
                             _horizontalVelocity = awayLaunch + (planarInput * wallLaunchInputInfluence);
                             _verticalVelocity = wallLaunchVerticalForce;
                             _wallStickTimeRemaining = 0f;
                             _wallDetachTimeRemaining = wallDetachGraceSeconds;
+                            _wallLaunchControlTimeRemaining = wallLaunchControlSeconds;
                             _jumpBufferTimeRemaining = 0f;
                             _locomotionState.Value = (byte)LocomotionState.WallLaunch;
+
                             EmitPaint(PaintEventKind.WallLaunch, wallHit.point, wallHit.normal, 0.45f, 0.95f);
                         }
                         else if (movingIntoWall)
@@ -376,10 +412,13 @@ namespace HueDoneIt.Gameplay.Players
                                 _locomotionState.Value = _ragdollRecoveryTimeRemaining > 0f
                                     ? (byte)LocomotionState.Knockback
                                     : (byte)LocomotionState.WallStick;
+
                                 _verticalVelocity = Mathf.Max(_verticalVelocity - (wallStickForce * deltaTime), -0.4f);
+
                                 Vector3 projected = Vector3.ProjectOnPlane(_horizontalVelocity, wallHit.normal) * 0.94f;
                                 Vector3 wallCarry = Vector3.ProjectOnPlane(desiredHorizontalVelocity, wallHit.normal) * wallGlidePlanarAssist;
                                 _horizontalVelocity = projected + wallCarry;
+
                                 if (!lowGravity)
                                 {
                                     _wallStickTimeRemaining -= deltaTime;
@@ -409,8 +448,13 @@ namespace HueDoneIt.Gameplay.Players
                         _supportNormal.Value = Vector3.up;
                     }
 
-                    _verticalVelocity += -GetGravity(lowGravity) * deltaTime;
+                    _verticalVelocity -= GetGravity(lowGravity) * deltaTime;
                 }
+            }
+
+            if (_ragdollRecoveryTimeRemaining > 0f)
+            {
+                _ragdollRecoveryTimeRemaining = Mathf.Max(0f, _ragdollRecoveryTimeRemaining - deltaTime);
             }
 
             if (!grounded && _ragdollTimeRemaining <= 0f && _ragdollRecoveryTimeRemaining <= 0f)
@@ -441,10 +485,15 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             if ((_locomotionState.Value == (byte)LocomotionState.Grounded || _locomotionState.Value == (byte)LocomotionState.LowGravityFloat) &&
-                (_serverMoveWorldInput.sqrMagnitude > 0.2f) && Time.time >= _nextMovementPaintTime)
+                _serverMoveWorldInput.sqrMagnitude > 0.2f &&
+                Time.time >= _nextMovementPaintTime)
             {
                 _nextMovementPaintTime = Time.time + (lowGravity ? 0.12f : 0.2f);
-                Vector3 direction = (nextPosition - previousPosition).sqrMagnitude > 0.001f ? (nextPosition - previousPosition).normalized : transform.forward;
+
+                Vector3 direction = (nextPosition - previousPosition).sqrMagnitude > 0.001f
+                    ? (nextPosition - previousPosition).normalized
+                    : transform.forward;
+
                 EmitPaint(PaintEventKind.Move, nextPosition + (Vector3.down * 0.48f), Vector3.up, lowGravity ? 0.2f : 0.14f, lowGravity ? 0.9f : 0.45f);
                 EmitPaint(PaintEventKind.Move, nextPosition + (direction * 0.25f) + (Vector3.down * 0.48f), Vector3.up, 0.11f, 0.4f);
             }
@@ -531,16 +580,11 @@ namespace HueDoneIt.Gameplay.Players
                 {
                     bestDistanceSqr = distanceSqr;
                     targetMover = mover;
-                    hitPoint = losHitPoint(origin, targetPoint);
+                    hitPoint = Vector3.Lerp(origin, targetPoint, 0.8f);
                 }
             }
 
             return targetMover != null;
-
-            static Vector3 losHitPoint(Vector3 from, Vector3 to)
-            {
-                return Vector3.Lerp(from, to, 0.8f);
-            }
         }
 
         private bool TryFindWall(Vector3 position, out RaycastHit wallHit)
@@ -555,6 +599,7 @@ namespace HueDoneIt.Gameplay.Players
 
             horizontalDirection.Normalize();
             GetCapsuleWorldPoints(position, out Vector3 point1, out Vector3 point2, out float radius);
+
             if (Physics.CapsuleCast(point1, point2, radius * 0.95f, horizontalDirection, out wallHit, wallDetectionDistance, groundMask, QueryTriggerInteraction.Ignore))
             {
                 return wallHit.normal.y < 0.4f;
@@ -709,9 +754,14 @@ namespace HueDoneIt.Gameplay.Players
                     }
 
                     if (Physics.ComputePenetration(
-                            _capsuleCollider, resolvedPosition, transform.rotation,
-                            other, other.transform.position, other.transform.rotation,
-                            out Vector3 separationDirection, out float separationDistance))
+                            _capsuleCollider,
+                            resolvedPosition,
+                            transform.rotation,
+                            other,
+                            other.transform.position,
+                            other.transform.rotation,
+                            out Vector3 separationDirection,
+                            out float separationDistance))
                     {
                         resolvedPosition += separationDirection * (separationDistance + collisionSkin);
                         moved = true;
@@ -748,13 +798,18 @@ namespace HueDoneIt.Gameplay.Players
 
             Vector3 move = _inputReader.CurrentWorldMoveInput;
             float yaw = _inputReader.CurrentVisualYaw;
-            bool jumpPressed = _inputReader.ConsumeJumpPressedThisFrame();
-            bool punchPressed = _inputReader.ConsumePunchPressedThisFrame();
+
+            // IMPORTANT: do not consume here
+            bool jumpPressed = _inputReader.JumpPressedThisFrame;
+            bool punchPressed = _inputReader.PunchPressedThisFrame;
             bool burstHeld = _inputReader.BurstHeld;
 
-            bool shouldSend = (move - _lastSentMoveWorldInput).sqrMagnitude > 0.0001f ||
-                              Mathf.Abs(Mathf.DeltaAngle(yaw, _lastSentVisualYaw)) > 0.5f ||
-                              jumpPressed || punchPressed || burstHeld != _lastSentBurstHeld;
+            bool shouldSend =
+                (move - _lastSentMoveWorldInput).sqrMagnitude > 0.0001f ||
+                Mathf.Abs(Mathf.DeltaAngle(yaw, _lastSentVisualYaw)) > 0.5f ||
+                jumpPressed != _lastSentJumpBuffered ||
+                punchPressed != _lastSentPunchBuffered ||
+                burstHeld != _lastSentBurstHeld;
 
             if (!shouldSend)
             {
@@ -764,6 +819,9 @@ namespace HueDoneIt.Gameplay.Players
             _lastSentMoveWorldInput = move;
             _lastSentVisualYaw = yaw;
             _lastSentBurstHeld = burstHeld;
+            _lastSentJumpBuffered = jumpPressed;
+            _lastSentPunchBuffered = punchPressed;
+
             SubmitInputServerRpc(move, yaw, jumpPressed, punchPressed, burstHeld);
         }
 
