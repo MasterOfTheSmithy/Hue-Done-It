@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
+using HueDoneIt.Core.Bootstrap;
 using HueDoneIt.Gameplay.Round;
 using Unity.Netcode;
 using UnityEngine;
@@ -114,6 +115,7 @@ namespace HueDoneIt.Gameplay.Players
 
         private void HandleMouseLook()
         {
+            mouseSensitivity = RuntimeGameSettings.LookSensitivity;
             Keyboard keyboard = Keyboard.current;
             Mouse mouse = Mouse.current;
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
