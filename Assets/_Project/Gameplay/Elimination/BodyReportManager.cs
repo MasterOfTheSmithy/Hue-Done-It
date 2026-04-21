@@ -13,7 +13,7 @@ namespace HueDoneIt.Gameplay.Elimination
 
         private void Awake()
         {
-            _roundState = FindFirstObjectByType<NetworkRoundState>();
+            ResolveRoundState();
         }
 
         public bool TryReportBody(NetworkObject reporterObject, PlayerRemains remains)
@@ -23,6 +23,7 @@ namespace HueDoneIt.Gameplay.Elimination
                 return false;
             }
 
+            ResolveRoundState();
             if (_roundState == null)
             {
                 Debug.LogError("BodyReportManager requires NetworkRoundState in the scene.");
@@ -52,6 +53,14 @@ namespace HueDoneIt.Gameplay.Elimination
 
             Debug.Log($"Body reported by client {reporterObject.OwnerClientId}. Victim={remains.VictimClientId}");
             return true;
+        }
+
+        private void ResolveRoundState()
+        {
+            if (_roundState == null)
+            {
+                _roundState = FindFirstObjectByType<NetworkRoundState>();
+            }
         }
     }
 }

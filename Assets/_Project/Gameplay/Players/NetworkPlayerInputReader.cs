@@ -10,18 +10,37 @@ namespace HueDoneIt.Gameplay.Players
     public sealed class NetworkPlayerInputReader : NetworkBehaviour
     {
         private bool _loggedMissingKeyboard;
+        private bool _jumpConsumed;
 
         public Vector2 CurrentMoveInput { get; private set; }
+        public Vector3 CurrentWorldMoveInput { get; private set; }
+        public bool JumpPressedThisFrame { get; private set; }
+        public float CurrentVisualYaw => transform.eulerAngles.y;
 
         private void Update()
         {
             if (!IsSpawned || !IsOwner || !IsClient)
             {
                 CurrentMoveInput = Vector2.zero;
+                CurrentWorldMoveInput = Vector3.zero;
+                JumpPressedThisFrame = false;
                 return;
             }
 
             CurrentMoveInput = ReadMoveInput();
+            CurrentWorldMoveInput = ResolveWorldMove(CurrentMoveInput);
+            JumpPressedThisFrame = ReadJumpPressed();
+        }
+
+        public bool ConsumeJumpPressedThisFrame()
+        {
+            if (_jumpConsumed || !JumpPressedThisFrame)
+            {
+                return false;
+            }
+
+            _jumpConsumed = true;
+            return true;
         }
 
         private Vector2 ReadMoveInput()
@@ -55,6 +74,37 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             return input;
+        }
+
+        private bool ReadJumpPressed()
+        {
+            Keyboard keyboard = Keyboard.current;
+            bool pressed = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
+            _jumpConsumed = false;
+            return pressed;
+        }
+
+        private Vector3 ResolveWorldMove(Vector2 input)
+        {
+            if (input == Vector2.zero)
+            {
+                return Vector3.zero;
+            }
+
+            Vector3 right = transform.right;
+            Vector3 forward = transform.forward;
+            right.y = 0f;
+            forward.y = 0f;
+            right.Normalize();
+            forward.Normalize();
+
+            Vector3 world = (right * input.x) + (forward * input.y);
+            if (world.sqrMagnitude > 1f)
+            {
+                world.Normalize();
+            }
+
+            return world;
         }
     }
 }

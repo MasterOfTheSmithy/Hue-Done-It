@@ -3,6 +3,7 @@ using System;
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Interaction;
+using HueDoneIt.Gameplay.Round;
 using Unity.Netcode;
 using UnityEngine;
 
@@ -29,6 +30,7 @@ namespace HueDoneIt.Tasks
             new(ulong.MaxValue, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private IRepairTaskFloodSafetyProvider _floodSafetyProvider;
+        private NetworkRoundState _roundState;
 
         public event Action<RepairTaskState, RepairTaskState> TaskStateChanged;
 
@@ -46,10 +48,10 @@ namespace HueDoneIt.Tasks
             _state.OnValueChanged += HandleTaskStateChanged;
 
             _floodSafetyProvider ??= GetComponent<IRepairTaskFloodSafetyProvider>();
+            ResolveRoundState();
             if (IsServer)
             {
-                _state.Value = (byte)RepairTaskState.Idle;
-                _activeClientId.Value = ulong.MaxValue;
+                ServerResetTask();
             }
         }
 
@@ -57,6 +59,18 @@ namespace HueDoneIt.Tasks
         {
             _state.OnValueChanged -= HandleTaskStateChanged;
             base.OnNetworkDespawn();
+        }
+
+        public void ServerResetTask()
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            SetState(RepairTaskState.Idle);
+            SetActiveClientId(ulong.MaxValue);
+            OnServerResetTask();
         }
 
         public sealed override bool CanInteract(in InteractionContext context)
@@ -76,12 +90,7 @@ namespace HueDoneIt.Tasks
                 return false;
             }
 
-            if (!TryBeginTask(context))
-            {
-                return false;
-            }
-
-            return true;
+            return TryBeginTask(context);
         }
 
         public bool CanStart(in InteractionContext context)
@@ -91,7 +100,12 @@ namespace HueDoneIt.Tasks
                 return false;
             }
 
-            if (CurrentState == RepairTaskState.Completed || CurrentState == RepairTaskState.InProgress)
+            if (CurrentState == RepairTaskState.Completed || CurrentState == RepairTaskState.InProgress || CurrentState == RepairTaskState.Locked)
+            {
+                return false;
+            }
+
+            if (!IsActionPhase())
             {
                 return false;
             }
@@ -112,7 +126,7 @@ namespace HueDoneIt.Tasks
             }
 
             SetState(RepairTaskState.InProgress);
-            _activeClientId.Value = context.InteractorClientId;
+            SetActiveClientId(context.InteractorClientId);
             OnTaskStarted(context);
             return true;
         }
@@ -125,7 +139,7 @@ namespace HueDoneIt.Tasks
             }
 
             SetState(RepairTaskState.Cancelled);
-            _activeClientId.Value = ulong.MaxValue;
+            SetActiveClientId(ulong.MaxValue);
             OnTaskCancelled(reason);
             return true;
         }
@@ -138,7 +152,7 @@ namespace HueDoneIt.Tasks
             }
 
             SetState(RepairTaskState.Completed);
-            _activeClientId.Value = ulong.MaxValue;
+            SetActiveClientId(ulong.MaxValue);
             OnTaskCompleted();
             return true;
         }
@@ -177,7 +191,12 @@ namespace HueDoneIt.Tasks
                 return false;
             }
 
-            if (CurrentState == RepairTaskState.Completed)
+            if (!IsActionPhase())
+            {
+                return false;
+            }
+
+            if (CurrentState == RepairTaskState.Completed || CurrentState == RepairTaskState.Locked)
             {
                 return false;
             }
@@ -199,9 +218,19 @@ namespace HueDoneIt.Tasks
                 return $"{displayName}: Eliminated players cannot repair";
             }
 
+            if (!IsActionPhase())
+            {
+                return $"{displayName}: Wait for live round";
+            }
+
             if (CurrentState == RepairTaskState.Completed)
             {
                 return $"{displayName} [COMPLETED]";
+            }
+
+            if (CurrentState == RepairTaskState.Locked)
+            {
+                return $"{displayName}: Locked";
             }
 
             if (CurrentState == RepairTaskState.InProgress)
@@ -239,6 +268,10 @@ namespace HueDoneIt.Tasks
             Debug.Log($"Task '{taskId}' completed.");
         }
 
+        protected virtual void OnServerResetTask()
+        {
+        }
+
         protected void SetState(RepairTaskState nextState)
         {
             if (!IsServer)
@@ -249,9 +282,33 @@ namespace HueDoneIt.Tasks
             _state.Value = (byte)nextState;
         }
 
+        protected void SetActiveClientId(ulong clientId)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _activeClientId.Value = clientId;
+        }
+
         private void HandleTaskStateChanged(byte previousValue, byte currentValue)
         {
             TaskStateChanged?.Invoke((RepairTaskState)previousValue, (RepairTaskState)currentValue);
+        }
+
+        private bool IsActionPhase()
+        {
+            ResolveRoundState();
+            return _roundState == null || _roundState.CurrentPhase == RoundPhase.FreeRoam;
+        }
+
+        private void ResolveRoundState()
+        {
+            if (_roundState == null)
+            {
+                _roundState = FindFirstObjectByType<NetworkRoundState>();
+            }
         }
     }
 }

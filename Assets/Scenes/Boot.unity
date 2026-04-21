@@ -524,7 +524,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: ab228bfc8c8579541bf68843f014963a, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HueDoneIt.Core.Bootstrap.AppBootstrap
-  loadInitialSceneOnStart: 1
+  loadInitialSceneOnStart: 0
   initialSceneName: Gameplay_Undertint
 --- !u!4 &507976762
 Transform:
@@ -1109,7 +1109,7 @@ MonoBehaviour:
   NetworkConfig:
     ProtocolVersion: 0
     NetworkTransport: {fileID: 1282079459}
-    PlayerPrefab: {fileID: 0}
+    PlayerPrefab: {fileID: 3779543268225496616, guid: 78a3f2c041939874b92a96a4141f2ff1, type: 3}
     Prefabs:
       NetworkPrefabsLists:
       - {fileID: 11400000, guid: af8c21819b53acc4697422a88c62d9b3, type: 2}

@@ -59,7 +59,7 @@ namespace HueDoneIt.Gameplay.Elimination
 
         public override bool CanInteract(in InteractionContext context)
         {
-            if (!_isInitialized.Value || _isReported.Value || !context.IsServer)
+            if (!_isInitialized.Value || _isReported.Value)
             {
                 return false;
             }
@@ -70,7 +70,7 @@ namespace HueDoneIt.Gameplay.Elimination
             }
 
             NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();
-            return roundState == null || roundState.IsFreeRoam;
+            return roundState == null || roundState.CurrentPhase == RoundPhase.FreeRoam;
         }
 
         public override string GetPromptText(in InteractionContext context)
@@ -85,6 +85,12 @@ namespace HueDoneIt.Gameplay.Elimination
                 !lifeState.IsAlive)
             {
                 return "Eliminated players cannot report";
+            }
+
+            NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();
+            if (roundState != null && roundState.CurrentPhase != RoundPhase.FreeRoam)
+            {
+                return "Body reporting unavailable";
             }
 
             string targetName = string.IsNullOrWhiteSpace(VictimName) ? $"Player {VictimClientId}" : VictimName;

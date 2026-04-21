@@ -16,7 +16,7 @@ namespace HueDoneIt.Gameplay.Elimination
 
         private void Awake()
         {
-            _roundState = FindFirstObjectByType<NetworkRoundState>();
+            ResolveRoundState();
         }
 
         public bool TryHandleEliminationRequest(NetworkObject killerObject, ulong targetNetworkObjectId)
@@ -26,6 +26,7 @@ namespace HueDoneIt.Gameplay.Elimination
                 return false;
             }
 
+            ResolveRoundState();
             if (_roundState == null || !_roundState.IsFreeRoam)
             {
                 return false;
@@ -98,7 +99,15 @@ namespace HueDoneIt.Gameplay.Elimination
             }
 
             remainsNetworkObject.Spawn(true);
-            remainsInstance.ServerInitialize(eliminatedPlayerObject.OwnerClientId, eliminatedPlayerObject.NetworkObjectId, eliminatedPlayerLifeState.name);
+            remainsInstance.ServerInitialize(eliminatedPlayerObject.OwnerClientId, eliminatedPlayerObject.NetworkObjectId, eliminatedPlayerObject.name);
+        }
+
+        private void ResolveRoundState()
+        {
+            if (_roundState == null)
+            {
+                _roundState = FindFirstObjectByType<NetworkRoundState>();
+            }
         }
     }
 }
