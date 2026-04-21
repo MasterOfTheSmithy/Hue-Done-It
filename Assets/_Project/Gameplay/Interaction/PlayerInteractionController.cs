@@ -13,6 +13,7 @@ namespace HueDoneIt.Gameplay.Interaction
     public sealed class PlayerInteractionController : NetworkBehaviour
     {
         [SerializeField] private Key interactKey = Key.E;
+        [SerializeField] private LayerMask interactionLineOfSightMask = ~0;
 
         private PlayerInteractionDetector _detector;
         private PlayerLifeState _lifeState;
@@ -78,10 +79,20 @@ namespace HueDoneIt.Gameplay.Interaction
                 return;
             }
 
-            float distance = Vector3.Distance(client.PlayerObject.transform.position, interactable.transform.position);
+            Vector3 origin = client.PlayerObject.transform.position + (Vector3.up * 0.9f);
+            Vector3 target = interactable.transform.position + (Vector3.up * 0.6f);
+            Vector3 toTarget = target - origin;
+            float distance = toTarget.magnitude;
             if (distance > interactable.MaxUseDistance)
             {
                 Debug.LogWarning($"Interaction rejected: client {senderClientId} out of range.");
+                return;
+            }
+
+            if (Physics.Raycast(origin, toTarget.normalized, out RaycastHit hit, distance + 0.05f, interactionLineOfSightMask, QueryTriggerInteraction.Ignore) &&
+                !hit.transform.IsChildOf(interactable.transform))
+            {
+                Debug.LogWarning($"Interaction rejected: client {senderClientId} line of sight blocked.");
                 return;
             }
 

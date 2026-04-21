@@ -12,6 +12,7 @@ namespace HueDoneIt.Gameplay.Interaction
     {
         [SerializeField] private float interactionRange = 2.5f;
         [SerializeField] private LayerMask detectionMask = ~0;
+        [SerializeField] private LayerMask lineOfSightMask = ~0;
         [SerializeField] private int overlapBufferSize = 16;
         [SerializeField, Min(0.01f)] private float screenCenterProbeRadius = 0.18f;
 
@@ -58,6 +59,7 @@ namespace HueDoneIt.Gameplay.Interaction
             float bestScore = float.MinValue;
             NetworkInteractable best = null;
             Vector3 fallbackForward = GetFallbackForward();
+            Vector3 rayOrigin = GetRayOrigin();
 
             for (int i = 0; i < hitCount; i++)
             {
@@ -68,7 +70,7 @@ namespace HueDoneIt.Gameplay.Interaction
                 }
 
                 NetworkInteractable interactable = hit.GetComponentInParent<NetworkInteractable>();
-                if (!IsLocallyViable(interactable, context))
+                if (!IsLocallyViable(interactable, context, rayOrigin))
                 {
                     continue;
                 }
@@ -110,12 +112,41 @@ namespace HueDoneIt.Gameplay.Interaction
             }
 
             interactable = hit.collider != null ? hit.collider.GetComponentInParent<NetworkInteractable>() : null;
-            return IsLocallyViable(interactable, context);
+            return IsLocallyViable(interactable, context, ray.origin);
         }
 
-        private bool IsLocallyViable(NetworkInteractable interactable, in InteractionContext context)
+        private bool IsLocallyViable(NetworkInteractable interactable, in InteractionContext context, Vector3 rayOrigin)
         {
-            return interactable != null && interactable.IsSpawned && interactable.CanInteract(context);
+            if (interactable == null || !interactable.IsSpawned || !interactable.CanInteract(context))
+            {
+                return false;
+            }
+
+            Vector3 targetPoint = interactable.transform.position + (Vector3.up * 0.6f);
+            Vector3 toTarget = targetPoint - rayOrigin;
+            float distance = toTarget.magnitude;
+            if (distance > Mathf.Max(interactionRange, interactable.MaxUseDistance) || distance <= 0.001f)
+            {
+                return false;
+            }
+
+            if (!Physics.Raycast(rayOrigin, toTarget.normalized, out RaycastHit hit, distance + 0.05f, lineOfSightMask, QueryTriggerInteraction.Ignore))
+            {
+                return true;
+            }
+
+            return hit.transform.IsChildOf(interactable.transform);
+        }
+
+        private Vector3 GetRayOrigin()
+        {
+            Camera cameraRef = Camera.main;
+            if (cameraRef != null)
+            {
+                return cameraRef.transform.position;
+            }
+
+            return transform.position + (Vector3.up * 0.8f);
         }
 
         private Vector3 GetFallbackForward()
@@ -138,18 +169,6 @@ namespace HueDoneIt.Gameplay.Interaction
 
         private void SetCurrentInteractable(NetworkInteractable interactable)
         {
-            if (_currentInteractable == interactable)
-            {
-                if (_currentInteractable != null)
-                {
-                    InteractionContext context = new(NetworkObject, OwnerClientId, false);
-                    string prompt = _currentInteractable.GetPromptText(context);
-                    PromptChanged?.Invoke(prompt, !string.IsNullOrWhiteSpace(prompt));
-                }
-
-                return;
-            }
-
             _currentInteractable = interactable;
             if (_currentInteractable == null)
             {
@@ -157,9 +176,10 @@ namespace HueDoneIt.Gameplay.Interaction
                 return;
             }
 
-            InteractionContext newContext = new(NetworkObject, OwnerClientId, false);
-            string newPrompt = _currentInteractable.GetPromptText(newContext);
-            PromptChanged?.Invoke(newPrompt, !string.IsNullOrWhiteSpace(newPrompt));
+            InteractionContext context = new(NetworkObject, OwnerClientId, false);
+            string prompt = _currentInteractable.GetPromptText(context);
+            bool hasPrompt = !string.IsNullOrWhiteSpace(prompt);
+            PromptChanged?.Invoke(hasPrompt ? $"Press E to {prompt}" : string.Empty, hasPrompt);
         }
     }
 }

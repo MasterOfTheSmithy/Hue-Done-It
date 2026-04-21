@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
+using HueDoneIt.Gameplay.Round;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -43,6 +44,13 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0f)] private float ragdollCameraChaosRoll = 9f;
         [SerializeField, Min(0f)] private float ragdollCameraChaosPositional = 0.055f;
 
+
+        [Header("Impact Feedback")]
+        [SerializeField, Min(0f)] private float crashShakeAmplitude = 0.06f;
+        [SerializeField, Min(0.1f)] private float crashShakeFrequency = 21f;
+        [SerializeField, Min(0.1f)] private float crashShakeDuration = 0.9f;
+
+        private NetworkRoundState _roundState;
         private Camera _mainCamera;
         private float _pitch;
         private MeshRenderer[] _ownerRenderers;
@@ -54,11 +62,14 @@ namespace HueDoneIt.Gameplay.Players
         private NetworkPlayerAuthoritativeMover _mover;
         private NetworkPlayerAuthoritativeMover.LocomotionState _lastState;
         private float _wallLaunchRollKick;
+        private RoundPhase _lastRoundPhase = RoundPhase.Lobby;
+        private float _shakeTimer;
 
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
             _mover = GetComponent<NetworkPlayerAuthoritativeMover>();
+            _roundState = FindFirstObjectByType<NetworkRoundState>();
 
             if (!IsOwner)
             {
@@ -97,6 +108,7 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             HandleMouseLook();
+            HandleRoundPhaseFeedback();
             ApplyBlobPresentation();
         }
 
@@ -176,6 +188,17 @@ namespace HueDoneIt.Gameplay.Players
                     0f);
             }
 
+            if (_shakeTimer > 0f)
+            {
+                float shake01 = Mathf.Clamp01(_shakeTimer / crashShakeDuration);
+                float noiseT = Time.time * crashShakeFrequency;
+                targetOffset += new Vector3(
+                    (Mathf.PerlinNoise(noiseT, 0.17f) - 0.5f) * crashShakeAmplitude * shake01,
+                    (Mathf.PerlinNoise(0.31f, noiseT) - 0.5f) * crashShakeAmplitude * shake01,
+                    0f);
+                _shakeTimer = Mathf.Max(0f, _shakeTimer - Time.deltaTime);
+            }
+
             _currentPresentationOffset = Vector3.Lerp(_currentPresentationOffset, targetOffset, effectLerpSpeed * Time.deltaTime);
 
             float targetRoll = 0f;
@@ -218,6 +241,24 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             _lastState = currentState;
+        }
+
+
+        private void HandleRoundPhaseFeedback()
+        {
+            if (_roundState == null)
+            {
+                _roundState = FindFirstObjectByType<NetworkRoundState>();
+                return;
+            }
+
+            RoundPhase phase = _roundState.CurrentPhase;
+            if (_lastRoundPhase != phase && phase == RoundPhase.Crash)
+            {
+                _shakeTimer = crashShakeDuration;
+            }
+
+            _lastRoundPhase = phase;
         }
 
         private void BindOwnerCamera()

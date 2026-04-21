@@ -19,11 +19,16 @@ namespace HueDoneIt.Gameplay.Round
     {
         [Header("Round Flow")]
         [SerializeField, Min(1)] private int minPlayersToAutoStart = 1;
-        [SerializeField, Min(0.1f)] private float introDurationSeconds = 4f;
+        [SerializeField, Min(0.1f)] private float introDurationSeconds = 2f;
+        [SerializeField, Min(0.1f)] private float crashDurationSeconds = 1f;
         [SerializeField, Min(5f)] private float roundDurationSeconds = 150f;
         [SerializeField, Min(1f)] private float reportedDurationSeconds = 8f;
         [SerializeField, Min(1f)] private float resolvedDurationSeconds = 8f;
         [SerializeField, Min(1f)] private float postRoundDurationSeconds = 6f;
+
+        [Header("Crash")]
+        [SerializeField, Min(0f)] private float crashImpulseHorizontal = 2.4f;
+        [SerializeField, Min(0f)] private float crashImpulseVertical = 1.2f;
 
         [Header("Spawn")]
         [SerializeField] private string spawnPointPrefix = "SpawnPoint_";
@@ -50,6 +55,9 @@ namespace HueDoneIt.Gameplay.Round
         private readonly NetworkVariable<FixedString128Bytes> _roundMessage =
             new(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<FixedString128Bytes> _currentObjective =
+            new(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         public event Action<RoundPhase, RoundPhase> PhaseChanged;
 
         public RoundPhase CurrentPhase => (RoundPhase)_phase.Value;
@@ -57,6 +65,7 @@ namespace HueDoneIt.Gameplay.Round
         public ulong ReportingClientId => _reportingClientId.Value;
         public ulong ReportedVictimClientId => _reportedVictimClientId.Value;
         public string RoundMessage => _roundMessage.Value.ToString();
+        public string CurrentObjective => _currentObjective.Value.ToString();
         public float PhaseTimeRemaining => Mathf.Max(0f, _phaseEndServerTime.Value - GetServerTime());
         public float RoundTimeRemaining => Mathf.Max(0f, _roundEndServerTime.Value - GetServerTime());
         public bool IsFreeRoam => CurrentPhase == RoundPhase.FreeRoam;
@@ -106,7 +115,14 @@ namespace HueDoneIt.Gameplay.Round
                 case RoundPhase.Intro:
                     if (GetServerTime() >= _phaseEndServerTime.Value)
                     {
-                        StartFreeRoam($"Repair the pump before it locks. Time remaining: {roundDurationSeconds:0}s.");
+                        StartCrash();
+                    }
+                    break;
+
+                case RoundPhase.Crash:
+                    if (GetServerTime() >= _phaseEndServerTime.Value)
+                    {
+                        StartFreeRoam("Repair the pump before it locks. Time remaining: " + roundDurationSeconds.ToString("0") + "s.");
                     }
                     break;
 
@@ -141,6 +157,7 @@ namespace HueDoneIt.Gameplay.Round
                     if (GetServerTime() >= _phaseEndServerTime.Value)
                     {
                         SetPhase(RoundPhase.PostRound, postRoundDurationSeconds);
+                        SetObjective("Round complete. Resetting soon.");
                     }
                     break;
 
@@ -172,6 +189,7 @@ namespace HueDoneIt.Gameplay.Round
             CancelActiveTasks("Body reported");
             SetPhase(RoundPhase.Reported, reportedDurationSeconds);
             _roundMessage.Value = new FixedString128Bytes($"Body reported by {BuildClientLabel(reportingClientId)}. Freeze and reassess.");
+            SetObjective("Hold position while report resolves.");
             return true;
         }
 
@@ -195,13 +213,24 @@ namespace HueDoneIt.Gameplay.Round
             _reportedVictimClientId.Value = ulong.MaxValue;
             _roundEndServerTime.Value = GetServerTime() + roundDurationSeconds;
             _roundMessage.Value = new FixedString128Bytes("Round starting. Roles assigned.");
+            SetObjective("Brace for impact.");
             SetPhase(RoundPhase.Intro, introDurationSeconds);
+        }
+
+        private void StartCrash()
+        {
+            SetPhase(RoundPhase.Crash, crashDurationSeconds);
+            _roundMessage.Value = new FixedString128Bytes("Ship impact! Hold on.");
+            SetObjective("Ship is crashing. Regain control.");
+            ApplyCrashImpulseToPlayers();
         }
 
         private void StartFreeRoam(string message)
         {
             SetPhase(RoundPhase.FreeRoam, Mathf.Max(0.1f, RoundTimeRemaining));
             _roundMessage.Value = new FixedString128Bytes(message);
+            SetObjective("Reach pump, interact to repair, and survive flood cycles.");
+            SetFloodFlowActive(true);
         }
 
         private void ResetWorldForRound()
@@ -234,6 +263,11 @@ namespace HueDoneIt.Gameplay.Round
                 if (client.PlayerObject.TryGetComponent(out PlayerFloodZoneTracker floodTracker))
                 {
                     floodTracker.ServerResetFloodState();
+                }
+
+                if (client.PlayerObject.TryGetComponent(out PlayerStaminaState staminaState))
+                {
+                    staminaState.ServerResetForRound();
                 }
 
                 if (spawnPoints.Count > 0)
@@ -283,12 +317,22 @@ namespace HueDoneIt.Gameplay.Round
             foreach (FloodSequenceController controller in floodControllers)
             {
                 controller.ServerResetForRound();
+                controller.ServerSetFlowActive(false);
             }
 
             FloodZone[] floodZones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
             foreach (FloodZone zone in floodZones)
             {
                 zone.ServerResetToInitialState();
+            }
+        }
+
+        private void SetFloodFlowActive(bool active)
+        {
+            FloodSequenceController[] floodControllers = FindObjectsByType<FloodSequenceController>(FindObjectsSortMode.None);
+            foreach (FloodSequenceController controller in floodControllers)
+            {
+                controller.ServerSetFlowActive(active);
             }
         }
 
@@ -400,8 +444,10 @@ namespace HueDoneIt.Gameplay.Round
             }
 
             CancelActiveTasks("Round resolved");
+            SetFloodFlowActive(false);
             _winner.Value = (byte)winner;
             _roundMessage.Value = new FixedString128Bytes(message);
+            SetObjective("Round resolved: " + message);
             SetPhase(RoundPhase.Resolved, resolvedDurationSeconds);
         }
 
@@ -434,7 +480,13 @@ namespace HueDoneIt.Gameplay.Round
             _winner.Value = (byte)RoundWinner.None;
             _roundEndServerTime.Value = 0f;
             _roundMessage.Value = new FixedString128Bytes("Waiting for players");
+            SetObjective("Awaiting players.");
             SetPhase(RoundPhase.Lobby, 0f);
+        }
+
+        private void SetObjective(string objective)
+        {
+            _currentObjective.Value = new FixedString128Bytes(objective);
         }
 
         private void SetPhase(RoundPhase phase, float durationSeconds)
@@ -462,6 +514,20 @@ namespace HueDoneIt.Gameplay.Round
 
             results.Sort((a, b) => string.CompareOrdinal(a.name, b.name));
             return results;
+        }
+
+        private void ApplyCrashImpulseToPlayers()
+        {
+            Vector3 baseImpulse = new Vector3(0f, crashImpulseVertical, -crashImpulseHorizontal);
+            NetworkPlayerAuthoritativeMover[] movers = FindObjectsByType<NetworkPlayerAuthoritativeMover>(FindObjectsSortMode.None);
+            foreach (NetworkPlayerAuthoritativeMover mover in movers)
+            {
+                if (mover != null && mover.IsSpawned)
+                {
+                    Vector3 impulse = mover.transform.TransformDirection(baseImpulse);
+                    mover.ServerApplyKnockback(impulse);
+                }
+            }
         }
 
         private static void Shuffle<T>(IList<T> list)
