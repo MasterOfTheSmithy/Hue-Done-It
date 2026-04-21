@@ -8,6 +8,9 @@ namespace HueDoneIt.Gameplay.Paint
         WallLaunch = 3,
         Punch = 4,
         FloodBurst = 5,
-        FloodDrip = 6
+        FloodDrip = 6,
+        TaskInteract = 7,
+        RagdollImpact = 8,
+        ThrownObjectImpact = 9
     }
 }
