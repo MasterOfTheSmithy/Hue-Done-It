@@ -13,6 +13,10 @@ namespace HueDoneIt.Gameplay.Paint
         public float Intensity;
         public float ForceMagnitude;
         public Vector3 VelocityDirection;
+        public Vector3 TangentDirection;
         public int PatternIndex;
+        public int PatternSeed;
+        public float StretchAmount;
+        public float RotationDegrees;
     }
 }
