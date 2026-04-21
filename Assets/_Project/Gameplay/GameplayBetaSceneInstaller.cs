@@ -4,7 +4,6 @@ using System.Collections.Generic;
 using System.Reflection;
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
-using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
@@ -470,8 +469,6 @@ namespace HueDoneIt.Gameplay
             ground.transform.position = position;
             ground.transform.rotation = Quaternion.identity;
             ground.transform.localScale = scale;
-            ApplyMaterial(ground, color, transparent: false);
-            EnsureStainReceiver(ground);
             ApplyMaterial(ground, color, false);
         }
 
@@ -481,8 +478,6 @@ namespace HueDoneIt.Gameplay
             block.transform.position = position;
             block.transform.rotation = Quaternion.identity;
             block.transform.localScale = scale;
-            ApplyMaterial(block, color, transparent: false);
-            EnsureStainReceiver(block);
             ApplyMaterial(block, color, false);
             return block;
         }
@@ -493,18 +488,6 @@ namespace HueDoneIt.Gameplay
             capsule.transform.position = position;
             capsule.transform.rotation = Quaternion.identity;
             capsule.transform.localScale = scale;
-            ApplyMaterial(capsule, color, transparent: false);
-            EnsureStainReceiver(capsule);
-        }
-
-        private static void EnsureStainReceiver(GameObject gameObject)
-        {
-            if (gameObject == null || gameObject.GetComponent<StainReceiver>() != null)
-            {
-                return;
-            }
-
-            gameObject.AddComponent<StainReceiver>();
             ApplyMaterial(capsule, color, false);
         }
 
@@ -582,46 +565,19 @@ namespace HueDoneIt.Gameplay
             {
                 return;
             }
-        }
 
             NetworkObject networkObject = gameObject.GetComponent<NetworkObject>();
             if (networkObject != null && !networkObject.IsSpawned)
             {
                 networkObject.Spawn(destroyWithScene: true);
             }
-
-            GameObject go = new(objectName);
-            go.transform.SetParent(root, false);
-            go.AddComponent<NetworkObject>();
-            T component = go.AddComponent<T>();
-            TrySpawnNetworkObject(go);
-            return component;
-        }
-
-        private static void EnsureGround(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
-        {
-            GameObject ground = FindOrCreate(name, PrimitiveType.Cube, parent);
-            ground.transform.position = position;
-            ground.transform.localScale = scale;
-            ApplyMaterial(ground, color, transparent: false);
-        }
-
-        private static GameObject EnsureBlock(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
-        {
-            GameObject block = FindOrCreate(name, PrimitiveType.Cube, parent);
-            block.transform.position = position;
-            block.transform.rotation = Quaternion.identity;
-            block.transform.localScale = scale;
-            ApplyMaterial(block, color, transparent: false);
-            return block;
         }
 
         private static void ApplyMaterial(GameObject target, Color color, bool transparent)
         {
             if (target == null)
             {
-                go = GameObject.CreatePrimitive(primitiveType);
-                go.name = name;
+                return;
             }
 
             Renderer renderer = target.GetComponent<Renderer>();
@@ -657,14 +613,12 @@ namespace HueDoneIt.Gameplay
 
         private static void ConfigureSceneLighting()
         {
-            FloodZone[] zones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
-            foreach (FloodZone zone in zones)
+            Light directional = FindFirstObjectByType<Light>();
+            if (directional != null && directional.type == LightType.Directional)
             {
                 directional.transform.rotation = Quaternion.Euler(45f, -35f, 0f);
                 directional.intensity = 1.35f;
             }
-
-            return null;
         }
 
         private static bool HasCommandLineArg(string arg)
