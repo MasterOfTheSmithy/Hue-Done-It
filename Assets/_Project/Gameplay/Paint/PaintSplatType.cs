@@ -10,10 +10,6 @@ namespace HueDoneIt.Gameplay.Paint
         RagdollImpact = 5,
         ThrownObject = 6,
         Flood = 7,
-        Generic = 8,
-        MoveSmear = 9,
-        WallScrape = 10,
-        WallLaunchBurst = 11,
-        HeavyImpact = 12
+        Generic = 8
     }
 }

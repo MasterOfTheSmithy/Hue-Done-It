@@ -41,9 +41,9 @@ namespace HueDoneIt.Gameplay.Players
         public void ServerEmitPaint(PaintEventKind kind, Vector3 position, Vector3 normal, float radius, float intensity)
         {
             Vector3 velocityDirection = transform.forward;
-            if (TryGetComponent(out Rigidbody body) && body.velocity.sqrMagnitude > 0.001f)
+            if (TryGetComponent(out Rigidbody body) && body.linearVelocity.sqrMagnitude > 0.001f)
             {
-                velocityDirection = body.velocity.normalized;
+                velocityDirection = body.linearVelocity.normalized;
             }
 
             float forceMagnitude = Mathf.Max(radius * 8f, intensity * 10f);
