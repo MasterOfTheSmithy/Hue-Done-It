@@ -73,7 +73,7 @@ namespace HueDoneIt.UI.Tasks
             {
                 int startPercent = Mathf.RoundToInt(pumpTask.ConfirmationWindowStartNormalized * 100f);
                 int endPercent = Mathf.RoundToInt(pumpTask.ConfirmationWindowEndNormalized * 100f);
-                status = $"{task.DisplayName}: {Mathf.RoundToInt(progress01 * 100f)}%\nConfirm with [E] between {startPercent}% and {endPercent}%";
+                status = $"{task.DisplayName}: {Mathf.RoundToInt(progress01 * 100f)}%\nConfirm with [E] between ~{startPercent}% and ~{endPercent}%\nRetreat after commit risks failure";
             }
             else if (task is PumpRepairTask failedPump && task.CurrentState == RepairTaskState.FailedAttempt)
             {
