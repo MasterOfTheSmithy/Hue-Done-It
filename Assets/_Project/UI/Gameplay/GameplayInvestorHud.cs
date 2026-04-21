@@ -1,6 +1,6 @@
 // File: Assets/_Project/UI/Gameplay/GameplayInvestorHud.cs
-using HueDoneIt.Flood.Integration;
 using HueDoneIt.Flood;
+using HueDoneIt.Flood.Integration;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Interaction;
 using HueDoneIt.Gameplay.Players;
@@ -20,8 +20,10 @@ namespace HueDoneIt.UI.Gameplay
         private Text _interactionText;
         private Text _stateText;
         private Text _debugText;
-        private Image _healthFill;
-        private Image _staminaFill;
+        private Text _opacityLabel;
+        private Text _stabilityLabel;
+        private Image _opacityFill;
+        private Image _stabilityFill;
         private GameObject _root;
 
         private NetworkPlayerAvatar _localAvatar;
@@ -51,12 +53,7 @@ namespace HueDoneIt.UI.Gameplay
 
         private static void TryAttach(Scene scene)
         {
-            if (!scene.IsValid() || Object.FindFirstObjectByType<GameplayInvestorHud>() != null)
-            {
-                return;
-            }
-
-            if (Object.FindFirstObjectByType<NetworkRoundState>() == null)
+            if (!scene.IsValid() || Object.FindFirstObjectByType<GameplayInvestorHud>() != null || scene.name != "Gameplay_Undertint")
             {
                 return;
             }
@@ -100,75 +97,53 @@ namespace HueDoneIt.UI.Gameplay
             RectTransform rootRect = _root.GetComponent<RectTransform>();
             rootRect.anchorMin = Vector2.zero;
             rootRect.anchorMax = Vector2.one;
-            rootRect.offsetMin = Vector2.zero;
-            rootRect.offsetMax = Vector2.zero;
 
-            _objectiveText = CreateText("Objective", _root.transform, font, 22, TextAnchor.UpperCenter, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-460f, -16f), new Vector2(460f, -92f));
-            _interactionText = CreateText("InteractPrompt", _root.transform, font, 24, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.2f), new Vector2(0.5f, 0.2f), new Vector2(-300f, -22f), new Vector2(300f, 22f));
-            _stateText = CreateText("State", _root.transform, font, 16, TextAnchor.LowerLeft, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 16f), new Vector2(520f, 84f));
-            _debugText = CreateText("Debug", _root.transform, font, 14, TextAnchor.UpperRight, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-420f, -120f), new Vector2(-24f, -24f));
+            _objectiveText = CreateText("Objective", _root.transform, font, 23, TextAnchor.UpperCenter, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-550f, -16f), new Vector2(550f, -92f));
+            _interactionText = CreateText("InteractPrompt", _root.transform, font, 24, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.19f), new Vector2(0.5f, 0.19f), new Vector2(-360f, -24f), new Vector2(360f, 24f));
+            _stateText = CreateText("State", _root.transform, font, 17, TextAnchor.LowerLeft, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 16f), new Vector2(650f, 125f));
+            _debugText = CreateText("Debug", _root.transform, font, 14, TextAnchor.UpperRight, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-430f, -150f), new Vector2(-24f, -24f));
+            _opacityLabel = CreateText("OpacityLabel", _root.transform, font, 16, TextAnchor.MiddleLeft, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 120f), new Vector2(340f, 150f));
+            _stabilityLabel = CreateText("StabilityLabel", _root.transform, font, 16, TextAnchor.MiddleLeft, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 152f), new Vector2(340f, 182f));
 
-            _healthFill = CreateBar("Health", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 96f), new Color(0.85f, 0.2f, 0.2f, 0.95f));
-            _staminaFill = CreateBar("Stamina", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 128f), new Color(0.2f, 0.9f, 0.45f, 0.95f));
-
+            _opacityFill = CreateBar("Opacity", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 90f), new Color(0.88f, 0.42f, 0.42f, 0.95f));
+            _stabilityFill = CreateBar("Stability", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 122f), new Color(0.31f, 0.9f, 0.58f, 0.95f));
             _interactionText.text = string.Empty;
         }
 
         private void BindIfNeeded()
         {
-            if (_roundState == null)
-            {
-                _roundState = FindFirstObjectByType<NetworkRoundState>();
-            }
-
-            if (_pumpTask == null)
-            {
-                _pumpTask = FindFirstObjectByType<PumpRepairTask>();
-            }
-            if (_floodSequenceController == null)
-            {
-                _floodSequenceController = FindFirstObjectByType<FloodSequenceController>();
-            }
+            _roundState ??= FindFirstObjectByType<NetworkRoundState>();
+            _pumpTask ??= FindFirstObjectByType<PumpRepairTask>();
+            _floodSequenceController ??= FindFirstObjectByType<FloodSequenceController>();
 
             if (_localAvatar == null)
             {
-                NetworkPlayerAvatar[] avatars = FindObjectsByType<NetworkPlayerAvatar>(FindObjectsSortMode.None);
-                for (int i = 0; i < avatars.Length; i++)
+                foreach (NetworkPlayerAvatar avatar in FindObjectsByType<NetworkPlayerAvatar>(FindObjectsSortMode.None))
                 {
-                    if (avatars[i].IsOwner && avatars[i].IsClient)
-                    {
-                        _localAvatar = avatars[i];
-                        _localLifeState = _localAvatar.GetComponent<PlayerLifeState>();
-                        _localStamina = _localAvatar.GetComponent<PlayerStaminaState>();
-                        _localMover = _localAvatar.GetComponent<NetworkPlayerAuthoritativeMover>();
-                        _localFlood = _localAvatar.GetComponent<PlayerFloodZoneTracker>();
-                        _interactionDetector = _localAvatar.GetComponent<PlayerInteractionDetector>();
-                        BindInteractionPrompt();
-                        SetHudVisible(true);
-                        break;
-                    }
+                    if (!avatar.IsOwner || !avatar.IsClient) continue;
+                    _localAvatar = avatar;
+                    _localLifeState = avatar.GetComponent<PlayerLifeState>();
+                    _localStamina = avatar.GetComponent<PlayerStaminaState>();
+                    _localMover = avatar.GetComponent<NetworkPlayerAuthoritativeMover>();
+                    _localFlood = avatar.GetComponent<PlayerFloodZoneTracker>();
+                    _interactionDetector = avatar.GetComponent<PlayerInteractionDetector>();
+                    BindInteractionPrompt();
+                    SetHudVisible(true);
+                    break;
                 }
             }
         }
 
         private void BindInteractionPrompt()
         {
-            if (_boundPrompt || _interactionDetector == null)
-            {
-                return;
-            }
-
+            if (_boundPrompt || _interactionDetector == null) return;
             _interactionDetector.PromptChanged += HandlePromptChanged;
             _boundPrompt = true;
         }
 
         private void UnbindInteractionPrompt()
         {
-            if (!_boundPrompt || _interactionDetector == null)
-            {
-                return;
-            }
-
+            if (!_boundPrompt || _interactionDetector == null) return;
             _interactionDetector.PromptChanged -= HandlePromptChanged;
             _boundPrompt = false;
         }
@@ -189,14 +164,19 @@ namespace HueDoneIt.UI.Gameplay
             SetHudVisible(true);
             _objectiveText.text = BuildObjectiveText();
             _stateText.text = BuildStateText();
+
+            float opacity01 = _localAvatar != null ? _localAvatar.Opacity01 : 1f;
+            float stability01 = _localStamina != null ? _localStamina.Normalized : 1f;
+            _opacityFill.fillAmount = opacity01;
+            _stabilityFill.fillAmount = stability01;
+            _opacityLabel.text = $"Opacity: {Mathf.RoundToInt(opacity01 * 100f)}%";
+            _stabilityLabel.text = $"Stability: {Mathf.RoundToInt(stability01 * 100f)}%";
+
             _debugText.enabled = showDebugOverlay;
             if (showDebugOverlay)
             {
                 _debugText.text = BuildDebugText();
             }
-
-            _healthFill.fillAmount = (_localLifeState != null && _localLifeState.IsAlive) ? 1f : 0f;
-            _staminaFill.fillAmount = _localStamina != null ? _localStamina.Normalized : (_localMover != null ? _localMover.Stamina01 : 1f);
         }
 
         private string BuildObjectiveText()
@@ -213,30 +193,28 @@ namespace HueDoneIt.UI.Gameplay
 
             if (_pumpTask != null && _pumpTask.IsCompleted)
             {
-                return "Objective complete: pump repaired.";
+                return "Objective complete: Primary pump repaired. Survive the resolution phase.";
             }
 
-            return "Reach the pump and survive the flood.";
+            return "Repair the main pump, avoid flood pressure, and report remains when found.";
         }
 
         private string BuildStateText()
         {
-            string locomotion = _localMover != null ? _localMover.CurrentState.ToString() : "Unknown";
             string phase = _roundState.CurrentPhase.ToString();
             string flood = _localFlood != null ? _localFlood.CurrentZoneState.ToString() : "Dry";
             string pressure = _roundState.CurrentPressureStage.ToString();
             string danger = _floodSequenceController != null ? _floodSequenceController.BuildRoundPressureHint() : "Danger: Unknown";
-            return $"Phase: {phase}   Pressure: {pressure}   Flood: {flood}   Move: {locomotion}\nDanger: {danger}";
+            string locomotion = _localMover != null ? _localMover.CurrentState.ToString() : "Unknown";
+            return $"Round: {phase}   Pressure: {pressure}   Flood Zone: {flood}\nMovement: {locomotion}\n{danger}";
         }
 
         private string BuildDebugText()
         {
-            bool grounded = _localMover != null && _localMover.CurrentState == NetworkPlayerAuthoritativeMover.LocomotionState.Grounded;
-            float stamina = _localStamina != null ? _localStamina.Normalized : (_localMover != null ? _localMover.Stamina01 : 1f);
             float floodLevel = _localFlood != null ? _localFlood.CurrentWaterLevel01 : 0f;
-            string pulse = _floodSequenceController != null ? _floodSequenceController.BuildRoundPressureHint() : "No flood controller";
-            float opacity = (_localLifeState != null && _localLifeState.IsAlive) ? 1f : 0f;
-            return $"Grounded: {grounded}\nOpacity: {opacity:0.00}\nCohesion: {stamina:0.00}\nFloodLevel: {floodLevel:0.00}\nLocomotion: {_localMover?.CurrentState}\n{pulse}";
+            float opacity = _localAvatar != null ? _localAvatar.Opacity01 : 1f;
+            float stability = _localStamina != null ? _localStamina.Normalized : 1f;
+            return $"Task: {_pumpTask?.CurrentState}\nOpacity: {opacity:0.00}\nStability: {stability:0.00}\nFlood: {floodLevel:0.00}";
         }
 
         private static Text CreateText(string name, Transform parent, Font font, int fontSize, TextAnchor align, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax)
@@ -267,9 +245,8 @@ namespace HueDoneIt.UI.Gameplay
             bgRect.anchorMax = anchorMinMax;
             bgRect.pivot = new Vector2(0f, 0f);
             bgRect.anchoredPosition = anchoredPos;
-            bgRect.sizeDelta = new Vector2(280f, 22f);
-            Image bg = panel.GetComponent<Image>();
-            bg.color = new Color(0f, 0f, 0f, 0.6f);
+            bgRect.sizeDelta = new Vector2(300f, 22f);
+            panel.GetComponent<Image>().color = new Color(0f, 0f, 0f, 0.66f);
 
             GameObject fill = new(name + "Fill", typeof(RectTransform), typeof(Image));
             fill.transform.SetParent(panel.transform, false);
@@ -282,17 +259,13 @@ namespace HueDoneIt.UI.Gameplay
             fillImage.color = fillColor;
             fillImage.type = Image.Type.Filled;
             fillImage.fillMethod = Image.FillMethod.Horizontal;
-            fillImage.fillOrigin = 0;
             fillImage.fillAmount = 1f;
             return fillImage;
         }
 
         private void SetHudVisible(bool visible)
         {
-            if (_root != null)
-            {
-                _root.SetActive(visible);
-            }
+            if (_root != null) _root.SetActive(visible);
         }
     }
 }
