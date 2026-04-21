@@ -51,13 +51,8 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0.1f)] private float wallLaunchVerticalForce = 6.8f;
         [SerializeField, Min(0f)] private float wallLaunchInputInfluence = 1.2f;
         [SerializeField, Min(0f)] private float wallLaunchSeparationBoost = 2.4f;
-        [SerializeField, Min(0f)] private float wallLaunchMomentumPreservation = 0.8f;
-        [SerializeField, Min(0.1f)] private float wallLaunchMaxHorizontalSpeed = 15f;
         [SerializeField, Min(0.01f)] private float wallDetachGraceSeconds = 0.2f;
         [SerializeField, Range(0f, 1f)] private float wallDetachNormalDotThreshold = 0.5f;
-        [SerializeField, Min(0.01f)] private float postWallLaunchControlSeconds = 0.18f;
-        [SerializeField, Min(0.1f)] private float postWallLaunchAirAccelerationMultiplier = 1.7f;
-        [SerializeField, Min(0f)] private float wallGlidePlanarAssist = 0.35f;
 
         [Header("Punch / Knockback")]
         [SerializeField, Min(0.1f)] private float punchCooldownSeconds = 0.75f;
@@ -124,12 +119,9 @@ namespace HueDoneIt.Gameplay.Players
         private Vector3 _horizontalVelocity;
         private float _wallStickTimeRemaining;
         private float _wallDetachTimeRemaining;
-        private float _wallLaunchControlTimeRemaining;
         private float _knockbackTimeRemaining;
         private Vector3 _lastWallNormal;
         private float _jumpBufferTimeRemaining;
-        private float _ragdollTimeRemaining;
-        private float _ragdollRecoveryTimeRemaining;
 
         private float _nextInputSendTime;
         private Vector3 _lastSentMoveWorldInput;
@@ -220,10 +212,7 @@ namespace HueDoneIt.Gameplay.Players
             _horizontalVelocity = Vector3.zero;
             _knockbackTimeRemaining = 0f;
             _wallDetachTimeRemaining = 0f;
-            _wallLaunchControlTimeRemaining = 0f;
             _jumpBufferTimeRemaining = 0f;
-            _ragdollTimeRemaining = 0f;
-            _ragdollRecoveryTimeRemaining = 0f;
             _serverVisualYaw = yawDegrees;
             _locomotionState.Value = (byte)LocomotionState.Airborne;
 
@@ -290,12 +279,6 @@ namespace HueDoneIt.Gameplay.Players
                 _serverBurstHeld = false;
             }
 
-            if (_ragdollTimeRemaining > 0f || _ragdollRecoveryTimeRemaining > 0f)
-            {
-                _serverJumpRequested = false;
-                _serverPunchRequested = false;
-            }
-
             if (_serverJumpRequested)
             {
                 _jumpBufferTimeRemaining = Mathf.Max(_jumpBufferTimeRemaining, jumpBufferSeconds);
@@ -307,31 +290,13 @@ namespace HueDoneIt.Gameplay.Players
             bool lowGravity = IsInLowGravityZone();
             bool grounded = IsGrounded(transform.position);
             bool hasWall = TryFindWall(transform.position, out RaycastHit wallHit);
-            bool wasRagdolling = _ragdollTimeRemaining > 0f;
             _wallDetachTimeRemaining = Mathf.Max(0f, _wallDetachTimeRemaining - deltaTime);
-            _wallLaunchControlTimeRemaining = Mathf.Max(0f, _wallLaunchControlTimeRemaining - deltaTime);
             _jumpBufferTimeRemaining = Mathf.Max(0f, _jumpBufferTimeRemaining - deltaTime);
-            _ragdollTimeRemaining = Mathf.Max(0f, _ragdollTimeRemaining - deltaTime);
-            _ragdollRecoveryTimeRemaining = Mathf.Max(0f, _ragdollRecoveryTimeRemaining - deltaTime);
-            if (wasRagdolling && _ragdollTimeRemaining <= 0f)
-            {
-                _ragdollRecoveryTimeRemaining = Mathf.Max(_ragdollRecoveryTimeRemaining, ragdollRecoveryLockSeconds);
-            }
 
             if (hasWall && _wallDetachTimeRemaining > 0f && Vector3.Dot(wallHit.normal, _lastWallNormal) >= wallDetachNormalDotThreshold)
             {
                 hasWall = false;
             }
-
-            if (_ragdollTimeRemaining > 0f)
-            {
-                _locomotionState.Value = (byte)LocomotionState.Ragdoll;
-                _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, ragdollHorizontalDamping * deltaTime);
-                _verticalVelocity += -(GetGravity(lowGravity) * ragdollGravityMultiplier) * deltaTime;
-                if (grounded && _verticalVelocity < 0f)
-                {
-                    _verticalVelocity = -stickToGroundVelocity * 0.5f;
-                }
 
                 _supportNormal.Value = hasWall ? wallHit.normal : Vector3.up;
             }
@@ -369,7 +334,7 @@ namespace HueDoneIt.Gameplay.Players
                         : (byte)LocomotionState.Grounded;
                     _supportNormal.Value = Vector3.up;
 
-                    if (_jumpBufferTimeRemaining > 0f && _ragdollRecoveryTimeRemaining <= 0f)
+                    if (_jumpBufferTimeRemaining > 0f)
                     {
                         _verticalVelocity = jumpVelocity;
                         grounded = false;
@@ -390,15 +355,12 @@ namespace HueDoneIt.Gameplay.Players
 
                         if (_serverJumpRequested && _ragdollRecoveryTimeRemaining <= 0f)
                         {
-                            Vector3 planarInput = Vector3.ProjectOnPlane(desiredHorizontalVelocity, wallHit.normal);
-                            Vector3 incomingAlongWall = Vector3.ProjectOnPlane(_horizontalVelocity, wallHit.normal) * wallLaunchMomentumPreservation;
+                            Vector3 planarInput = Vector3.ProjectOnPlane(_serverMoveWorldInput, wallHit.normal);
                             Vector3 awayLaunch = wallHit.normal * (wallLaunchHorizontalForce + wallLaunchSeparationBoost);
-                            _horizontalVelocity = awayLaunch + incomingAlongWall + (planarInput * wallLaunchInputInfluence);
-                            _horizontalVelocity = Vector3.ClampMagnitude(_horizontalVelocity, wallLaunchMaxHorizontalSpeed);
+                            _horizontalVelocity = awayLaunch + (planarInput * wallLaunchInputInfluence);
                             _verticalVelocity = wallLaunchVerticalForce;
                             _wallStickTimeRemaining = 0f;
                             _wallDetachTimeRemaining = wallDetachGraceSeconds;
-                            _wallLaunchControlTimeRemaining = postWallLaunchControlSeconds;
                             _jumpBufferTimeRemaining = 0f;
                             _locomotionState.Value = (byte)LocomotionState.WallLaunch;
                             EmitPaint(PaintEventKind.WallLaunch, wallHit.point, wallHit.normal, 0.45f, 0.95f);
