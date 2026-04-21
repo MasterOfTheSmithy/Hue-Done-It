@@ -26,7 +26,8 @@ namespace HueDoneIt.Flood.Integration
         [SerializeField] private float submergedSaturationPerSecond = 0.45f;
         [SerializeField, Range(0f, 1f)] private float criticalThreshold = 0.7f;
         [SerializeField, Range(0f, 1f)] private float deathThreshold = 1f;
-        [SerializeField] private bool instantlyDiffuseInSubmerged = true;
+        [SerializeField, Min(0.1f)] private float fullSubmergedGraceSeconds = 2.8f;
+        [SerializeField, Min(0f)] private float dangerousFlowVelocity = 0.24f;
 
         [Header("Flood Paint")]
         [SerializeField, Min(0.05f)] private float floodDripIntervalSeconds = 0.35f;
@@ -40,12 +41,19 @@ namespace HueDoneIt.Flood.Integration
         private readonly NetworkVariable<float> _saturation =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<float> _waterLevel01 =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _flowVelocity =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private Collider[] _overlapResults;
         private FloodZone _currentZone;
         private PlayerLifeState _lifeState;
         private NetworkPlayerPaintEmitter _paintEmitter;
         private float _nextReportTime;
         private float _nextFloodDripTime;
+        private float _submergedTimer;
 
         public event Action<FloodZone> ZoneChanged;
 
@@ -54,6 +62,8 @@ namespace HueDoneIt.Flood.Integration
         public bool IsCurrentZoneSafe => CurrentZone == null || CurrentZone.IsSafe;
         public float Saturation01 => _saturation.Value;
         public bool IsCritical => Saturation01 >= criticalThreshold;
+        public float CurrentWaterLevel01 => _waterLevel01.Value;
+        public float CurrentFlowVelocity => _flowVelocity.Value;
 
         private void Awake()
         {
@@ -70,6 +80,9 @@ namespace HueDoneIt.Flood.Integration
                 _serverZoneNetworkObjectId.Value = ulong.MaxValue;
                 _serverZoneState.Value = (byte)FloodZoneState.Dry;
                 _saturation.Value = 0f;
+                _waterLevel01.Value = 0f;
+                _flowVelocity.Value = 0f;
+                _submergedTimer = 0f;
             }
         }
 
@@ -97,6 +110,9 @@ namespace HueDoneIt.Flood.Integration
             _serverZoneNetworkObjectId.Value = ulong.MaxValue;
             _serverZoneState.Value = (byte)FloodZoneState.Dry;
             _saturation.Value = 0f;
+            _waterLevel01.Value = 0f;
+            _flowVelocity.Value = 0f;
+            _submergedTimer = 0f;
         }
 
         private void UpdateLocalObservedZone()
@@ -159,12 +175,29 @@ namespace HueDoneIt.Flood.Integration
             }
 
             FloodZoneState state = (FloodZoneState)_serverZoneState.Value;
-            if (instantlyDiffuseInSubmerged && state == FloodZoneState.Submerged)
+            bool fullySubmerged = _waterLevel01.Value >= 0.98f;
+
+            if (fullySubmerged)
             {
-                if (_lifeState != null && _lifeState.ServerTrySetDiffused("Caught in fast-moving flood"))
+                _submergedTimer += deltaTime;
+                if (_submergedTimer >= fullSubmergedGraceSeconds && _lifeState != null && _lifeState.ServerTrySetDiffused("Fully submerged for too long"))
                 {
                     _saturation.Value = deathThreshold;
                     EmitFloodPaint(PaintEventKind.FloodBurst, 1.15f);
+                    return;
+                }
+            }
+            else
+            {
+                _submergedTimer = Mathf.Max(0f, _submergedTimer - (deltaTime * 1.5f));
+            }
+
+            if (_flowVelocity.Value >= dangerousFlowVelocity && _waterLevel01.Value >= 0.7f)
+            {
+                if (_lifeState != null && _lifeState.ServerTrySetDiffused("Caught in high-velocity flood current"))
+                {
+                    _saturation.Value = deathThreshold;
+                    EmitFloodPaint(PaintEventKind.FloodBurst, 1.2f);
                 }
 
                 return;
@@ -179,6 +212,7 @@ namespace HueDoneIt.Flood.Integration
                 _ => -dryRecoveryPerSecond
             };
 
+            delta *= Mathf.Lerp(0.4f, 1.3f, _waterLevel01.Value);
             _saturation.Value = Mathf.Clamp01(_saturation.Value + (delta * deltaTime));
             if (state is FloodZoneState.Flooding or FloodZoneState.Submerged && Time.time >= _nextFloodDripTime)
             {
@@ -219,6 +253,8 @@ namespace HueDoneIt.Flood.Integration
             {
                 _serverZoneNetworkObjectId.Value = zoneNetworkObjectId;
                 _serverZoneState.Value = (byte)FloodZoneState.Dry;
+                _waterLevel01.Value = 0f;
+                _flowVelocity.Value = 0f;
                 return;
             }
 
@@ -236,6 +272,8 @@ namespace HueDoneIt.Flood.Integration
 
             _serverZoneNetworkObjectId.Value = zoneNetworkObjectId;
             _serverZoneState.Value = (byte)zone.CurrentState;
+            _waterLevel01.Value = zone.WaterLevel01;
+            _flowVelocity.Value = zone.FlowVelocity;
         }
 
         private void SetCurrentZone(FloodZone zone)

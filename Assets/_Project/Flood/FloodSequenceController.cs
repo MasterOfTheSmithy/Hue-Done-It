@@ -36,6 +36,7 @@ namespace HueDoneIt.Flood
         private Coroutine _lockedEscalationCoroutine;
         private bool _completionApplied;
         private bool _lockEscalationStarted;
+        private bool _flowActive;
 
         public override void OnNetworkSpawn()
         {
@@ -59,6 +60,11 @@ namespace HueDoneIt.Flood
         private void Update()
         {
             if (!IsServer)
+            {
+                return;
+            }
+
+            if (!_flowActive)
             {
                 return;
             }
@@ -97,9 +103,28 @@ namespace HueDoneIt.Flood
             ResetZonesToInitialState();
             _completionApplied = false;
             _lockEscalationStarted = false;
-            StartSequences();
+            _flowActive = false;
+            StopSequences();
         }
 
+
+
+        public void ServerSetFlowActive(bool isActive)
+        {
+            if (!IsServer || _flowActive == isActive)
+            {
+                return;
+            }
+
+            _flowActive = isActive;
+            if (_flowActive)
+            {
+                StartSequences();
+                return;
+            }
+
+            StopSequences();
+        }
 
         private void EnsureDefaultSequencesIfNeeded()
         {

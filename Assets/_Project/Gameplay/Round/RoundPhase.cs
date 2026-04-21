@@ -5,9 +5,10 @@ namespace HueDoneIt.Gameplay.Round
     {
         Lobby = 0,
         Intro = 1,
-        FreeRoam = 2,
-        Reported = 3,
-        Resolved = 4,
-        PostRound = 5
+        Crash = 2,
+        FreeRoam = 3,
+        Reported = 4,
+        Resolved = 5,
+        PostRound = 6
     }
 }

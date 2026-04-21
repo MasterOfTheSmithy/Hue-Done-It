@@ -26,7 +26,10 @@ namespace HueDoneIt.UI.Interaction
 
         private void OnEnable()
         {
-            BindDetector();
+            if (detector != null)
+            {
+                detector.PromptChanged += HandlePromptChanged;
+            }
         }
 
         private void OnDisable()
@@ -34,36 +37,6 @@ namespace HueDoneIt.UI.Interaction
             if (detector != null)
             {
                 detector.PromptChanged -= HandlePromptChanged;
-            }
-        }
-
-        private void Update()
-        {
-            if (detector == null)
-            {
-                BindDetector();
-            }
-        }
-
-        private void BindDetector()
-        {
-            if (detector == null)
-            {
-                PlayerInteractionDetector[] detectors = FindObjectsByType<PlayerInteractionDetector>(FindObjectsSortMode.None);
-                foreach (PlayerInteractionDetector candidate in detectors)
-                {
-                    if (candidate.IsOwner && candidate.IsClient)
-                    {
-                        detector = candidate;
-                        break;
-                    }
-                }
-            }
-
-            if (detector != null)
-            {
-                detector.PromptChanged -= HandlePromptChanged;
-                detector.PromptChanged += HandlePromptChanged;
             }
         }
 
