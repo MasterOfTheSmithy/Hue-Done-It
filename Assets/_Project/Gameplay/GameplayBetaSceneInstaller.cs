@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
@@ -169,6 +170,7 @@ namespace HueDoneIt.Gameplay
             pump.transform.rotation = Quaternion.identity;
             pump.transform.localScale = new Vector3(1.6f, 2f, 1.6f);
             ApplyMaterial(pump, new Color(0.95f, 0.85f, 0.15f, 0.8f), false);
+            EnsureStainReceiver(pump);
         }
 
         private static void EnsureVisualFloodMarkers(Transform root)
@@ -215,6 +217,7 @@ namespace HueDoneIt.Gameplay
             colliderRef.isTrigger = false;
             colliderRef.center = Vector3.zero;
             colliderRef.size = new Vector3(1.6f, 2f, 1.6f);
+            EnsureStainReceiver(pump.gameObject);
         }
 
         private static void EnsureFloodZones(Transform root)
@@ -470,6 +473,7 @@ namespace HueDoneIt.Gameplay
             ground.transform.rotation = Quaternion.identity;
             ground.transform.localScale = scale;
             ApplyMaterial(ground, color, false);
+            EnsureStainReceiver(ground);
         }
 
         private static GameObject EnsureBlock(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
@@ -479,6 +483,7 @@ namespace HueDoneIt.Gameplay
             block.transform.rotation = Quaternion.identity;
             block.transform.localScale = scale;
             ApplyMaterial(block, color, false);
+            EnsureStainReceiver(block);
             return block;
         }
 
@@ -489,6 +494,7 @@ namespace HueDoneIt.Gameplay
             capsule.transform.rotation = Quaternion.identity;
             capsule.transform.localScale = scale;
             ApplyMaterial(capsule, color, false);
+            EnsureStainReceiver(capsule);
         }
 
         private static void EnsureMarker(Transform parent, string name, Vector3 position, Vector3 scale, Color color)
@@ -532,6 +538,16 @@ namespace HueDoneIt.Gameplay
             }
 
             return component;
+        }
+
+        private static void EnsureStainReceiver(GameObject target)
+        {
+            if (target == null || target.GetComponent<Collider>() == null)
+            {
+                return;
+            }
+
+            GetOrAddComponent<StainReceiver>(target);
         }
 
         private static FloodZone FindFloodZoneByName(string objectName)
