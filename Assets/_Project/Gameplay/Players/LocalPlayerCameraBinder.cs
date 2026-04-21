@@ -24,6 +24,8 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0.1f)] private float effectLerpSpeed = 10f;
         [SerializeField, Min(0f)] private float landingCompressionAmount = 0.045f;
         [SerializeField, Min(0.1f)] private float landingCompressionRecoverSpeed = 8f;
+        [SerializeField, Min(0f)] private float speedPositionKick = 0.015f;
+        [SerializeField, Min(0f)] private float wallCompressionCameraPush = 0.03f;
 
         [Header("FOV")]
         [SerializeField, Min(1f)] private float baseFieldOfView = 74f;
@@ -34,6 +36,9 @@ namespace HueDoneIt.Gameplay.Players
         [Header("Gravity / Wall Tilt")]
         [SerializeField, Min(0f)] private float airborneRollAmount = 4f;
         [SerializeField, Min(0f)] private float wallRollAmount = 9f;
+        [SerializeField, Min(0f)] private float movementYawLeanAmount = 1.3f;
+        [SerializeField, Min(0f)] private float wallLaunchImpulseRoll = 4f;
+        [SerializeField, Min(0.1f)] private float wallLaunchImpulseRecoverSpeed = 7.5f;
         [SerializeField, Min(0.1f)] private float rollLerpSpeed = 7f;
         [SerializeField, Min(0f)] private float ragdollCameraChaosRoll = 9f;
         [SerializeField, Min(0f)] private float ragdollCameraChaosPositional = 0.055f;
@@ -48,6 +53,7 @@ namespace HueDoneIt.Gameplay.Players
         private Vector3 _lastVelocity;
         private NetworkPlayerAuthoritativeMover _mover;
         private NetworkPlayerAuthoritativeMover.LocomotionState _lastState;
+        private float _wallLaunchRollKick;
 
         public override void OnNetworkSpawn()
         {
@@ -132,7 +138,6 @@ namespace HueDoneIt.Gameplay.Players
 
             float speed = new Vector3(worldVelocity.x, 0f, worldVelocity.z).magnitude;
             float speed01 = Mathf.Clamp01(speed / Mathf.Max(0.1f, speedForMaxFovBoost));
-            float verticalSpeed = worldVelocity.y;
 
             NetworkPlayerAuthoritativeMover.LocomotionState currentState = _mover != null
                 ? _mover.CurrentState
@@ -142,16 +147,25 @@ namespace HueDoneIt.Gameplay.Players
                           currentState == NetworkPlayerAuthoritativeMover.LocomotionState.Grounded;
             if (landed)
             {
-                float landingStrength = Mathf.Clamp01(Mathf.Abs(verticalSpeed) / 12f);
+                float landingStrength = Mathf.Clamp01((_mover != null ? _mover.LastLandingImpact : Mathf.Abs(localVelocity.y)) / 12f);
                 _currentLandingCompression = Mathf.Max(_currentLandingCompression, landingCompressionAmount * (0.45f + landingStrength));
             }
 
-            _currentLandingCompression = Mathf.MoveTowards(_currentLandingCompression, 0f, landingCompressionRecoverSpeed * Time.deltaTime);
+            if (_lastState != NetworkPlayerAuthoritativeMover.LocomotionState.WallLaunch &&
+                currentState == NetworkPlayerAuthoritativeMover.LocomotionState.WallLaunch)
+            {
+                float signed = Mathf.Sign(localVelocity.x == 0f ? 1f : localVelocity.x);
+                _wallLaunchRollKick = wallLaunchImpulseRoll * signed;
+            }
 
+            _currentLandingCompression = Mathf.MoveTowards(_currentLandingCompression, 0f, landingCompressionRecoverSpeed * Time.deltaTime);
+            _wallLaunchRollKick = Mathf.MoveTowards(_wallLaunchRollKick, 0f, wallLaunchImpulseRecoverSpeed * Time.deltaTime);
+
+            float wallCompression = _mover != null ? _mover.WallCompression : 0f;
             Vector3 targetOffset = new Vector3(
                 (-localVelocity.x * lateralSwayAmount) + (-localAcceleration.x * 0.0015f),
-                (-Mathf.Max(0f, verticalSpeed) * verticalBobAmount * 0.15f) - _currentLandingCompression,
-                (-localVelocity.z * velocityLagAmount) - (Mathf.Abs(localAcceleration.z) * 0.0008f));
+                (-Mathf.Max(0f, worldVelocity.y) * verticalBobAmount * 0.15f) - _currentLandingCompression,
+                (-localVelocity.z * velocityLagAmount) - (Mathf.Abs(localAcceleration.z) * 0.0008f) - (speed01 * speedPositionKick) + (wallCompression * wallCompressionCameraPush));
 
             if (currentState == NetworkPlayerAuthoritativeMover.LocomotionState.Ragdoll)
             {
@@ -184,10 +198,13 @@ namespace HueDoneIt.Gameplay.Players
                 targetRoll = Mathf.Sin(Time.time * 13.5f) * ragdollCameraChaosRoll;
             }
 
+            float yawLean = Mathf.Clamp(localVelocity.x * movementYawLeanAmount, -movementYawLeanAmount, movementYawLeanAmount);
+            targetRoll += _wallLaunchRollKick;
+
             _currentRoll = Mathf.Lerp(_currentRoll, targetRoll, rollLerpSpeed * Time.deltaTime);
 
             cameraAnchor.localPosition = ownerCameraAnchorLocalPosition + _currentPresentationOffset;
-            cameraAnchor.localRotation = Quaternion.Euler(_pitch, 0f, _currentRoll);
+            cameraAnchor.localRotation = Quaternion.Euler(_pitch, yawLean, _currentRoll);
 
             if (_mainCamera != null)
             {
