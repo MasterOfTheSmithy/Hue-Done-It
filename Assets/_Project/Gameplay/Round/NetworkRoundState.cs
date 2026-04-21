@@ -215,10 +215,11 @@ namespace HueDoneIt.Gameplay.Round
         private void ResetPlayersAndMoveToSpawns()
         {
             List<Transform> spawnPoints = CollectSpawnPoints();
-            Shuffle(spawnPoints);
+            List<NetworkClient> sortedClients = new(NetworkManager.ConnectedClientsList);
+            sortedClients.Sort((a, b) => a.ClientId.CompareTo(b.ClientId));
 
             int spawnIndex = 0;
-            foreach (NetworkClient client in NetworkManager.ConnectedClientsList)
+            foreach (NetworkClient client in sortedClients)
             {
                 if (client.PlayerObject == null)
                 {
