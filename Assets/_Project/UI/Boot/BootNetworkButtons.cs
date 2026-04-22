@@ -8,6 +8,8 @@ using UnityEngine.SceneManagement;
 
 namespace HueDoneIt.UI.Boot
 {
+    // This component is intentionally kept on a Boot scene object so legacy scene buttons still work.
+    // It also ensures the newer frontend overlay exists even if RuntimeInitialize methods are stripped or reordered.
     public sealed class BootNetworkButtons : MonoBehaviour
     {
         private const string AddressPrefsKey = "HueDoneIt.Network.Address";
@@ -18,10 +20,53 @@ namespace HueDoneIt.UI.Boot
         [SerializeField] private ushort defaultPort = 7777;
         [SerializeField] private string defaultAddress = "127.0.0.1";
 
+        // This value is read by the boot frontend to show current status.
         public bool IsNetworkActive => TryResolveNetworkManager(out NetworkManager manager) && manager.IsListening;
+
+        // This value is read by the boot frontend to decide if Start Match is allowed.
         public bool IsHost => TryResolveNetworkManager(out NetworkManager manager) && manager.IsHost;
 
+        private void Awake()
+        {
+            // This makes the visible frontend robust. The old Boot scene still has Host/Client/Shutdown buttons,
+            // so we attach the new frontend overlay from here when in Boot.
+            if (SceneManager.GetActiveScene().name == "Boot" && FindFirstObjectByType<BootConnectionOverlay>() == null)
+            {
+                GameObject overlayObject = new GameObject(nameof(BootConnectionOverlay));
+                overlayObject.AddComponent<BootConnectionOverlay>();
+            }
+
+            // Apply persisted runtime settings on startup so volume and window mode are not stale.
+            RuntimeGameSettings.Apply();
+        }
+
+        // Legacy Host button path.
+        // This keeps old Boot button wiring playable by immediately moving host into gameplay.
         public void StartHost()
+        {
+            if (!TryResolveNetworkManager(out NetworkManager manager))
+            {
+                return;
+            }
+
+            if (!manager.IsListening)
+            {
+                ConfigureTransportForHost(manager);
+                bool started = manager.StartHost();
+                Debug.Log($"BootNetworkButtons.StartHost started={started}");
+                if (!started)
+                {
+                    return;
+                }
+            }
+
+            // Legacy behavior is immediate scene transition so Host is never a dead-end path.
+            LoadGameplaySceneIfHost(manager);
+        }
+
+        // New frontend path.
+        // This hosts the network session but intentionally stays in Boot so lobby UI remains visible.
+        public void StartHostLobby()
         {
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
@@ -30,19 +75,15 @@ namespace HueDoneIt.UI.Boot
 
             if (manager.IsListening)
             {
-                LoadGameplaySceneIfHost(manager);
                 return;
             }
 
             ConfigureTransportForHost(manager);
             bool started = manager.StartHost();
-            Debug.Log($"NetworkManager.StartHost() returned: {started}");
-            if (started)
-            {
-                RuntimeGameSettings.Apply();
-            }
+            Debug.Log($"BootNetworkButtons.StartHostLobby started={started}");
         }
 
+        // Legacy client button and new frontend join both use this.
         public void StartClient()
         {
             if (!TryResolveNetworkManager(out NetworkManager manager))
@@ -57,13 +98,16 @@ namespace HueDoneIt.UI.Boot
 
             ConfigureTransportForClient(manager);
             bool started = manager.StartClient();
-            Debug.Log($"NetworkManager.StartClient() returned: {started}");
+            Debug.Log($"BootNetworkButtons.StartClient started={started}");
         }
 
+        // New frontend Start Match button uses this.
+        // It requires host authority and intentionally transitions to gameplay.
         public void StartMatchFromLobby()
         {
             if (!TryResolveNetworkManager(out NetworkManager manager) || !manager.IsHost)
             {
+                Debug.LogWarning("BootNetworkButtons.StartMatchFromLobby ignored because local peer is not host.");
                 return;
             }
 
@@ -104,8 +148,14 @@ namespace HueDoneIt.UI.Boot
 
         private void LoadGameplaySceneIfHost(NetworkManager manager)
         {
+            if (!manager.IsHost)
+            {
+                return;
+            }
+
             if (!manager.NetworkConfig.EnableSceneManagement)
             {
+                // Fallback for projects where NGO scene management was disabled.
                 SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
                 return;
             }
@@ -147,6 +197,7 @@ namespace HueDoneIt.UI.Boot
                 return;
             }
 
+            // Reflection keeps this resilient across Unity Transport API signature changes.
             Component transport = manager.GetComponent("UnityTransport");
             if (transport == null)
             {

@@ -6,6 +6,8 @@ using UnityEngine.InputSystem;
 
 namespace HueDoneIt.Gameplay.Players
 {
+    // Reads local owner input and exposes it to the authoritative mover.
+    // This class never applies movement directly.
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
     public sealed class NetworkPlayerInputReader : NetworkBehaviour
@@ -26,6 +28,7 @@ namespace HueDoneIt.Gameplay.Players
 
         private void Update()
         {
+            // Only owner client reads input.
             if (!IsSpawned || !IsOwner || !IsClient)
             {
                 CurrentMoveInput = Vector2.zero;
@@ -94,12 +97,13 @@ namespace HueDoneIt.Gameplay.Players
             float x = 0f;
             float y = 0f;
 
+            // RuntimeInputBindings keeps input profile configurable via frontend settings.
             if (keyboard.IsPressed(RuntimeInputBindings.Left) || keyboard.leftArrowKey.isPressed) x -= 1f;
             if (keyboard.IsPressed(RuntimeInputBindings.Right) || keyboard.rightArrowKey.isPressed) x += 1f;
             if (keyboard.IsPressed(RuntimeInputBindings.Back) || keyboard.downArrowKey.isPressed) y -= 1f;
             if (keyboard.IsPressed(RuntimeInputBindings.Forward) || keyboard.upArrowKey.isPressed) y += 1f;
 
-            Vector2 input = new(x, y);
+            Vector2 input = new Vector2(x, y);
             if (input.sqrMagnitude > 1f)
             {
                 input.Normalize();

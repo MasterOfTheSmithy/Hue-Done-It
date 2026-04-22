@@ -387,6 +387,7 @@ namespace HueDoneIt.Gameplay
                 return;
             }
 
+            // CPU count is authored from Boot lobby settings and clamped here for safety.
             int targetCpuCount = Mathf.Clamp(BootSessionConfig.RequestedCpuCount, 0, 7);
             var agents = FindObjectsByType<Players.SimpleCpuOpponentAgent>(FindObjectsSortMode.None);
             int existingCount = agents != null ? agents.Length : 0;
@@ -408,6 +409,8 @@ namespace HueDoneIt.Gameplay
 
             for (int i = existingCount; i < targetCpuCount; i++)
             {
+                // Each CPU is a full spawned player prefab with a server-side AI agent attached.
+                // This avoids hijacking the local player and keeps participants separate.
                 Vector3 spawnPos = new Vector3(2f + (i * 1.4f), 1f, -2f - (i * 0.8f));
                 GameObject bot = Instantiate(playerPrefab, spawnPos, Quaternion.identity, root);
                 bot.name = $"CPU_Opponent_{i + 1:00}";

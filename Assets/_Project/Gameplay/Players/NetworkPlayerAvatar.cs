@@ -10,6 +10,8 @@ using UnityEngine;
 
 namespace HueDoneIt.Gameplay.Players
 {
+    // This class is the network avatar integration point for player-level presentation state.
+    // It does not own movement authority. Movement remains in NetworkPlayerAuthoritativeMover.
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
     [RequireComponent(typeof(NetworkPlayerInputReader))]
@@ -24,20 +26,22 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(PlayerKillInputController))]
     public sealed class NetworkPlayerAvatar : NetworkBehaviour
     {
+        // Opacity is replicated from server so HUD and remote presentation stay consistent.
         private readonly NetworkVariable<float> _opacity =
-            new(1f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            new NetworkVariable<float>(1f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        // Placeholder customization data replicated for all peers.
         private readonly NetworkVariable<Color32> _bodyColor =
-            new(new Color32(255, 128, 128, 255), NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            new NetworkVariable<Color32>(new Color32(255, 128, 128, 255), NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<int> _hatIndex =
-            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<int> _outfitIndex =
-            new(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<FixedString32Bytes> _playerLabel =
-            new(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            new NetworkVariable<FixedString32Bytes>(default, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private Renderer[] _renderers;
         private Transform _hatTransform;
@@ -50,6 +54,7 @@ namespace HueDoneIt.Gameplay.Players
         public override void OnNetworkSpawn()
         {
             base.OnNetworkSpawn();
+
             _renderers = GetComponentsInChildren<Renderer>(true);
             _flood = GetComponent<PlayerFloodZoneTracker>();
             _life = GetComponent<PlayerLifeState>();
@@ -57,24 +62,38 @@ namespace HueDoneIt.Gameplay.Players
 
             if (IsServer)
             {
+                // Session-level placeholder customization values are read from Boot settings.
                 _opacity.Value = 1f;
                 _bodyColor.Value = (Color32)BootSessionConfig.SelectedBodyColor;
                 _hatIndex.Value = BootSessionConfig.SelectedHat;
                 _outfitIndex.Value = BootSessionConfig.SelectedOutfit;
-                _playerLabel.Value = new FixedString32Bytes((GetComponent<SimpleCpuOpponentAgent>() != null ? "CPU" : "Player") + $" {OwnerClientId}");
+
+                bool isCpu = GetComponent<SimpleCpuOpponentAgent>() != null;
+                _playerLabel.Value = new FixedString32Bytes((isCpu ? "CPU" : "Player") + $" {OwnerClientId}");
             }
 
             _opacity.OnValueChanged += HandleOpacityChanged;
-            _bodyColor.OnValueChanged += (_, _) => RefreshVisuals();
-            _hatIndex.OnValueChanged += (_, _) => RefreshVisuals();
-            _outfitIndex.OnValueChanged += (_, _) => RefreshVisuals();
+            _bodyColor.OnValueChanged += HandleVisualValueChanged;
+            _hatIndex.OnValueChanged += HandleVisualValueChanged;
+            _outfitIndex.OnValueChanged += HandleVisualValueChanged;
+
             RefreshVisuals();
+        }
+
+        public override void OnNetworkDespawn()
+        {
+            _opacity.OnValueChanged -= HandleOpacityChanged;
+            _bodyColor.OnValueChanged -= HandleVisualValueChanged;
+            _hatIndex.OnValueChanged -= HandleVisualValueChanged;
+            _outfitIndex.OnValueChanged -= HandleVisualValueChanged;
+            base.OnNetworkDespawn();
         }
 
         private void Update()
         {
             if (IsServer)
             {
+                // Opacity is driven by flood saturation and elimination state.
                 float targetOpacity = 1f;
                 if (_life != null && !_life.IsAlive)
                 {
@@ -88,47 +107,49 @@ namespace HueDoneIt.Gameplay.Players
                 _opacity.Value = Mathf.MoveTowards(_opacity.Value, targetOpacity, Time.deltaTime * 0.2f);
             }
 
-            if (!IsServer && _life != null && !_life.IsAlive)
+            // Clients update their render materials whenever replicated state changes.
+            if (!IsServer)
             {
                 RefreshVisuals();
             }
         }
 
-        public override void OnNetworkDespawn()
+        private void HandleOpacityChanged(float previousValue, float currentValue)
         {
-            _opacity.OnValueChanged -= HandleOpacityChanged;
-            base.OnNetworkDespawn();
+            RefreshVisuals();
         }
 
-        private void HandleOpacityChanged(float _, float __)
+        private void HandleVisualValueChanged<T>(T previousValue, T currentValue) where T : unmanaged
         {
             RefreshVisuals();
         }
 
         private void RefreshVisuals()
         {
+            // Opacity low values wash color toward white to communicate diffused state.
             Color baseColor = _bodyColor.Value;
-            float wash = 1f - _opacity.Value;
-            Color final = Color.Lerp(baseColor, Color.white, wash * 0.85f);
+            float wash01 = 1f - _opacity.Value;
+            Color opacityColor = Color.Lerp(baseColor, Color.white, wash01 * 0.85f);
 
             if (_renderers != null)
             {
-                for (int i = 0; i < _renderers.Length; i++)
+                for (int index = 0; index < _renderers.Length; index++)
                 {
-                    Renderer r = _renderers[i];
-                    if (r == null || r.material == null)
+                    Renderer renderer = _renderers[index];
+                    if (renderer == null || renderer.material == null)
                     {
                         continue;
                     }
 
-                    if (r.transform == _hatTransform)
+                    if (renderer.transform == _hatTransform)
                     {
-                        r.material.color = Color.Lerp(final, Color.black, (_hatIndex.Value % 6) * 0.08f);
+                        float hatDarken = (_hatIndex.Value % 6) * 0.08f;
+                        renderer.material.color = Color.Lerp(opacityColor, Color.black, hatDarken);
                     }
                     else
                     {
                         float outfitDarken = (_outfitIndex.Value % 6) * 0.06f;
-                        r.material.color = Color.Lerp(final, Color.black, outfitDarken);
+                        renderer.material.color = Color.Lerp(opacityColor, Color.black, outfitDarken);
                     }
                 }
             }
@@ -145,11 +166,18 @@ namespace HueDoneIt.Gameplay.Players
                 return;
             }
 
+            // Placeholder hat mesh so customization has visible output without new assets.
             GameObject hat = GameObject.CreatePrimitive(PrimitiveType.Sphere);
             hat.name = "HatPlaceholder";
             hat.transform.SetParent(transform, false);
             hat.transform.localPosition = new Vector3(0f, 1.1f, 0f);
-            Destroy(hat.GetComponent<Collider>());
+
+            Collider hatCollider = hat.GetComponent<Collider>();
+            if (hatCollider != null)
+            {
+                Destroy(hatCollider);
+            }
+
             _hatTransform = hat.transform;
         }
     }
