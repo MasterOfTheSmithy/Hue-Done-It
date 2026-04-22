@@ -124,11 +124,9 @@ namespace HueDoneIt.UI.Gameplay
             _opacityLabel = CreateText("OpacityLabel", _root.transform, font, 16, TextAnchor.MiddleLeft, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 236f), new Vector2(340f, 266f));
             _stabilityLabel = CreateText("StabilityLabel", _root.transform, font, 16, TextAnchor.MiddleLeft, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 204f), new Vector2(340f, 234f));
 
+            // Build Opacity and Stability bars once so visual state is deterministic.
             _opacityFill = CreateBar("Opacity", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 174f), new Color(0.88f, 0.42f, 0.42f, 0.95f));
             _stabilityFill = CreateBar("Stability", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 142f), new Color(0.31f, 0.9f, 0.58f, 0.95f));
-
-            _opacityFill = CreateBar("Opacity", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 90f), new Color(0.88f, 0.42f, 0.42f, 0.95f));
-            _stabilityFill = CreateBar("Stability", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 122f), new Color(0.31f, 0.9f, 0.58f, 0.95f));
             _interactionText.text = string.Empty;
             _taskText.text = string.Empty;
         }
