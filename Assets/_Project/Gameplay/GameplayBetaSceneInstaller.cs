@@ -21,6 +21,7 @@ namespace HueDoneIt.Gameplay
         private const string GameplaySceneName = "Gameplay_Undertint";
 
         [SerializeField] private bool verboseLogging = true;
+        [SerializeField] private bool preserveSceneAuthoredLayout = true;
 
         private void Awake()
         {
@@ -51,10 +52,22 @@ namespace HueDoneIt.Gameplay
             }
 
             GameObject runtimeRoot = EnsureRuntimeRoot();
-            EnsureArenaLayout(runtimeRoot.transform);
-            EnsureSpawnPoints(runtimeRoot.transform);
-            EnsureVisualPumpAnchor(runtimeRoot.transform);
-            EnsureVisualFloodMarkers(runtimeRoot.transform);
+            bool sceneHasAuthoredLayout = HasAuthoredGameplayLayout();
+
+            // Keep authored scene geometry and spawn anchors stable when they already exist.
+            // This prevents runtime repositioning from moving spawns away from valid walkable space.
+            if (!preserveSceneAuthoredLayout || !sceneHasAuthoredLayout)
+            {
+                EnsureArenaLayout(runtimeRoot.transform);
+                EnsureSpawnPoints(runtimeRoot.transform);
+                EnsureVisualPumpAnchor(runtimeRoot.transform);
+                EnsureVisualFloodMarkers(runtimeRoot.transform);
+            }
+            else if (verboseLogging)
+            {
+                Debug.Log("GameplayBetaSceneInstaller: preserving authored gameplay layout and spawn anchors.");
+            }
+
             ConfigureSceneLighting();
 
             Debug.Log("GameplayBetaSceneInstaller: primitive arena pass complete.");
@@ -81,6 +94,16 @@ namespace HueDoneIt.Gameplay
             return NetworkManager.Singleton != null &&
                    NetworkManager.Singleton.IsListening &&
                    NetworkManager.Singleton.IsServer;
+        }
+
+        private static bool HasAuthoredGameplayLayout()
+        {
+            // We consider the scene authored when at least one spawn point and the primary gameplay systems exist.
+            bool hasSpawn = GameObject.Find("SpawnPoint_01") != null;
+            bool hasRound = FindFirstObjectByType<NetworkRoundState>() != null;
+            bool hasPump = FindFirstObjectByType<PumpRepairTask>() != null;
+            bool hasFlood = FindFirstObjectByType<FloodSequenceController>() != null;
+            return hasSpawn && hasRound && hasPump && hasFlood;
         }
 
         private static GameObject EnsureRuntimeRoot()
