@@ -14,7 +14,7 @@ namespace HueDoneIt.Gameplay.Players
     {
         // Input should only be read in Gameplay_Undertint.
         // This prevents Boot-hosted lobbies from consuming gameplay movement input.
-        private const string GameplaySceneName = "Gameplay_Undertint";
+        private static readonly string[] PlayableInputScenes = { "Lobby", "Gameplay_Undertint" };
 
         [SerializeField, Min(0.01f)] private float jumpPressBufferSeconds = 0.15f;
         [SerializeField, Min(0.01f)] private float punchPressBufferSeconds = 0.12f;
@@ -96,9 +96,18 @@ namespace HueDoneIt.Gameplay.Players
             _punchPressBufferRemaining = 0f;
         }
 
-        private bool IsGameplaySceneActive()
+        private static bool IsGameplaySceneActive()
         {
-            return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == GameplaySceneName;
+            string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            for (int i = 0; i < PlayableInputScenes.Length; i++)
+            {
+                if (activeScene == PlayableInputScenes[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private Vector2 ReadMoveInput()

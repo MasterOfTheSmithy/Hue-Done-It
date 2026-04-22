@@ -9,6 +9,23 @@ namespace HueDoneIt.Core.Bootstrap
         private const string HatKey = "HueDoneIt.Cosmetic.Hat";
         private const string OutfitKey = "HueDoneIt.Cosmetic.Outfit";
         private const string BodyColorKey = "HueDoneIt.Cosmetic.BodyColor";
+        private const string SelectedMapKey = "HueDoneIt.Lobby.SelectedMap";
+
+        // This is the first supported gameplay map for the beta flow.
+        // Lobby map selection writes to this value and Start Match reads it.
+        public static string SelectedMapScene
+        {
+            get
+            {
+                string scene = PlayerPrefs.GetString(SelectedMapKey, "Gameplay_Undertint");
+                return string.IsNullOrWhiteSpace(scene) ? "Gameplay_Undertint" : scene;
+            }
+            set
+            {
+                string scene = string.IsNullOrWhiteSpace(value) ? "Gameplay_Undertint" : value.Trim();
+                PlayerPrefs.SetString(SelectedMapKey, scene);
+            }
+        }
 
         public static int RequestedCpuCount
         {

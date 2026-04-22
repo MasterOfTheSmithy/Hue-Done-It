@@ -145,13 +145,12 @@ namespace HueDoneIt.UI.Boot
             DrawConnectionFields();
 
             bool networkActive = _buttons != null && _buttons.IsNetworkActive;
-            bool isHost = _buttons != null && _buttons.IsHost;
             int connectedPlayers = GetConnectedPlayers();
             int cpuCount = BootSessionConfig.RequestedCpuCount;
 
             GUILayout.Space(8f);
             GUILayout.Label($"Lobby Network Active: {networkActive}");
-            GUILayout.Label($"Local Peer Is Host: {isHost}");
+            GUILayout.Label($"Local Peer Is Host: {(_buttons != null && _buttons.IsHost)}");
             GUILayout.Label($"Connected Human Players: {connectedPlayers}");
             GUILayout.Label($"CPU Opponents: {cpuCount}");
 
@@ -169,7 +168,7 @@ namespace HueDoneIt.UI.Boot
 
             if (!networkActive)
             {
-                if (GUILayout.Button("Host Lobby", GUILayout.Height(42f)))
+                if (GUILayout.Button("Host And Enter Lobby", GUILayout.Height(42f)))
                 {
                     // Host but stay in Boot to allow lobby management and explicit Start Match.
                     _buttons?.StartHostLobby();
@@ -180,13 +179,9 @@ namespace HueDoneIt.UI.Boot
                 GUILayout.Label("Host is running. Start Match becomes available for host.");
             }
 
-            // Only host can transition the active NGO session to Gameplay_Undertint.
-            GUI.enabled = isHost;
-            if (GUILayout.Button("Start Match in Gameplay_Undertint", GUILayout.Height(48f)))
-            {
-                _buttons?.StartMatchFromLobby();
-            }
-            GUI.enabled = true;
+            GUILayout.Space(8f);
+            GUILayout.Label("After hosting, the session transitions to the 3D Lobby scene.");
+            GUILayout.Label("Use the in-world lobby console to select map, adjust CPUs, and start match.");
 
             if (GUILayout.Button("Back", GUILayout.Height(34f))) _state = ScreenState.Main;
         }
