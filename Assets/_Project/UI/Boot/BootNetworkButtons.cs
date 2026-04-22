@@ -9,17 +9,22 @@ using UnityEngine.SceneManagement;
 namespace HueDoneIt.UI.Boot
 {
     // This component is intentionally kept on a Boot scene object so legacy scene buttons still work.
-    // It also ensures the newer frontend overlay exists even if RuntimeInitialize methods are stripped or reordered.
+    // It owns boot-to-lobby network startup so hosting and joining do not leave players in Boot.
     public sealed class BootNetworkButtons : MonoBehaviour
     {
         private const string AddressPrefsKey = "HueDoneIt.Network.Address";
         private const string PortPrefsKey = "HueDoneIt.Network.Port";
+
+        private static BootNetworkButtons _instance;
 
         [SerializeField] private NetworkManager networkManager;
         [SerializeField] private string lobbySceneName = "Lobby";
         [SerializeField] private string fallbackGameplaySceneName = "Gameplay_Undertint";
         [SerializeField] private ushort defaultPort = 7777;
         [SerializeField] private string defaultAddress = "127.0.0.1";
+
+        // These flags carry the intent across the Boot -> Lobby scene transition.
+        // The component is marked DontDestroyOnLoad so the callback survives the load.
         private bool _pendingHostStartAfterLobbyLoad;
         private bool _pendingClientStartAfterLobbyLoad;
 
@@ -31,6 +36,16 @@ namespace HueDoneIt.UI.Boot
 
         private void Awake()
         {
+            // Keep one runtime controller instance so scene transition callbacks are deterministic.
+            if (_instance != null && _instance != this)
+            {
+                Destroy(gameObject);
+                return;
+            }
+
+            _instance = this;
+            DontDestroyOnLoad(gameObject);
+
             // This makes the visible frontend robust. The old Boot scene still has Host/Client/Shutdown buttons,
             // so we attach the new frontend overlay from here when in Boot.
             if (SceneManager.GetActiveScene().name == "Boot" && FindFirstObjectByType<BootConnectionOverlay>() == null)
@@ -47,7 +62,11 @@ namespace HueDoneIt.UI.Boot
 
         private void OnDestroy()
         {
-            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            if (_instance == this)
+            {
+                SceneManager.sceneLoaded -= HandleSceneLoaded;
+                _instance = null;
+            }
         }
 
         // Legacy Host button path now enters Lobby, not gameplay.

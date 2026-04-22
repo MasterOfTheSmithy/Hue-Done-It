@@ -16,6 +16,9 @@ namespace HueDoneIt.Gameplay.Lobby
         private const string RuntimeRootName = "_LobbyRuntime";
         private const string SpawnPrefix = "LobbySpawn_";
 
+        // This flag prevents repeating server-only setup every frame.
+        private bool _serverInstalled;
+
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallInLobby()
         {
@@ -42,15 +45,9 @@ namespace HueDoneIt.Gameplay.Lobby
             Cursor.lockState = CursorLockMode.None;
             Cursor.visible = true;
 
-            GameObject root = GameObject.Find(RuntimeRootName);
-            if (root == null)
-            {
-                root = new GameObject(RuntimeRootName);
-            }
-
+            GameObject root = EnsureRuntimeRoot();
             EnsureLobbyGeometry(root.transform);
             EnsureLobbySpawnPoints(root.transform);
-
             TryInstallServerLobbyRuntime(root.transform);
         }
 
@@ -77,11 +74,24 @@ namespace HueDoneIt.Gameplay.Lobby
                 return;
             }
 
+            // These objects are authoritative network runtime objects for the lobby scene.
             EnsureNetworkLobbyState(root);
             EnsureLobbyInteractables(root);
             EnsureLobbyHudController(root);
             RepositionAllAvatarsToLobbySpawns();
             _serverInstalled = true;
+        }
+
+        private static GameObject EnsureRuntimeRoot()
+        {
+            GameObject root = GameObject.Find(RuntimeRootName);
+            if (root == null)
+            {
+                root = new GameObject(RuntimeRootName);
+            }
+
+            root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            return root;
         }
 
         private static void EnsureLobbyHudController(Transform root)
@@ -258,4 +268,3 @@ namespace HueDoneIt.Gameplay.Lobby
         }
     }
 }
-        private bool _serverInstalled;

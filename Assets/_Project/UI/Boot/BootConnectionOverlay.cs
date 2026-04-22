@@ -170,7 +170,7 @@ namespace HueDoneIt.UI.Boot
             {
                 if (GUILayout.Button("Host And Enter Lobby", GUILayout.Height(42f)))
                 {
-                    // Host but stay in Boot to allow lobby management and explicit Start Match.
+                    // Start host flow and transition into the dedicated Lobby scene.
                     _buttons?.StartHostLobby();
                 }
             }
