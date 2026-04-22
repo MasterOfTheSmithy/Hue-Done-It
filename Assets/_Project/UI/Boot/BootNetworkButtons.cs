@@ -105,6 +105,8 @@ namespace HueDoneIt.UI.Boot
         // It requires host authority and intentionally transitions to gameplay.
         public void StartMatchFromLobby()
         {
+            Debug.Log("BootNetworkButtons.StartMatchFromLobby called.");
+
             if (!TryResolveNetworkManager(out NetworkManager manager) || !manager.IsHost)
             {
                 Debug.LogWarning("BootNetworkButtons.StartMatchFromLobby ignored because local peer is not host.");
@@ -150,16 +152,20 @@ namespace HueDoneIt.UI.Boot
         {
             if (!manager.IsHost)
             {
+                Debug.LogWarning("BootNetworkButtons.LoadGameplaySceneIfHost aborted: local peer is not host.");
                 return;
             }
 
+            Debug.Log($"BootNetworkButtons.LoadGameplaySceneIfHost scene={gameplaySceneName} sceneManagement={manager.NetworkConfig.EnableSceneManagement}");
+
             if (!manager.NetworkConfig.EnableSceneManagement)
             {
-                // Fallback for projects where NGO scene management was disabled.
+                Debug.Log("BootNetworkButtons: NGO scene management disabled, using SceneManager fallback.");
                 SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
                 return;
             }
 
+            Debug.Log("BootNetworkButtons: NGO scene management enabled, loading gameplay scene through NetworkSceneManager.");
             manager.SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
         }
 
@@ -221,6 +227,11 @@ namespace HueDoneIt.UI.Boot
             }
 
             Debug.LogWarning("BootNetworkButtons: UnityTransport.SetConnectionData not found.");
+            if (GUILayout.Button("Start Match in Gameplay_Undertint", GUILayout.Height(48f)))
+            {
+                Debug.Log("BootConnectionOverlay: Start Match button pressed.");
+                StartMatchFromLobby();
+            }
         }
     }
 }

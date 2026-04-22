@@ -1,4 +1,5 @@
 // File: Assets/_Project/UI/Boot/BootConnectionOverlay.cs
+using System.Reflection;
 using HueDoneIt.Core.Bootstrap;
 using Unity.Netcode;
 using UnityEngine;
@@ -6,9 +7,8 @@ using UnityEngine.SceneManagement;
 
 namespace HueDoneIt.UI.Boot
 {
-    // This is the visible frontend menu shown in Boot.
-    // It uses IMGUI because the current project already has legacy Boot UI and this is the least invasive way
-    // to ship a complete menu flow without requiring new prefab authoring.
+    // This is the visible frontend menu shown in the Boot scene.
+    // It uses IMGUI so it can be dropped into the existing project without requiring new authored UI prefabs.
     public sealed class BootConnectionOverlay : MonoBehaviour
     {
         private enum ScreenState
@@ -22,15 +22,20 @@ namespace HueDoneIt.UI.Boot
 
         [SerializeField] private Vector2 panelSize = new Vector2(640f, 620f);
 
+        // This connects to the existing BootNetworkButtons scene object if present.
         private BootNetworkButtons _buttons;
+
+        // This controls which frontend page is currently visible.
         private ScreenState _state = ScreenState.Main;
 
-        private BootNetworkButtons _buttons;
-        private ScreenState _state;
+        // These are the editable network connection fields shown in the frontend.
         private string _address;
         private string _portString;
+
+        // This drives the placeholder body color slider preview.
         private int _bodyColorIndex;
 
+        // Placeholder body color palette for simple customization.
         private static readonly Color[] BodyPalette =
         {
             new Color(1f, 0.42f, 0.55f),
@@ -44,7 +49,7 @@ namespace HueDoneIt.UI.Boot
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            // This keeps the overlay available when Boot is loaded directly.
+            // Install only in the Boot scene and only once.
             if (SceneManager.GetActiveScene().name != "Boot" || FindFirstObjectByType<BootConnectionOverlay>() != null)
             {
                 return;
@@ -56,172 +61,47 @@ namespace HueDoneIt.UI.Boot
 
         private void Awake()
         {
+            // Resolve the legacy button bridge if it exists in the scene.
             _buttons = FindFirstObjectByType<BootNetworkButtons>();
+
+            // Load persisted connection values.
             _address = BootNetworkButtons.GetConfiguredAddress();
             _portString = BootNetworkButtons.GetConfiguredPort().ToString();
+
+            // Apply runtime settings so the boot frontend reflects current config.
             RuntimeGameSettings.Apply();
 
-            // The legacy Boot canvas still has Host/Client/Shutdown buttons.
-            // Disable it so players only see this complete frontend and not conflicting controls.
+            // Convert the saved body color into a slider index for the placeholder customization screen.
+            _bodyColorIndex = FindClosestBodyColorIndex(BootSessionConfig.SelectedBodyColor);
+
+            // Hide the legacy Boot canvas so the user sees only one frontend.
             TryDisableLegacyBootCanvas();
 
-            // Persist object while in Boot and destroy on scene transition.
-            // We avoid DontDestroyOnLoad to prevent duplicate overlays when returning to Boot.
-            gameObject.hideFlags = HideFlags.None;
+            // Cursor control is handled by the frontend exclusively, so force it in correct state for scene entry and after returning from gameplay.
+            ForceBootCursorState();
         }
 
-        private void OnGUI()
+        private void Update()
         {
-            // Resolve the reference if scene objects were reloaded.
+            // If scene objects were reloaded, resolve the button bridge again.
             if (_buttons == null)
             {
                 _buttons = FindFirstObjectByType<BootNetworkButtons>();
             }
 
-            Rect rect = new((Screen.width - panelSize.x) * 0.5f, (Screen.height - panelSize.y) * 0.5f, panelSize.x, panelSize.y);
-            GUILayout.BeginArea(rect, "Hue Done It - Beta Frontend", GUI.skin.window);
-
-            switch (_state)
+            // Do not render this frontend outside the Boot scene.
+            if (SceneManager.GetActiveScene().name != "Boot")
             {
-                case ScreenState.Main:
-                    DrawMain();
-                    break;
-                case ScreenState.CreateLobby:
-                    DrawCreateLobby();
-                    break;
-                case ScreenState.JoinLobby:
-                    DrawJoinLobby();
-                    break;
-                case ScreenState.Customization:
-                    DrawCustomization();
-                    break;
-                case ScreenState.Settings:
-                    DrawSettings();
-                    break;
+                enabled = false;
             }
-
-            GUILayout.EndArea();
-            ApplyConnectionFields();
+            ForceBootCursorState();
         }
 
-        private void DrawMain()
+        private void OnGUI()
         {
-            GUILayout.Space(8f);
-            GUILayout.Label("Production Slice Frontend", GUI.skin.box);
-            if (GUILayout.Button("Create Lobby", GUILayout.Height(42f))) _state = ScreenState.CreateLobby;
-            if (GUILayout.Button("Join Lobby", GUILayout.Height(42f))) _state = ScreenState.JoinLobby;
-            if (GUILayout.Button("Character Customization", GUILayout.Height(42f))) _state = ScreenState.Customization;
-            if (GUILayout.Button("Settings", GUILayout.Height(42f))) _state = ScreenState.Settings;
-            if (GUILayout.Button("Quit", GUILayout.Height(36f))) Application.Quit();
-        }
-
-        private void DrawCreateLobby()
-        {
-            GUILayout.Label("Create Lobby", GUI.skin.box);
-            DrawConnectionFields();
-
-            GUILayout.Space(8f);
-            GUILayout.Label($"Connected Players: {GetConnectedPlayers()}");
-            GUILayout.Label($"CPU Opponents: {BootSessionConfig.RequestedCpuCount}");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("- CPU", GUILayout.Height(30f)))
+            if (SceneManager.GetActiveScene().name != "Boot")
             {
-                BootSessionConfig.RequestedCpuCount = Mathf.Max(0, BootSessionConfig.RequestedCpuCount - 1);
-            }
-
-            if (GUILayout.Button("+ CPU", GUILayout.Height(30f)))
-            {
-                BootSessionConfig.RequestedCpuCount = Mathf.Min(7, BootSessionConfig.RequestedCpuCount + 1);
-            }
-
-            GUILayout.EndHorizontal();
-
-            bool hosting = _buttons != null && _buttons.IsHost;
-            if (!hosting && GUILayout.Button("Host Lobby", GUILayout.Height(40f)))
-            {
-                _buttons?.StartHost();
-            }
-
-            GUI.enabled = hosting;
-            if (GUILayout.Button("Start Match in Gameplay_Undertint", GUILayout.Height(46f)))
-            {
-                _buttons?.StartMatchFromLobby();
-            }
-
-            GUI.enabled = true;
-            if (GUILayout.Button("Back", GUILayout.Height(32f))) _state = ScreenState.Main;
-        }
-
-        private void DrawJoinLobby()
-        {
-            GUILayout.Label("Join Lobby", GUI.skin.box);
-            DrawConnectionFields();
-            if (GUILayout.Button("Join as Client", GUILayout.Height(42f)))
-            {
-                _buttons?.StartClient();
-            }
-
-            if (GUILayout.Button("Back", GUILayout.Height(32f))) _state = ScreenState.Main;
-        }
-
-        private void DrawCustomization()
-        {
-            GUILayout.Label("Character Customization (placeholder)", GUI.skin.box);
-            GUILayout.Label($"Hat Option: {BootSessionConfig.SelectedHat + 1}");
-            BootSessionConfig.SelectedHat = Mathf.RoundToInt(GUILayout.HorizontalSlider(BootSessionConfig.SelectedHat, 0, 5));
-
-            GUILayout.Label($"Outfit Option: {BootSessionConfig.SelectedOutfit + 1}");
-            BootSessionConfig.SelectedOutfit = Mathf.RoundToInt(GUILayout.HorizontalSlider(BootSessionConfig.SelectedOutfit, 0, 5));
-
-            GUILayout.Label("Body Color");
-            _bodyColorIndex = Mathf.RoundToInt(GUILayout.HorizontalSlider(_bodyColorIndex, 0, BodyPalette.Length - 1));
-            BootSessionConfig.SelectedBodyColor = BodyPalette[_bodyColorIndex];
-            Color prev = GUI.color;
-            GUI.color = BodyPalette[_bodyColorIndex];
-            GUILayout.Box("Preview", GUILayout.Height(30f));
-            GUI.color = prev;
-
-            if (GUILayout.Button("Save Customization", GUILayout.Height(36f)))
-            {
-                BootSessionConfig.Save();
-            }
-
-            if (GUILayout.Button("Back", GUILayout.Height(32f))) _state = ScreenState.Main;
-        }
-
-        private void DrawSettings()
-        {
-            GUILayout.Label("Settings", GUI.skin.box);
-
-            GUILayout.Label($"Master Volume: {RuntimeGameSettings.MasterVolume:0.00}");
-            RuntimeGameSettings.MasterVolume = GUILayout.HorizontalSlider(RuntimeGameSettings.MasterVolume, 0f, 1f);
-
-            GUILayout.Label($"Music Volume: {RuntimeGameSettings.MusicVolume:0.00}");
-            RuntimeGameSettings.MusicVolume = GUILayout.HorizontalSlider(RuntimeGameSettings.MusicVolume, 0f, 1f);
-
-            GUILayout.Label($"SFX Volume: {RuntimeGameSettings.SfxVolume:0.00}");
-            RuntimeGameSettings.SfxVolume = GUILayout.HorizontalSlider(RuntimeGameSettings.SfxVolume, 0f, 1f);
-
-            GUILayout.Label($"Look Sensitivity: {RuntimeGameSettings.LookSensitivity:0.00}");
-            RuntimeGameSettings.LookSensitivity = GUILayout.HorizontalSlider(RuntimeGameSettings.LookSensitivity, 0.02f, 1f);
-
-            GUILayout.Label($"Keys: Move[{RuntimeInputBindings.Left}/{RuntimeInputBindings.Right}/{RuntimeInputBindings.Forward}/{RuntimeInputBindings.Back}] Jump[{RuntimeInputBindings.Jump}] Burst[{RuntimeInputBindings.Burst}]");
-            if (GUILayout.Button("Reset Controls To WASD + Space + Shift", GUILayout.Height(30f)))
-            {
-                RuntimeInputBindings.SetDefaults();
-            }
-
-            GUILayout.Label($"Window Mode: {RuntimeGameSettings.WindowMode}");
-            GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Windowed")) RuntimeGameSettings.WindowMode = FullScreenMode.Windowed;
-            if (GUILayout.Button("Fullscreen Window")) RuntimeGameSettings.WindowMode = FullScreenMode.FullScreenWindow;
-            if (GUILayout.Button("Exclusive")) RuntimeGameSettings.WindowMode = FullScreenMode.ExclusiveFullScreen;
-            GUILayout.EndHorizontal();
-
-            if (GUILayout.Button("Apply + Save", GUILayout.Height(36f)))
-            {
-                RuntimeGameSettings.Apply();
-                RuntimeGameSettings.Save();
+                return;
             }
 
             Rect rect = new Rect(
@@ -230,7 +110,7 @@ namespace HueDoneIt.UI.Boot
                 panelSize.x,
                 panelSize.y);
 
-            GUILayout.BeginArea(rect, "Hue Done It Beta Frontend", GUI.skin.window);
+            GUILayout.BeginArea(rect, "Hue Done It - Beta Frontend", GUI.skin.window);
             GUILayout.Space(6f);
 
             switch (_state)
@@ -238,21 +118,27 @@ namespace HueDoneIt.UI.Boot
                 case ScreenState.Main:
                     DrawMain();
                     break;
+
                 case ScreenState.CreateLobby:
                     DrawCreateLobby();
                     break;
+
                 case ScreenState.JoinLobby:
                     DrawJoinLobby();
                     break;
+
                 case ScreenState.Customization:
                     DrawCustomization();
                     break;
+
                 case ScreenState.Settings:
                     DrawSettings();
                     break;
             }
 
             GUILayout.EndArea();
+
+            // Persist connection values every frame so legacy button handlers use the edited values.
             ApplyConnectionFields();
         }
 
@@ -260,11 +146,31 @@ namespace HueDoneIt.UI.Boot
         {
             GUILayout.Label("Main Menu", GUI.skin.box);
             GUILayout.Label("Choose a frontend path.");
-            if (GUILayout.Button("Create Lobby", GUILayout.Height(48f))) _state = ScreenState.CreateLobby;
-            if (GUILayout.Button("Join Lobby", GUILayout.Height(48f))) _state = ScreenState.JoinLobby;
-            if (GUILayout.Button("Character Customization", GUILayout.Height(48f))) _state = ScreenState.Customization;
-            if (GUILayout.Button("Settings", GUILayout.Height(48f))) _state = ScreenState.Settings;
-            if (GUILayout.Button("Quit", GUILayout.Height(42f))) Application.Quit();
+
+            if (GUILayout.Button("Create Lobby", GUILayout.Height(48f)))
+            {
+                _state = ScreenState.CreateLobby;
+            }
+
+            if (GUILayout.Button("Join Lobby", GUILayout.Height(48f)))
+            {
+                _state = ScreenState.JoinLobby;
+            }
+
+            if (GUILayout.Button("Character Customization", GUILayout.Height(48f)))
+            {
+                _state = ScreenState.Customization;
+            }
+
+            if (GUILayout.Button("Settings", GUILayout.Height(48f)))
+            {
+                _state = ScreenState.Settings;
+            }
+
+            if (GUILayout.Button("Quit", GUILayout.Height(42f)))
+            {
+                Application.Quit();
+            }
         }
 
         private void DrawCreateLobby()
@@ -272,8 +178,8 @@ namespace HueDoneIt.UI.Boot
             GUILayout.Label("Create Lobby", GUI.skin.box);
             DrawConnectionFields();
 
-            bool networkActive = _buttons != null && _buttons.IsNetworkActive;
-            bool isHost = _buttons != null && _buttons.IsHost;
+            bool networkActive = IsNetworkActive();
+            bool isHost = IsHost();
             int connectedPlayers = GetConnectedPlayers();
             int cpuCount = BootSessionConfig.RequestedCpuCount;
 
@@ -284,23 +190,26 @@ namespace HueDoneIt.UI.Boot
             GUILayout.Label($"CPU Opponents: {cpuCount}");
 
             GUILayout.BeginHorizontal();
+
             if (GUILayout.Button("Remove CPU", GUILayout.Height(34f)))
             {
                 BootSessionConfig.RequestedCpuCount = Mathf.Max(0, BootSessionConfig.RequestedCpuCount - 1);
+                BootSessionConfig.Save();
             }
 
             if (GUILayout.Button("Add CPU", GUILayout.Height(34f)))
             {
                 BootSessionConfig.RequestedCpuCount = Mathf.Min(7, BootSessionConfig.RequestedCpuCount + 1);
+                BootSessionConfig.Save();
             }
+
             GUILayout.EndHorizontal();
 
             if (!networkActive)
             {
                 if (GUILayout.Button("Host Lobby", GUILayout.Height(42f)))
                 {
-                    // Host but remain in Boot so user can inspect lobby and then press Start Match.
-                    _buttons?.StartHostLobby();
+                    StartHostLobby();
                 }
             }
             else
@@ -309,13 +218,18 @@ namespace HueDoneIt.UI.Boot
             }
 
             GUI.enabled = isHost;
+
             if (GUILayout.Button("Start Match in Gameplay_Undertint", GUILayout.Height(48f)))
             {
-                _buttons?.StartMatchFromLobby();
+                StartMatchFromLobby();
             }
+
             GUI.enabled = true;
 
-            if (GUILayout.Button("Back", GUILayout.Height(34f))) _state = ScreenState.Main;
+            if (GUILayout.Button("Back", GUILayout.Height(34f)))
+            {
+                _state = ScreenState.Main;
+            }
         }
 
         private void DrawJoinLobby()
@@ -329,7 +243,10 @@ namespace HueDoneIt.UI.Boot
                 _buttons?.StartClient();
             }
 
-            if (GUILayout.Button("Back", GUILayout.Height(34f))) _state = ScreenState.Main;
+            if (GUILayout.Button("Back", GUILayout.Height(34f)))
+            {
+                _state = ScreenState.Main;
+            }
         }
 
         private void DrawCustomization()
@@ -347,17 +264,20 @@ namespace HueDoneIt.UI.Boot
             _bodyColorIndex = Mathf.RoundToInt(GUILayout.HorizontalSlider(_bodyColorIndex, 0, BodyPalette.Length - 1));
             BootSessionConfig.SelectedBodyColor = BodyPalette[_bodyColorIndex];
 
-            Color old = GUI.color;
+            Color oldColor = GUI.color;
             GUI.color = BodyPalette[_bodyColorIndex];
             GUILayout.Box("Color Preview", GUILayout.Height(28f));
-            GUI.color = old;
+            GUI.color = oldColor;
 
             if (GUILayout.Button("Save Customization", GUILayout.Height(40f)))
             {
                 BootSessionConfig.Save();
             }
 
-            if (GUILayout.Button("Back", GUILayout.Height(34f))) _state = ScreenState.Main;
+            if (GUILayout.Button("Back", GUILayout.Height(34f)))
+            {
+                _state = ScreenState.Main;
+            }
         }
 
         private void DrawSettings()
@@ -378,12 +298,28 @@ namespace HueDoneIt.UI.Boot
 
             GUILayout.Label($"Window Mode: {RuntimeGameSettings.WindowMode}");
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Windowed")) RuntimeGameSettings.WindowMode = FullScreenMode.Windowed;
-            if (GUILayout.Button("Fullscreen Window")) RuntimeGameSettings.WindowMode = FullScreenMode.FullScreenWindow;
-            if (GUILayout.Button("Exclusive")) RuntimeGameSettings.WindowMode = FullScreenMode.ExclusiveFullScreen;
+
+            if (GUILayout.Button("Windowed"))
+            {
+                RuntimeGameSettings.WindowMode = FullScreenMode.Windowed;
+            }
+
+            if (GUILayout.Button("Fullscreen Window"))
+            {
+                RuntimeGameSettings.WindowMode = FullScreenMode.FullScreenWindow;
+            }
+
+            if (GUILayout.Button("Exclusive"))
+            {
+                RuntimeGameSettings.WindowMode = FullScreenMode.ExclusiveFullScreen;
+            }
+
             GUILayout.EndHorizontal();
 
-            GUILayout.Label($"Current Keys: Move[{RuntimeInputBindings.Left},{RuntimeInputBindings.Right},{RuntimeInputBindings.Forward},{RuntimeInputBindings.Back}] Jump[{RuntimeInputBindings.Jump}] Burst[{RuntimeInputBindings.Burst}]");
+            GUILayout.Label(
+                $"Current Keys: Move[{RuntimeInputBindings.Left},{RuntimeInputBindings.Right},{RuntimeInputBindings.Forward},{RuntimeInputBindings.Back}] " +
+                $"Jump[{RuntimeInputBindings.Jump}] Burst[{RuntimeInputBindings.Burst}]");
+
             if (GUILayout.Button("Reset Controls To WASD + Space + Shift", GUILayout.Height(34f)))
             {
                 RuntimeInputBindings.SetDefaults();
@@ -395,26 +331,25 @@ namespace HueDoneIt.UI.Boot
                 RuntimeGameSettings.Save();
             }
 
-            if (GUILayout.Button("Back", GUILayout.Height(34f))) _state = ScreenState.Main;
+            if (GUILayout.Button("Back", GUILayout.Height(34f)))
+            {
+                _state = ScreenState.Main;
+            }
         }
 
         private void DrawConnectionFields()
         {
             GUILayout.Label("Server Address");
             _address = GUILayout.TextField(_address ?? string.Empty, 64);
+
             GUILayout.Label("Port");
             _portString = GUILayout.TextField(_portString ?? "7777", 8);
         }
 
         private int GetConnectedPlayers()
         {
-            // This reads live NGO state to avoid stale lobby numbers.
-            if (NetworkManager.Singleton == null)
-            {
-                return 0;
-            }
-
-            if (!NetworkManager.Singleton.IsListening)
+            // This reads live NGO state instead of cached values so the lobby reflects current state.
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
             {
                 return 0;
             }
@@ -425,9 +360,168 @@ namespace HueDoneIt.UI.Boot
         private void ApplyConnectionFields()
         {
             BootNetworkButtons.SetConfiguredAddress(_address);
+
             if (ushort.TryParse(_portString, out ushort parsedPort))
             {
                 BootNetworkButtons.SetConfiguredPort(parsedPort);
+            }
+        }
+
+        private bool IsNetworkActive()
+        {
+            // Prefer a button-bridge property if the newer API exists.
+            if (TryGetBoolProperty(_buttons, "IsNetworkActive", out bool value))
+            {
+                return value;
+            }
+
+            // Fall back to NGO directly for compatibility with the older button implementation.
+            return NetworkManager.Singleton != null && NetworkManager.Singleton.IsListening;
+        }
+
+        private bool IsHost()
+        {
+            // Prefer a button-bridge property if the newer API exists.
+            if (TryGetBoolProperty(_buttons, "IsHost", out bool value))
+            {
+                return value;
+            }
+
+            // Fall back to NGO directly for compatibility with the older button implementation.
+            return NetworkManager.Singleton != null && NetworkManager.Singleton.IsHost;
+        }
+
+        private void StartHostLobby()
+        {
+            if (_buttons == null)
+            {
+                return;
+            }
+
+            // Use the newer staged-lobby method if present.
+            if (TryInvokeParameterlessMethod(_buttons, "StartHostLobby"))
+            {
+                return;
+            }
+
+            // Fall back to the legacy implementation.
+            _buttons.StartHost();
+        }
+
+        private void StartMatchFromLobby()
+        {
+            if (_buttons == null)
+            {
+                return;
+            }
+
+            // Use the newer explicit match-start method if present.
+            if (TryInvokeParameterlessMethod(_buttons, "StartMatchFromLobby"))
+            {
+                return;
+            }
+
+            // Fall back to direct NGO scene loading if the host is already active.
+            NetworkManager manager = NetworkManager.Singleton;
+            if (manager == null || !manager.IsHost)
+            {
+                return;
+            }
+
+            const string gameplaySceneName = "Gameplay_Undertint";
+
+            if (!manager.NetworkConfig.EnableSceneManagement)
+            {
+                SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
+                return;
+            }
+
+            manager.SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
+        }
+
+        private static bool TryGetBoolProperty(object target, string propertyName, out bool value)
+        {
+            value = false;
+
+            if (target == null)
+            {
+                return false;
+            }
+
+            PropertyInfo property = target.GetType().GetProperty(
+                propertyName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic);
+
+            if (property == null || property.PropertyType != typeof(bool))
+            {
+                return false;
+            }
+
+            object raw = property.GetValue(target);
+            if (raw is not bool cast)
+            {
+                return false;
+            }
+
+            value = cast;
+            return true;
+        }
+
+        private static bool TryInvokeParameterlessMethod(object target, string methodName)
+        {
+            if (target == null)
+            {
+                return false;
+            }
+
+            MethodInfo method = target.GetType().GetMethod(
+                methodName,
+                BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic,
+                null,
+                System.Type.EmptyTypes,
+                null);
+
+            if (method == null)
+            {
+                return false;
+            }
+
+            method.Invoke(target, null);
+            return true;
+        }
+
+        private static int FindClosestBodyColorIndex(Color selectedColor)
+        {
+            int bestIndex = 0;
+            float bestDistance = float.MaxValue;
+
+            for (int i = 0; i < BodyPalette.Length; i++)
+            {
+                float distance =
+                    Mathf.Abs(BodyPalette[i].r - selectedColor.r) +
+                    Mathf.Abs(BodyPalette[i].g - selectedColor.g) +
+                    Mathf.Abs(BodyPalette[i].b - selectedColor.b);
+
+                if (distance < bestDistance)
+                {
+                    bestDistance = distance;
+                    bestIndex = i;
+                }
+            }
+
+            return bestIndex;
+        }
+        private static void ForceBootCursorState()
+        {
+            // Boot is a menu scene, so cursor must always be visible and unlocked.
+            Cursor.visible = true;
+            Cursor.lockState = CursorLockMode.None;
+
+            // Returning from gameplay can leave time scale paused.
+            // Reset it here so the frontend always behaves normally.
+            if (!Mathf.Approximately(Time.timeScale, 1f))
+            {
+                Time.timeScale = 1f;
             }
         }
 
