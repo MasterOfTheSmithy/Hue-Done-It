@@ -45,6 +45,7 @@ namespace HueDoneIt.Gameplay.Players
 
         private Renderer[] _renderers;
         private Transform _hatTransform;
+        private Transform _bodyPlaceholderTransform;
         private PlayerFloodZoneTracker _flood;
         private PlayerLifeState _life;
 
@@ -55,10 +56,14 @@ namespace HueDoneIt.Gameplay.Players
         {
             base.OnNetworkSpawn();
 
-            _renderers = GetComponentsInChildren<Renderer>(true);
             _flood = GetComponent<PlayerFloodZoneTracker>();
             _life = GetComponent<PlayerLifeState>();
+
+            // Ensure a visible avatar body exists even if the source prefab mesh is removed.
+            // LocalPlayerCameraBinder decides whether owner body is visible based on active scene.
+            EnsureBodyVisual();
             EnsureHatVisual();
+            CacheRenderers();
 
             if (IsServer)
             {
@@ -131,6 +136,10 @@ namespace HueDoneIt.Gameplay.Players
             float wash01 = 1f - _opacity.Value;
             Color opacityColor = Color.Lerp(baseColor, Color.white, wash01 * 0.85f);
 
+            EnsureBodyVisual();
+            EnsureHatVisual();
+            CacheRenderers();
+
             if (_renderers != null)
             {
                 for (int index = 0; index < _renderers.Length; index++)
@@ -154,9 +163,48 @@ namespace HueDoneIt.Gameplay.Players
                 }
             }
 
-            EnsureHatVisual();
             _hatTransform.gameObject.SetActive(_hatIndex.Value > 0);
             _hatTransform.localScale = Vector3.one * (0.25f + (_hatIndex.Value * 0.05f));
+        }
+
+        private void CacheRenderers()
+        {
+            _renderers = GetComponentsInChildren<Renderer>(true);
+        }
+
+        private void EnsureBodyVisual()
+        {
+            // If a visible authored renderer already exists, keep authored presentation.
+            Renderer[] currentRenderers = GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < currentRenderers.Length; i++)
+            {
+                Renderer renderer = currentRenderers[i];
+                if (renderer != null && renderer.transform != _hatTransform)
+                {
+                    return;
+                }
+            }
+
+            if (_bodyPlaceholderTransform != null)
+            {
+                return;
+            }
+
+            // Placeholder body is a capsule so Lobby always has a visible avatar with no art dependency.
+            GameObject body = GameObject.CreatePrimitive(PrimitiveType.Capsule);
+            body.name = "BodyPlaceholder";
+            body.transform.SetParent(transform, false);
+            body.transform.localPosition = new Vector3(0f, 0f, 0f);
+            body.transform.localRotation = Quaternion.identity;
+            body.transform.localScale = new Vector3(0.9f, 1f, 0.9f);
+
+            Collider bodyCollider = body.GetComponent<Collider>();
+            if (bodyCollider != null)
+            {
+                Destroy(bodyCollider);
+            }
+
+            _bodyPlaceholderTransform = body.transform;
         }
 
         private void EnsureHatVisual()

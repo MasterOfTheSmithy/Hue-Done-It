@@ -17,6 +17,7 @@ namespace HueDoneIt.Gameplay.Players
         [Header("Base Camera")]
         [SerializeField] private Transform cameraAnchor;
         [SerializeField] private Vector3 ownerCameraAnchorLocalPosition = new(0f, 0.75f, 0f);
+        [SerializeField] private Vector3 lobbyCameraAnchorLocalPosition = new(0f, 1.9f, -3.2f);
         [SerializeField] private float mouseSensitivity = 0.12f;
         [SerializeField] private float minPitch = -85f;
         [SerializeField] private float maxPitch = 85f;
@@ -68,6 +69,15 @@ namespace HueDoneIt.Gameplay.Players
         private float _wallLaunchRollKick;
         private RoundPhase _lastRoundPhase = RoundPhase.Lobby;
         private float _shakeTimer;
+        private string _lastPresentationSceneName;
+        private bool _isCpuAvatar;
+
+        private void Awake()
+        {
+            // CPU avatars are server-owned and can appear as IsOwner on host.
+            // Camera ownership must remain local-human-only, so we mark CPU avatars early.
+            _isCpuAvatar = TryGetComponent(out SimpleCpuOpponentAgent _);
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -75,8 +85,11 @@ namespace HueDoneIt.Gameplay.Players
             _mover = GetComponent<NetworkPlayerAuthoritativeMover>();
             _roundState = FindFirstObjectByType<NetworkRoundState>();
 
-            if (!IsOwner)
+            // Only the local non-CPU avatar is allowed to own an active gameplay camera.
+            // This avoids host-owned CPU avatars stealing camera ownership.
+            if (!IsOwner || !IsClient || _isCpuAvatar)
             {
+                DisableAvatarCameraObjects();
                 enabled = false;
                 return;
             }
@@ -84,11 +97,13 @@ namespace HueDoneIt.Gameplay.Players
             // Prevent gameplay camera capture while hosting in Boot or any non-gameplay scene.
             if (!IsGameplaySceneActive())
             {
+                DisableAvatarCameraObjects();
                 LockCursor(false);
                 return;
             }
 
             BindOwnerCamera();
+            ApplySceneLocalPresentation(force: true);
         }
 
         public override void OnNetworkDespawn()
@@ -98,6 +113,7 @@ namespace HueDoneIt.Gameplay.Players
                 LockCursor(false);
             }
 
+            DisableAvatarCameraObjects();
             _cameraBound = false;
             base.OnNetworkDespawn();
         }
@@ -112,6 +128,7 @@ namespace HueDoneIt.Gameplay.Players
             // While in Boot, keep mouse free so lobby UI remains clickable.
             if (!IsGameplaySceneActive())
             {
+                DisableAvatarCameraObjects();
                 _cameraBound = false;
                 LockCursor(false);
                 return;
@@ -120,6 +137,7 @@ namespace HueDoneIt.Gameplay.Players
             if (!_cameraBound)
             {
                 BindOwnerCamera();
+                ApplySceneLocalPresentation(force: true);
                 if (!_cameraBound)
                 {
                     return;
@@ -127,6 +145,7 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             HandleMouseLook();
+            ApplySceneLocalPresentation(force: false);
             HandleRoundPhaseFeedback();
             ApplyBlobPresentation();
         }
@@ -154,7 +173,8 @@ namespace HueDoneIt.Gameplay.Players
             transform.Rotate(0f, delta.x, 0f, Space.Self);
             _pitch = Mathf.Clamp(_pitch - delta.y, minPitch, maxPitch);
         }
-                private void ApplyBlobPresentation()
+
+        private void ApplyBlobPresentation()
         {
             if (cameraAnchor == null)
             {
@@ -245,7 +265,8 @@ namespace HueDoneIt.Gameplay.Players
 
             _currentRoll = Mathf.Lerp(_currentRoll, targetRoll, rollLerpSpeed * Time.deltaTime);
 
-            cameraAnchor.localPosition = ownerCameraAnchorLocalPosition + _currentPresentationOffset;
+            Vector3 baseAnchorPosition = IsLobbySceneActive() ? lobbyCameraAnchorLocalPosition : ownerCameraAnchorLocalPosition;
+            cameraAnchor.localPosition = baseAnchorPosition + _currentPresentationOffset;
             cameraAnchor.localRotation = Quaternion.Euler(_pitch, yawLean, _currentRoll);
 
             if (_mainCamera != null)
@@ -296,6 +317,14 @@ namespace HueDoneIt.Gameplay.Players
             cameraAnchor.localPosition = ownerCameraAnchorLocalPosition;
             cameraAnchor.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
 
+            AudioListener mainListener = _mainCamera.GetComponent<AudioListener>();
+            if (mainListener != null)
+            {
+                mainListener.enabled = true;
+            }
+
+            _mainCamera.enabled = true;
+
             Transform cameraTransform = _mainCamera.transform;
             cameraTransform.SetParent(cameraAnchor, false);
             cameraTransform.localPosition = Vector3.zero;
@@ -303,13 +332,7 @@ namespace HueDoneIt.Gameplay.Players
             _mainCamera.fieldOfView = baseFieldOfView;
 
             _ownerRenderers ??= GetComponentsInChildren<MeshRenderer>(true);
-            foreach (MeshRenderer renderer in _ownerRenderers)
-            {
-                if (renderer != null)
-                {
-                    renderer.enabled = false;
-                }
-            }
+            ApplySceneLocalPresentation(force: true);
 
             _cameraBound = true;
             if (lockCursorOnStart)
@@ -328,6 +351,75 @@ namespace HueDoneIt.Gameplay.Players
             GameObject anchorObject = new(nameof(LocalPlayerCameraBinder) + "_Anchor");
             anchorObject.transform.SetParent(transform, false);
             cameraAnchor = anchorObject.transform;
+        }
+
+        private void DisableAvatarCameraObjects()
+        {
+            // Any camera or listener under this avatar must be off when avatar is not local-owner controlled.
+            // This enforces single active listener/camera ownership on the local human player only.
+            Camera[] cameras = GetComponentsInChildren<Camera>(true);
+            for (int i = 0; i < cameras.Length; i++)
+            {
+                Camera cameraRef = cameras[i];
+                if (cameraRef == null)
+                {
+                    continue;
+                }
+
+                cameraRef.enabled = false;
+            }
+
+            AudioListener[] listeners = GetComponentsInChildren<AudioListener>(true);
+            for (int i = 0; i < listeners.Length; i++)
+            {
+                AudioListener listener = listeners[i];
+                if (listener == null)
+                {
+                    continue;
+                }
+
+                listener.enabled = false;
+            }
+        }
+
+        private void ApplySceneLocalPresentation(bool force)
+        {
+            string activeSceneName = SceneManager.GetActiveScene().name;
+            if (!force && _lastPresentationSceneName == activeSceneName)
+            {
+                return;
+            }
+
+            _lastPresentationSceneName = activeSceneName;
+
+            // Lobby uses a third-person offset so local players can see their own avatar.
+            // Gameplay uses a tighter first-person anchor for action readability.
+            bool isLobbyScene = IsLobbySceneActive();
+            Vector3 targetAnchorPosition = isLobbyScene ? lobbyCameraAnchorLocalPosition : ownerCameraAnchorLocalPosition;
+            if (cameraAnchor != null)
+            {
+                cameraAnchor.localPosition = targetAnchorPosition;
+            }
+
+            // Owner body renderers stay visible in Lobby for presentation and customization checks.
+            // They are hidden in Gameplay to avoid first-person self-occlusion.
+            bool ownerBodyVisible = isLobbyScene;
+            _ownerRenderers ??= GetComponentsInChildren<MeshRenderer>(true);
+            for (int i = 0; i < _ownerRenderers.Length; i++)
+            {
+                MeshRenderer renderer = _ownerRenderers[i];
+                if (renderer == null)
+                {
+                    continue;
+                }
+
+                renderer.enabled = ownerBodyVisible;
+            }
+        }
+
+        private static bool IsLobbySceneActive()
+        {
+            return SceneManager.GetActiveScene().name == "Lobby";
         }
 
         private static bool IsGameplaySceneActive()

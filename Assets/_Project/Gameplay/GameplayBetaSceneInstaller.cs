@@ -25,9 +25,18 @@ namespace HueDoneIt.Gameplay
 
         private void Awake()
         {
+            Scene activeScene = SceneManager.GetActiveScene();
+            if (!string.Equals(activeScene.name, GameplaySceneName, StringComparison.Ordinal))
+            {
+                // If this component is accidentally present in another scene, do nothing there.
+                // Scene setup must keep this installer gameplay-only.
+                enabled = false;
+                return;
+            }
+
             if (verboseLogging)
             {
-                Debug.Log($"GameplayBetaSceneInstaller.Awake scene='{SceneManager.GetActiveScene().name}' object='{name}'");
+                Debug.Log($"GameplayBetaSceneInstaller.Awake scene='{activeScene.name}' object='{name}'");
             }
         }
 
@@ -40,15 +49,14 @@ namespace HueDoneIt.Gameplay
                 return;
             }
 
+            if (!string.Equals(activeScene.name, GameplaySceneName, StringComparison.Ordinal))
+            {
+                return;
+            }
+
             if (verboseLogging)
             {
                 Debug.Log($"GameplayBetaSceneInstaller.Start scene='{activeScene.name}'");
-            }
-
-            if (!string.Equals(activeScene.name, GameplaySceneName, StringComparison.Ordinal))
-            {
-                Debug.LogWarning($"GameplayBetaSceneInstaller: expected scene '{GameplaySceneName}' but active scene is '{activeScene.name}'.");
-                return;
             }
 
             GameObject runtimeRoot = EnsureRuntimeRoot();
