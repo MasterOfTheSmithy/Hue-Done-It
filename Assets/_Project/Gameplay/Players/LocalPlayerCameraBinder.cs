@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
+using HueDoneIt.Core.Bootstrap;
 using HueDoneIt.Gameplay.Round;
 using Unity.Netcode;
 using UnityEngine;
@@ -10,6 +11,8 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(NetworkPlayerAuthoritativeMover))]
     public sealed class LocalPlayerCameraBinder : NetworkBehaviour
     {
+        // Camera bind and cursor lock are only allowed in Gameplay_Undertint.
+        private const string GameplaySceneName = "Gameplay_Undertint";
         [Header("Base Camera")]
         [SerializeField] private Transform cameraAnchor;
         [SerializeField] private Vector3 ownerCameraAnchorLocalPosition = new(0f, 0.75f, 0f);
@@ -77,6 +80,13 @@ namespace HueDoneIt.Gameplay.Players
                 return;
             }
 
+            // Prevent gameplay camera capture while hosting in Boot or any non-gameplay scene.
+            if (!IsGameplaySceneActive())
+            {
+                LockCursor(false);
+                return;
+            }
+
             BindOwnerCamera();
         }
 
@@ -98,6 +108,14 @@ namespace HueDoneIt.Gameplay.Players
                 return;
             }
 
+            // While in Boot, keep mouse free so lobby UI remains clickable.
+            if (!IsGameplaySceneActive())
+            {
+                _cameraBound = false;
+                LockCursor(false);
+                return;
+            }
+
             if (!_cameraBound)
             {
                 BindOwnerCamera();
@@ -114,6 +132,7 @@ namespace HueDoneIt.Gameplay.Players
 
         private void HandleMouseLook()
         {
+            mouseSensitivity = RuntimeGameSettings.LookSensitivity;
             Keyboard keyboard = Keyboard.current;
             Mouse mouse = Mouse.current;
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
@@ -307,8 +326,15 @@ namespace HueDoneIt.Gameplay.Players
             cameraAnchor = anchorObject.transform;
         }
 
+        private bool IsGameplaySceneActive()
+        {
+            // Scene gate prevents camera capture while host is still in Boot lobby.
+            return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == GameplaySceneName;
+        }
+
         private static void LockCursor(bool locked)
         {
+            // Cursor state is centralized here so Boot and Gameplay behavior are consistent.
             Cursor.lockState = locked ? CursorLockMode.Locked : CursorLockMode.None;
             Cursor.visible = !locked;
         }

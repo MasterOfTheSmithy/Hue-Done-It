@@ -441,7 +441,9 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             Vector3 desiredMoveDir = Vector3.ClampMagnitude(_serverMoveWorldInput, 1f);
+            // Stability gates burst movement and jump execution.
             bool burstAllowed = _serverBurstHeld && (_staminaState == null || _staminaState.CanBurst);
+            bool canJumpByStability = _staminaState == null || _staminaState.CurrentStamina > 0.001f;
             float targetSpeed = burstAllowed ? burstMoveSpeed : moveSpeed;
             Vector3 desiredHorizontalVelocity = desiredMoveDir * targetSpeed;
 
@@ -462,7 +464,7 @@ namespace HueDoneIt.Gameplay.Players
                 bool canGroundJump = grounded || _coyoteTimeRemaining > 0f;
                 bool consumedJump = false;
 
-                if (canGroundJump && _jumpBufferTimeRemaining > 0f && _ragdollRecoveryTimeRemaining <= 0f)
+                if (canGroundJump && canJumpByStability && _jumpBufferTimeRemaining > 0f && _ragdollRecoveryTimeRemaining <= 0f)
                 {
                     _verticalVelocity = jumpVelocity;
                     _jumpBufferTimeRemaining = 0f;
@@ -508,7 +510,7 @@ namespace HueDoneIt.Gameplay.Players
                         _supportNormal.Value = wallHit.normal;
                         bool movingIntoWall = Vector3.Dot(desiredMoveDir, -wallHit.normal) > 0.15f;
 
-                        if (_jumpBufferTimeRemaining > 0f && _ragdollRecoveryTimeRemaining <= 0f)
+                        if (canJumpByStability && _jumpBufferTimeRemaining > 0f && _ragdollRecoveryTimeRemaining <= 0f)
                         {
                             Vector3 lateralMomentum = Vector3.ProjectOnPlane(_horizontalVelocity, Vector3.up);
                             Vector3 away = wallHit.normal * (wallLaunchHorizontalForce + wallLaunchSeparationBoost);

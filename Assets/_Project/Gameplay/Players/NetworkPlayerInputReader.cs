@@ -1,14 +1,21 @@
 // File: Assets/_Project/Gameplay/Players/NetworkPlayerInputReader.cs
+using HueDoneIt.Core.Bootstrap;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
 namespace HueDoneIt.Gameplay.Players
 {
+    // Reads local owner input and exposes it to the authoritative mover.
+    // This class never applies movement directly.
     [DisallowMultipleComponent]
     [RequireComponent(typeof(NetworkObject))]
     public sealed class NetworkPlayerInputReader : NetworkBehaviour
     {
+        // Input should only be read in Gameplay_Undertint.
+        // This prevents Boot-hosted lobbies from consuming gameplay movement input.
+        private const string GameplaySceneName = "Gameplay_Undertint";
+
         [SerializeField, Min(0.01f)] private float jumpPressBufferSeconds = 0.15f;
         [SerializeField, Min(0.01f)] private float punchPressBufferSeconds = 0.12f;
 
@@ -25,13 +32,17 @@ namespace HueDoneIt.Gameplay.Players
 
         private void Update()
         {
+            // Only owner client reads input.
             if (!IsSpawned || !IsOwner || !IsClient)
             {
-                CurrentMoveInput = Vector2.zero;
-                CurrentWorldMoveInput = Vector3.zero;
-                JumpPressedThisFrame = false;
-                PunchPressedThisFrame = false;
-                BurstHeld = false;
+                ClearInputState();
+                return;
+            }
+
+            // Hard gate gameplay input while in Boot or any non-gameplay scene.
+            if (!IsGameplaySceneActive())
+            {
+                ClearInputState();
                 return;
             }
 
@@ -74,6 +85,22 @@ namespace HueDoneIt.Gameplay.Players
             return true;
         }
 
+        private void ClearInputState()
+        {
+            CurrentMoveInput = Vector2.zero;
+            CurrentWorldMoveInput = Vector3.zero;
+            JumpPressedThisFrame = false;
+            PunchPressedThisFrame = false;
+            BurstHeld = false;
+            _jumpPressBufferRemaining = 0f;
+            _punchPressBufferRemaining = 0f;
+        }
+
+        private bool IsGameplaySceneActive()
+        {
+            return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == GameplaySceneName;
+        }
+
         private Vector2 ReadMoveInput()
         {
             Keyboard keyboard = Keyboard.current;
@@ -93,12 +120,13 @@ namespace HueDoneIt.Gameplay.Players
             float x = 0f;
             float y = 0f;
 
-            if (keyboard.aKey.isPressed || keyboard.leftArrowKey.isPressed) x -= 1f;
-            if (keyboard.dKey.isPressed || keyboard.rightArrowKey.isPressed) x += 1f;
-            if (keyboard.sKey.isPressed || keyboard.downArrowKey.isPressed) y -= 1f;
-            if (keyboard.wKey.isPressed || keyboard.upArrowKey.isPressed) y += 1f;
+            // RuntimeInputBindings keeps input profile configurable via frontend settings.
+            if (keyboard.IsPressed(RuntimeInputBindings.Left) || keyboard.leftArrowKey.isPressed) x -= 1f;
+            if (keyboard.IsPressed(RuntimeInputBindings.Right) || keyboard.rightArrowKey.isPressed) x += 1f;
+            if (keyboard.IsPressed(RuntimeInputBindings.Back) || keyboard.downArrowKey.isPressed) y -= 1f;
+            if (keyboard.IsPressed(RuntimeInputBindings.Forward) || keyboard.upArrowKey.isPressed) y += 1f;
 
-            Vector2 input = new(x, y);
+            Vector2 input = new Vector2(x, y);
             if (input.sqrMagnitude > 1f)
             {
                 input.Normalize();
@@ -110,7 +138,7 @@ namespace HueDoneIt.Gameplay.Players
         private bool ReadJumpPressed()
         {
             Keyboard keyboard = Keyboard.current;
-            bool pressed = keyboard != null && keyboard.spaceKey.wasPressedThisFrame;
+            bool pressed = keyboard.WasPressedThisFrame(RuntimeInputBindings.Jump);
             if (pressed)
             {
                 _jumpPressBufferRemaining = jumpPressBufferSeconds;
@@ -134,7 +162,7 @@ namespace HueDoneIt.Gameplay.Players
         private static bool ReadBurstHeld()
         {
             Keyboard keyboard = Keyboard.current;
-            return keyboard != null && keyboard.leftShiftKey.isPressed;
+            return keyboard.IsPressed(RuntimeInputBindings.Burst);
         }
 
         private Vector3 ResolveWorldMove(Vector2 input)
