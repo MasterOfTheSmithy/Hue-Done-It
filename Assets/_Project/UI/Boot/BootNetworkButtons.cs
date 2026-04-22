@@ -109,7 +109,25 @@ namespace HueDoneIt.UI.Boot
         // It requires host authority and intentionally transitions to gameplay.
         public void StartMatchFromLobby()
         {
-            if (!TryResolveNetworkManager(out NetworkManager manager) || !manager.IsHost)
+            if (!TryResolveNetworkManager(out NetworkManager manager))
+            {
+                Debug.LogWarning("BootNetworkButtons.StartMatchFromLobby ignored because NetworkManager is missing.");
+                return;
+            }
+
+            // If host was not started yet, start it now so the button is reliable from one click.
+            if (!manager.IsListening)
+            {
+                ConfigureTransportForHost(manager);
+                bool started = manager.StartHost();
+                Debug.Log($"BootNetworkButtons.StartMatchFromLobby auto-start host result={started}");
+                if (!started)
+                {
+                    return;
+                }
+            }
+
+            if (!manager.IsHost)
             {
                 Debug.LogWarning("BootNetworkButtons.StartMatchFromLobby ignored because local peer is not host.");
                 return;
@@ -165,6 +183,13 @@ namespace HueDoneIt.UI.Boot
         {
             if (!manager.IsHost)
             {
+                return;
+            }
+
+            // Explicit scene validation avoids silent failures when the gameplay scene is missing from build settings.
+            if (!Application.CanStreamedLevelBeLoaded(gameplaySceneName))
+            {
+                Debug.LogError($"BootNetworkButtons: gameplay scene '{gameplaySceneName}' is not in Build Settings.");
                 return;
             }
 
