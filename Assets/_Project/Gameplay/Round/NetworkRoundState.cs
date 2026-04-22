@@ -434,13 +434,13 @@ namespace HueDoneIt.Gameplay.Round
                 if (spawnPoints.Count > 0)
                 {
                     Transform spawnPoint = spawnPoints[spawnIndex % spawnPoints.Count];
-                    MoveObjectToSpawn(avatar.gameObject, spawnPoint);
+                    MoveObjectToSpawn(avatar.NetworkObject, spawnPoint);
                     spawnIndex++;
                 }
             }
         }
 
-        private void MoveObjectToSpawn(GameObject targetObject, Transform spawnPoint)
+        private void MoveObjectToSpawn(NetworkObject targetObject, Transform spawnPoint)
         {
             if (targetObject == null || spawnPoint == null)
             {

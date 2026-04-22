@@ -4,6 +4,7 @@ using HueDoneIt.Gameplay.Round;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 namespace HueDoneIt.Gameplay.Players
 {
@@ -153,7 +154,10 @@ namespace HueDoneIt.Gameplay.Players
             transform.Rotate(0f, delta.x, 0f, Space.Self);
             _pitch = Mathf.Clamp(_pitch - delta.y, minPitch, maxPitch);
         }
-
+        private bool IsGameplayScene()
+        {
+            return string.Equals(SceneManager.GetActiveScene().name, "Gameplay_Undertint", System.StringComparison.Ordinal);
+        }
         private void ApplyBlobPresentation()
         {
             if (cameraAnchor == null)

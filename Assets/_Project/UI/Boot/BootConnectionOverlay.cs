@@ -25,10 +25,28 @@ namespace HueDoneIt.UI.Boot
         private BootNetworkButtons _buttons;
         private ScreenState _state = ScreenState.Main;
 
+        // This controls which frontend page is currently visible.
+        private ScreenState _state = ScreenState.Main;
+
+        // These are the editable network connection fields shown in the frontend.
         private string _address;
         private string _portString;
         private int _bodyColorIndex;
 
+        private static readonly Color[] BodyPalette =
+        {
+            new Color(1f, 0.42f, 0.55f),
+            new Color(0.32f, 0.67f, 1f),
+            new Color(0.27f, 0.95f, 0.62f),
+            new Color(0.94f, 0.83f, 0.28f),
+            new Color(0.82f, 0.42f, 1f),
+            new Color(0.96f, 0.54f, 0.24f)
+        };
+
+        // This drives the placeholder body color slider preview.
+        private int _bodyColorIndex;
+
+        // Placeholder body color palette for simple customization.
         private static readonly Color[] BodyPalette =
         {
             new Color(1f, 0.42f, 0.55f),

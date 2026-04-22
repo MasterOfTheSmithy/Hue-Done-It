@@ -61,6 +61,7 @@
     <Compile Include="Assets\_Project\Gameplay\Paint\PaintSplatData.cs" />
     <Compile Include="Assets\_Project\Gameplay\Elimination\EliminationManager.cs" />
     <Compile Include="Assets\_Project\UI\Boot\BootNetworkButtons.cs" />
+    <Compile Include="Assets\_Project\UI\Gameplay\GameplayPauseMenu.cs" />
     <Compile Include="Assets\_Project\Gameplay\Interaction\InteractionContext.cs" />
     <Compile Include="Assets\_Project\Tasks\PumpRepairTask.cs" />
     <Compile Include="Assets\_Project\Core\Bootstrap\BootSceneEntrypoint.cs" />
@@ -77,15 +78,18 @@
     <Compile Include="Assets\_Project\Core\Scenes\ISceneLoader.cs" />
     <Compile Include="Assets\_Project\Gameplay\Players\NetworkPlayerAuthoritativeMover.cs" />
     <Compile Include="Assets\_Project\Roles\BleachSecondaryAbility.cs" />
+    <Compile Include="Assets\_Project\Core\Bootstrap\RuntimeGameSettings.cs" />
     <Compile Include="Assets\_Project\Gameplay\Round\RoundPhase.cs" />
     <Compile Include="Assets\_Project\Gameplay\Interaction\IInteractable.cs" />
     <Compile Include="Assets\TutorialInfo\Scripts\Readme.cs" />
     <Compile Include="Assets\_Project\Tasks\IRepairTaskFloodSafetyProvider.cs" />
     <Compile Include="Assets\_Project\Flood\FloodSequenceController.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Players\SimpleCpuOpponentAgent.cs" />
     <Compile Include="Assets\_Project\Gameplay\Paint\PaintSplatPermanence.cs" />
     <Compile Include="Assets\_Project\UI\Gameplay\GameplayInvestorHud.cs" />
     <Compile Include="Assets\_Project\Gameplay\Paint\PaintSplatType.cs" />
     <Compile Include="Assets\_Project\Gameplay\Paint\PaintEventKind.cs" />
+    <Compile Include="Assets\_Project\Core\Bootstrap\RuntimeInputBindings.cs" />
     <Compile Include="Assets\_Project\Gameplay\Interaction\NetworkInteractable.cs" />
     <Compile Include="Assets\_Project\Gameplay\GameplayBetaSceneInstaller.cs" />
     <Compile Include="Assets\_Project\Flood\Debug\FloodZoneStateLabel.cs" />
@@ -101,6 +105,7 @@
     <Compile Include="Assets\_Project\Flood\FloodZoneEnvironmentPresenter.cs" />
     <Compile Include="Assets\_Project\Tasks\NetworkRepairTask.cs" />
     <Compile Include="Assets\_Project\Gameplay\Interaction\PlayerInteractionController.cs" />
+    <Compile Include="Assets\_Project\Core\Bootstrap\BootSessionConfig.cs" />
     <Compile Include="Assets\_Project\Gameplay\Elimination\PlayerLifeState.cs" />
   </ItemGroup>
   <ItemGroup>

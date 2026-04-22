@@ -114,8 +114,6 @@ namespace HueDoneIt.UI.Gameplay
             RectTransform rootRect = _root.GetComponent<RectTransform>();
             rootRect.anchorMin = Vector2.zero;
             rootRect.anchorMax = Vector2.one;
-            rootRect.offsetMin = Vector2.zero;
-            rootRect.offsetMax = Vector2.zero;
 
             _objectiveText = CreateText("Objective", _root.transform, font, 24, TextAnchor.UpperCenter, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-640f, -14f), new Vector2(640f, -96f));
             _stateText = CreateText("State", _root.transform, font, 17, TextAnchor.LowerLeft, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 16f), new Vector2(700f, 126f));
@@ -129,6 +127,8 @@ namespace HueDoneIt.UI.Gameplay
             _opacityFill = CreateBar("Opacity", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 174f), new Color(0.88f, 0.42f, 0.42f, 0.95f));
             _stabilityFill = CreateBar("Stability", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 142f), new Color(0.31f, 0.9f, 0.58f, 0.95f));
 
+            _opacityFill = CreateBar("Opacity", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 90f), new Color(0.88f, 0.42f, 0.42f, 0.95f));
+            _stabilityFill = CreateBar("Stability", _root.transform, new Vector2(0f, 0f), new Vector2(24f, 122f), new Color(0.31f, 0.9f, 0.58f, 0.95f));
             _interactionText.text = string.Empty;
             _taskText.text = string.Empty;
         }
@@ -356,10 +356,7 @@ namespace HueDoneIt.UI.Gameplay
 
         private void SetHudVisible(bool visible)
         {
-            if (_root != null)
-            {
-                _root.SetActive(visible);
-            }
+            if (_root != null) _root.SetActive(visible);
         }
     }
 }

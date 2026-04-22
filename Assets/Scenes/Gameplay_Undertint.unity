@@ -602,6 +602,14 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   zoneId: FloodZone_Bridge
   initialState: 0
+  dryLevel: 0
+  wetLevel: 0.25
+  floodingLevel: 0.68
+  submergedLevel: 1
+  sealedSafeLevel: 0.08
+  levelLerpSpeed: 0.35
+  oscillationAmplitude: 0.08
+  oscillationFrequency: 0.28
 --- !u!1 &675412196
 GameObject:
   m_ObjectHideFlags: 0
@@ -1145,6 +1153,9 @@ MonoBehaviour:
   maxFailures: 3
   confirmationWindowStartNormalized: 0.58
   confirmationWindowEndNormalized: 0.82
+  cancelFailureThresholdNormalized: 0.35
+  floodedTimingPenaltyNormalized: 0.08
+  lateStageTimingPenaltyNormalized: 0.06
   statusRenderer: {fileID: 1371589517}
   idleColor: {r: 1, g: 0.85, b: 0.2, a: 1}
   activeColor: {r: 0.2, g: 0.65, b: 1, a: 1}
@@ -1303,7 +1314,7 @@ RectTransform:
   m_GameObject: {fileID: 1449091379}
   m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
   m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
+  m_LocalScale: {x: 0, y: 0, z: 0}
   m_ConstrainProportionsScale: 0
   m_Children:
   - {fileID: 1424123839}
@@ -1311,10 +1322,10 @@ RectTransform:
   m_Father: {fileID: 1271710875}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
-  m_AnchorMax: {x: 1, y: 1}
+  m_AnchorMax: {x: 0, y: 0}
   m_AnchoredPosition: {x: 0, y: 0}
   m_SizeDelta: {x: 0, y: 0}
-  m_Pivot: {x: 0.5, y: 0.5}
+  m_Pivot: {x: 0, y: 0}
 --- !u!114 &1449091381
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -1742,10 +1753,18 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   minPlayersToAutoStart: 1
   introDurationSeconds: 3
+  crashDurationSeconds: 1
   roundDurationSeconds: 150
   reportedDurationSeconds: 8
   resolvedDurationSeconds: 8
   postRoundDurationSeconds: 6
+  earlyStageEndNormalized: 0.33
+  midStageEndNormalized: 0.72
+  reportRoundTimePenaltySeconds: 12
+  reportPostResumeGraceSeconds: 3
+  lateWarningThresholdSeconds: 25
+  crashImpulseHorizontal: 2.4
+  crashImpulseVertical: 1.2
   spawnPointPrefix: SpawnPoint_
   spawnHeightOffset: 0.05
 --- !u!1 &1880493722
@@ -1922,6 +1941,14 @@ MonoBehaviour:
   ShowTopMostFoldoutHeaderGroup: 1
   zoneId: FloodZone_Bilge
   initialState: 1
+  dryLevel: 0
+  wetLevel: 0.25
+  floodingLevel: 0.68
+  submergedLevel: 1
+  sealedSafeLevel: 0.08
+  levelLerpSpeed: 0.35
+  oscillationAmplitude: 0.08
+  oscillationFrequency: 0.28
 --- !u!1 &1975664964
 GameObject:
   m_ObjectHideFlags: 0
@@ -2126,6 +2153,16 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HueDoneIt.Flood.FloodSequenceController
   ShowTopMostFoldoutHeaderGroup: 1
   sequences: []
+  earlySpeedMultiplier: 0.8
+  midSpeedMultiplier: 1
+  lateSpeedMultiplier: 1.35
+  earlyPulseCadenceSeconds: 20
+  midPulseCadenceSeconds: 13
+  latePulseCadenceSeconds: 8
+  pulseTelegraphSeconds: 4
+  pulseFloodDurationSeconds: 5.5
+  pulseSubmergeDurationSeconds: 3.5
+  reportAftershockDelaySeconds: 2
   lockedFloodingDelaySeconds: 4
   lockedSubmergeDelaySeconds: 6
 --- !u!1 &2081037058
