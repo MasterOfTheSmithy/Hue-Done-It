@@ -28,7 +28,7 @@ namespace HueDoneIt.Gameplay.Round
         [SerializeField, Min(1)] private int minPlayersToAutoStart = 1;
         [SerializeField, Min(0.1f)] private float introDurationSeconds = 2f;
         [SerializeField, Min(0.1f)] private float crashDurationSeconds = 1f;
-        [SerializeField, Min(5f)] private float roundDurationSeconds = 150f;
+        [SerializeField, Min(5f)] private float roundDurationSeconds = 1200f;
         [SerializeField, Min(1f)] private float reportedDurationSeconds = 8f;
         [SerializeField, Min(1f)] private float resolvedDurationSeconds = 8f;
         [SerializeField, Min(1f)] private float postRoundDurationSeconds = 6f;
@@ -79,6 +79,8 @@ namespace HueDoneIt.Gameplay.Round
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private float _resumeGraceEndTime;
+        private readonly bool[] _scheduledVoteTriggered = new bool[3];
+        private static readonly float[] ScheduledVoteSeconds = { 300f, 600f, 900f };
 
         public event Action<RoundPhase, RoundPhase> PhaseChanged;
 
@@ -156,10 +158,11 @@ namespace HueDoneIt.Gameplay.Round
 
                     if (RoundTimeRemaining <= 0f)
                     {
-                        ResolveRound(RoundWinner.Bleach, "Time expired. The flood consumed the zone.");
+                        ResolveRound(RoundWinner.None, "Ship fully flooded at 20:00. All players lose.");
                         break;
                     }
 
+                    TryTriggerScheduledVotes();
                     EvaluateWinConditions();
                     break;
 
@@ -249,6 +252,10 @@ namespace HueDoneIt.Gameplay.Round
             _resumeGraceEndTime = 0f;
             _pressure01.Value = 0f;
             _pressureStage.Value = (byte)PressureStage.Early;
+            for (int i = 0; i < _scheduledVoteTriggered.Length; i++)
+            {
+                _scheduledVoteTriggered[i] = false;
+            }
             SetObjective("Brace for impact.");
             SetPhase(RoundPhase.Intro, introDurationSeconds);
         }
@@ -552,19 +559,20 @@ namespace HueDoneIt.Gameplay.Round
 
         private void EvaluateWinConditions()
         {
-            PumpRepairTask pumpRepairTask = FindFirstObjectByType<PumpRepairTask>();
-            if (pumpRepairTask != null)
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
+            int totalTasks = 0;
+            int completedTasks = 0;
+            foreach (NetworkRepairTask task in tasks)
             {
-                if (pumpRepairTask.IsCompleted)
+                if (task == null)
                 {
-                    ResolveRound(RoundWinner.Color, "Pump repaired. The flood was released safely.");
-                    return;
+                    continue;
                 }
 
-                if (pumpRepairTask.IsLocked)
+                totalTasks++;
+                if (task.IsCompleted)
                 {
-                    ResolveRound(RoundWinner.Bleach, "Pump locked after three failed attempts.");
-                    return;
+                    completedTasks++;
                 }
             }
 
@@ -595,6 +603,20 @@ namespace HueDoneIt.Gameplay.Round
                 }
             }
 
+            if (totalTasks > 0 && completedTasks >= totalTasks)
+            {
+                if (aliveBleach == 0)
+                {
+                    ResolveRound(RoundWinner.Color, "Ship repaired and bleach creatures eliminated. Innocents win.");
+                }
+                else
+                {
+                    ResolveRound(RoundWinner.Bleach, "Ship repaired but bleach creatures survived hidden. Bleach victory by deception.");
+                }
+
+                return;
+            }
+
             if (aliveColors == 0 && totalPlayers > 0)
             {
                 ResolveRound(RoundWinner.Bleach, "All color players were diffused.");
@@ -604,6 +626,27 @@ namespace HueDoneIt.Gameplay.Round
             if (aliveBleach == 0 && totalPlayers > 1)
             {
                 ResolveRound(RoundWinner.Color, "The bleach threat was neutralized.");
+            }
+        }
+
+        private void TryTriggerScheduledVotes()
+        {
+            float elapsed = Mathf.Clamp(roundDurationSeconds - RoundTimeRemaining, 0f, roundDurationSeconds);
+            for (int i = 0; i < ScheduledVoteSeconds.Length; i++)
+            {
+                if (_scheduledVoteTriggered[i] || elapsed < ScheduledVoteSeconds[i])
+                {
+                    continue;
+                }
+
+                _scheduledVoteTriggered[i] = true;
+                _reportingClientId.Value = ulong.MaxValue;
+                _reportedVictimClientId.Value = ulong.MaxValue;
+                CancelActiveTasks("Scheduled vote");
+                SetPhase(RoundPhase.Reported, reportedDurationSeconds);
+                _roundMessage.Value = new FixedString128Bytes($"Emergency vote triggered at {Mathf.RoundToInt(ScheduledVoteSeconds[i] / 60f * 10f) / 10f}m mark.");
+                SetObjective("Emergency vote in progress. Gameplay resumes after vote timer.");
+                break;
             }
         }
 
@@ -653,6 +696,10 @@ namespace HueDoneIt.Gameplay.Round
             _roundMessage.Value = new FixedString128Bytes("Waiting for players");
             _pressure01.Value = 0f;
             _pressureStage.Value = (byte)PressureStage.Early;
+            for (int i = 0; i < _scheduledVoteTriggered.Length; i++)
+            {
+                _scheduledVoteTriggered[i] = false;
+            }
             SetObjective("Awaiting players.");
             SetPhase(RoundPhase.Lobby, 0f);
         }
