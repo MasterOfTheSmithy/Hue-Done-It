@@ -7,8 +7,8 @@ using UnityEngine.SceneManagement;
 namespace HueDoneIt.UI.Boot
 {
     // This is the visible frontend menu shown in Boot.
-    // It uses IMGUI because the current project already has legacy Boot UI and this is the least invasive way
-    // to ship a complete menu flow without requiring new prefab authoring.
+    // It uses IMGUI because the project currently includes legacy Boot scene content.
+    // This keeps the runtime menu self-contained and avoids prefab re-authoring during stabilization.
     public sealed class BootConnectionOverlay : MonoBehaviour
     {
         private enum ScreenState
@@ -20,41 +20,30 @@ namespace HueDoneIt.UI.Boot
             Settings
         }
 
-        [SerializeField] private Vector2 panelSize = new Vector2(640f, 620f);
+        [SerializeField] private Vector2 panelSize = new(640f, 620f);
 
+        // This is the bridge to network start/stop actions and scene transition.
         private BootNetworkButtons _buttons;
-        private ScreenState _state = ScreenState.Main;
 
         // This controls which frontend page is currently visible.
         private ScreenState _state = ScreenState.Main;
 
-        // These are the editable network connection fields shown in the frontend.
+        // These are editable network fields in the Boot menu.
         private string _address;
         private string _portString;
+
+        // This drives the body color selection preview and persistence.
         private int _bodyColorIndex;
 
+        // Placeholder palette so customization is visible before dedicated art assets are wired.
         private static readonly Color[] BodyPalette =
         {
-            new Color(1f, 0.42f, 0.55f),
-            new Color(0.32f, 0.67f, 1f),
-            new Color(0.27f, 0.95f, 0.62f),
-            new Color(0.94f, 0.83f, 0.28f),
-            new Color(0.82f, 0.42f, 1f),
-            new Color(0.96f, 0.54f, 0.24f)
-        };
-
-        // This drives the placeholder body color slider preview.
-        private int _bodyColorIndex;
-
-        // Placeholder body color palette for simple customization.
-        private static readonly Color[] BodyPalette =
-        {
-            new Color(1f, 0.42f, 0.55f),
-            new Color(0.32f, 0.67f, 1f),
-            new Color(0.27f, 0.95f, 0.62f),
-            new Color(0.94f, 0.83f, 0.28f),
-            new Color(0.82f, 0.42f, 1f),
-            new Color(0.96f, 0.54f, 0.24f)
+            new(1f, 0.42f, 0.55f),
+            new(0.32f, 0.67f, 1f),
+            new(0.27f, 0.95f, 0.62f),
+            new(0.94f, 0.83f, 0.28f),
+            new(0.82f, 0.42f, 1f),
+            new(0.96f, 0.54f, 0.24f)
         };
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
@@ -66,7 +55,7 @@ namespace HueDoneIt.UI.Boot
                 return;
             }
 
-            GameObject go = new GameObject(nameof(BootConnectionOverlay));
+            GameObject go = new(nameof(BootConnectionOverlay));
             go.AddComponent<BootConnectionOverlay>();
         }
 
@@ -77,35 +66,36 @@ namespace HueDoneIt.UI.Boot
             _portString = BootNetworkButtons.GetConfiguredPort().ToString();
             RuntimeGameSettings.Apply();
 
-            // The legacy Boot canvas still has Host/Client/Shutdown buttons.
-            // Disable it so players only see this complete frontend and not conflicting controls.
+            // The scene still includes legacy Boot canvas controls.
+            // Disable that canvas so users only see one coherent frontend path.
             TryDisableLegacyBootCanvas();
 
-            // Persist object while in Boot and destroy on scene transition.
-            // We avoid DontDestroyOnLoad to prevent duplicate overlays when returning to Boot.
+            // Keep this object as a normal scene object.
+            // We intentionally do not use DontDestroyOnLoad to avoid duplicate overlays.
             gameObject.hideFlags = HideFlags.None;
         }
 
         private void Update()
         {
-            // Resolve the reference if scene objects were reloaded.
+            // Resolve reference after scene reloads or domain reloads.
             if (_buttons == null)
             {
                 _buttons = FindFirstObjectByType<BootNetworkButtons>();
             }
 
-            // Keep cursor unlocked in Boot so Host Lobby and Start Match remain clickable.
+            // Keep cursor unlocked in Boot for mouse-driven lobby and menu flow.
             EnsureBootCursorState();
         }
 
         private void OnGUI()
         {
+            // Guard so this overlay only renders in the Boot scene.
             if (SceneManager.GetActiveScene().name != "Boot")
             {
                 return;
             }
 
-            Rect rect = new Rect(
+            Rect rect = new(
                 (Screen.width - panelSize.x) * 0.5f,
                 (Screen.height - panelSize.y) * 0.5f,
                 panelSize.x,
@@ -141,6 +131,7 @@ namespace HueDoneIt.UI.Boot
         {
             GUILayout.Label("Main Menu", GUI.skin.box);
             GUILayout.Label("Choose a frontend path.");
+
             if (GUILayout.Button("Create Lobby", GUILayout.Height(48f))) _state = ScreenState.CreateLobby;
             if (GUILayout.Button("Join Lobby", GUILayout.Height(48f))) _state = ScreenState.JoinLobby;
             if (GUILayout.Button("Character Customization", GUILayout.Height(48f))) _state = ScreenState.Customization;
@@ -180,7 +171,7 @@ namespace HueDoneIt.UI.Boot
             {
                 if (GUILayout.Button("Host Lobby", GUILayout.Height(42f)))
                 {
-                    // Host but remain in Boot so user can inspect lobby and then press Start Match.
+                    // Host but stay in Boot to allow lobby management and explicit Start Match.
                     _buttons?.StartHostLobby();
                 }
             }
@@ -189,6 +180,7 @@ namespace HueDoneIt.UI.Boot
                 GUILayout.Label("Host is running. Start Match becomes available for host.");
             }
 
+            // Only host can transition the active NGO session to Gameplay_Undertint.
             GUI.enabled = isHost;
             if (GUILayout.Button("Start Match in Gameplay_Undertint", GUILayout.Height(48f)))
             {
@@ -287,15 +279,10 @@ namespace HueDoneIt.UI.Boot
             _portString = GUILayout.TextField(_portString ?? "7777", 8);
         }
 
-        private int GetConnectedPlayers()
+        private static int GetConnectedPlayers()
         {
-            // This reads live NGO state to avoid stale lobby numbers.
-            if (NetworkManager.Singleton == null)
-            {
-                return 0;
-            }
-
-            if (!NetworkManager.Singleton.IsListening)
+            // Read live NGO state so host lobby counts are not stale.
+            if (NetworkManager.Singleton == null || !NetworkManager.Singleton.IsListening)
             {
                 return 0;
             }
@@ -325,16 +312,11 @@ namespace HueDoneIt.UI.Boot
 
         private static void TryDisableLegacyBootCanvas()
         {
-            // Existing Boot scene ships with old buttons. Disable that canvas to prevent conflicting UX.
+            // Existing Boot scene ships with a legacy canvas; hide it to prevent conflicting controls.
             Canvas[] canvases = FindObjectsByType<Canvas>(FindObjectsSortMode.None);
             foreach (Canvas canvas in canvases)
             {
-                if (canvas == null)
-                {
-                    continue;
-                }
-
-                if (canvas.gameObject.name == "BootCanvas")
+                if (canvas != null && canvas.gameObject.name == "BootCanvas")
                 {
                     canvas.gameObject.SetActive(false);
                 }
