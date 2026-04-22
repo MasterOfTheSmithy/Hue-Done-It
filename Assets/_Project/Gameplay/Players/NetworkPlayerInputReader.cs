@@ -12,6 +12,10 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(NetworkObject))]
     public sealed class NetworkPlayerInputReader : NetworkBehaviour
     {
+        // Input should only be read in Gameplay_Undertint.
+        // This prevents Boot-hosted lobbies from consuming gameplay movement input.
+        private const string GameplaySceneName = "Gameplay_Undertint";
+
         [SerializeField, Min(0.01f)] private float jumpPressBufferSeconds = 0.15f;
         [SerializeField, Min(0.01f)] private float punchPressBufferSeconds = 0.12f;
 
@@ -31,11 +35,14 @@ namespace HueDoneIt.Gameplay.Players
             // Only owner client reads input.
             if (!IsSpawned || !IsOwner || !IsClient)
             {
-                CurrentMoveInput = Vector2.zero;
-                CurrentWorldMoveInput = Vector3.zero;
-                JumpPressedThisFrame = false;
-                PunchPressedThisFrame = false;
-                BurstHeld = false;
+                ClearInputState();
+                return;
+            }
+
+            // Hard gate gameplay input while in Boot or any non-gameplay scene.
+            if (!IsGameplaySceneActive())
+            {
+                ClearInputState();
                 return;
             }
 
@@ -76,6 +83,22 @@ namespace HueDoneIt.Gameplay.Players
 
             _punchPressBufferRemaining = 0f;
             return true;
+        }
+
+        private void ClearInputState()
+        {
+            CurrentMoveInput = Vector2.zero;
+            CurrentWorldMoveInput = Vector3.zero;
+            JumpPressedThisFrame = false;
+            PunchPressedThisFrame = false;
+            BurstHeld = false;
+            _jumpPressBufferRemaining = 0f;
+            _punchPressBufferRemaining = 0f;
+        }
+
+        private bool IsGameplaySceneActive()
+        {
+            return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == GameplaySceneName;
         }
 
         private Vector2 ReadMoveInput()

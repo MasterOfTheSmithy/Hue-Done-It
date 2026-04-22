@@ -38,6 +38,7 @@ namespace HueDoneIt.UI.Boot
 
             // Apply persisted runtime settings on startup so volume and window mode are not stale.
             RuntimeGameSettings.Apply();
+            EnsureBootCursorUnlocked();
         }
 
         // Legacy Host button path.
@@ -81,6 +82,9 @@ namespace HueDoneIt.UI.Boot
             ConfigureTransportForHost(manager);
             bool started = manager.StartHost();
             Debug.Log($"BootNetworkButtons.StartHostLobby started={started}");
+
+            // Keep Boot cursor free so the lobby Start Match button stays clickable.
+            EnsureBootCursorUnlocked();
         }
 
         // Legacy client button and new frontend join both use this.
@@ -105,8 +109,6 @@ namespace HueDoneIt.UI.Boot
         // It requires host authority and intentionally transitions to gameplay.
         public void StartMatchFromLobby()
         {
-            Debug.Log("BootNetworkButtons.StartMatchFromLobby called.");
-
             if (!TryResolveNetworkManager(out NetworkManager manager) || !manager.IsHost)
             {
                 Debug.LogWarning("BootNetworkButtons.StartMatchFromLobby ignored because local peer is not host.");
@@ -148,24 +150,31 @@ namespace HueDoneIt.UI.Boot
             PlayerPrefs.SetInt(PortPrefsKey, port);
         }
 
+        private void EnsureBootCursorUnlocked()
+        {
+            if (SceneManager.GetActiveScene().name != "Boot")
+            {
+                return;
+            }
+
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
+        }
+
         private void LoadGameplaySceneIfHost(NetworkManager manager)
         {
             if (!manager.IsHost)
             {
-                Debug.LogWarning("BootNetworkButtons.LoadGameplaySceneIfHost aborted: local peer is not host.");
                 return;
             }
 
-            Debug.Log($"BootNetworkButtons.LoadGameplaySceneIfHost scene={gameplaySceneName} sceneManagement={manager.NetworkConfig.EnableSceneManagement}");
-
             if (!manager.NetworkConfig.EnableSceneManagement)
             {
-                Debug.Log("BootNetworkButtons: NGO scene management disabled, using SceneManager fallback.");
+                // Fallback for projects where NGO scene management was disabled.
                 SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
                 return;
             }
 
-            Debug.Log("BootNetworkButtons: NGO scene management enabled, loading gameplay scene through NetworkSceneManager.");
             manager.SceneManager.LoadScene(gameplaySceneName, LoadSceneMode.Single);
         }
 
@@ -227,11 +236,6 @@ namespace HueDoneIt.UI.Boot
             }
 
             Debug.LogWarning("BootNetworkButtons: UnityTransport.SetConnectionData not found.");
-            if (GUILayout.Button("Start Match in Gameplay_Undertint", GUILayout.Height(48f)))
-            {
-                Debug.Log("BootConnectionOverlay: Start Match button pressed.");
-                StartMatchFromLobby();
-            }
         }
     }
 }
