@@ -88,6 +88,7 @@ namespace HueDoneIt.Gameplay
 
             EnsureAuthoritativeGameplaySystems(runtimeRoot.transform);
             EnsurePump(runtimeRoot.transform);
+            EnsureTaskStations(runtimeRoot.transform);
             EnsureFloodZones(runtimeRoot.transform);
             EnsureFloodController(runtimeRoot.transform);
             EnsureSoloCpuOpponent(runtimeRoot.transform);
@@ -253,6 +254,86 @@ namespace HueDoneIt.Gameplay
             colliderRef.center = Vector3.zero;
             colliderRef.size = new Vector3(1.6f, 2f, 1.6f);
             EnsureStainReceiver(pump.gameObject);
+        }
+
+
+        private static void EnsureTaskStations(Transform root)
+        {
+            // These are placeholder maintenance stations distributed across Undertint to create a full task loop.
+            // All tasks are server-authoritative because they derive from NetworkRepairTask.
+            TaskStationSpec[] specs =
+            {
+                new("task-valve-01", "Turn Valve A", "Turn Valve", 1.8f, new Vector3(-15f,1f,9f), ShipRepairTask.DifficultyTier.Easy, 0),
+                new("task-valve-02", "Turn Valve B", "Turn Valve", 1.9f, new Vector3(-12f,1f,-9f), ShipRepairTask.DifficultyTier.Easy, 0),
+                new("task-breaker-01", "Flip Breaker 1", "Flip Breaker", 2.0f, new Vector3(-1.5f,1f,9.5f), ShipRepairTask.DifficultyTier.Easy, 0),
+                new("task-breaker-02", "Flip Breaker 2", "Flip Breaker", 2.0f, new Vector3(1.5f,1f,-9.5f), ShipRepairTask.DifficultyTier.Easy, 0),
+                new("task-cable-01", "Reconnect Cable Alpha", "Reconnect Cable", 2.3f, new Vector3(13.5f,1f,9f), ShipRepairTask.DifficultyTier.Easy, 0),
+                new("task-latch-01", "Tighten Panel Latch", "Tighten Latch", 2.2f, new Vector3(14f,1f,-9f), ShipRepairTask.DifficultyTier.Easy, 0),
+                new("task-spark-01", "Spark Plug Sequence A", "Replace Spark Plugs", 5.5f, new Vector3(-17f,1f,0f), ShipRepairTask.DifficultyTier.Medium, 2),
+                new("task-spark-02", "Spark Plug Sequence B", "Replace Spark Plugs", 5.5f, new Vector3(17f,1f,0f), ShipRepairTask.DifficultyTier.Medium, 2),
+                new("task-pipe-01", "Align Pipe Pressure", "Align Pressure", 6.0f, new Vector3(-7f,1f,0f), ShipRepairTask.DifficultyTier.Medium, 2),
+                new("task-coolant-01", "Reroute Coolant", "Reroute Coolant", 6.2f, new Vector3(7f,1f,0f), ShipRepairTask.DifficultyTier.Medium, 2),
+                new("task-circuit-01", "Circuit Matching", "Solve Circuit", 74f, new Vector3(-14f,1f,13f), ShipRepairTask.DifficultyTier.Hard, 1),
+                new("task-conduit-01", "Rotating Conduit Path", "Route Conduit", 78f, new Vector3(0f,1f,13f), ShipRepairTask.DifficultyTier.Hard, 1),
+                new("task-pressure-01", "Pressure Balancing", "Balance Pressure", 82f, new Vector3(14f,1f,13f), ShipRepairTask.DifficultyTier.Hard, 1),
+                new("task-signal-01", "Signal Matching", "Match Signal", 80f, new Vector3(0f,1f,-13f), ShipRepairTask.DifficultyTier.Hard, 1),
+            };
+
+            for (int i = 0; i < specs.Length; i++)
+            {
+                CreateOrUpdateTaskStation(root, specs[i], i);
+            }
+        }
+
+        private static void CreateOrUpdateTaskStation(Transform root, TaskStationSpec spec, int index)
+        {
+            string objectName = "TaskStation_" + (index + 1).ToString("00");
+            GameObject taskObject = GameObject.Find(objectName);
+            if (taskObject == null)
+            {
+                taskObject = CreateAuthoritativePrimitive(root, objectName, PrimitiveType.Cube, spec.Position, new Vector3(1.2f, 1.5f, 1.2f));
+            }
+
+            taskObject.transform.position = spec.Position;
+            taskObject.transform.localScale = new Vector3(1.2f, 1.5f, 1.2f);
+            ApplyMaterial(taskObject, spec.Difficulty == ShipRepairTask.DifficultyTier.Hard ? new Color(0.8f,0.25f,0.25f) : (spec.Difficulty == ShipRepairTask.DifficultyTier.Medium ? new Color(0.85f,0.55f,0.2f) : new Color(0.2f,0.8f,0.95f)), false);
+
+            ShipRepairTask task = GetOrAddComponent<ShipRepairTask>(taskObject);
+            SetPrivateField(typeof(NetworkRepairTask), task, "taskId", spec.TaskId);
+            SetPrivateField(typeof(NetworkRepairTask), task, "displayName", spec.DisplayName);
+            SetPrivateField(typeof(NetworkRepairTask), task, "interactPrompt", spec.Prompt);
+            SetPrivateField(typeof(NetworkRepairTask), task, "taskDurationSeconds", spec.DurationSeconds);
+            SetPrivateField(typeof(ShipRepairTask), task, "difficulty", spec.Difficulty);
+            SetPrivateField(typeof(ShipRepairTask), task, "maxFailuresBeforeLock", spec.MaxFailuresBeforeLock);
+
+            BoxCollider collider = taskObject.GetComponent<BoxCollider>() ?? taskObject.AddComponent<BoxCollider>();
+            collider.isTrigger = false;
+            collider.size = new Vector3(1.2f, 1.5f, 1.2f);
+
+            EnsureStainReceiver(taskObject);
+            TrySpawnNetworkObject(taskObject);
+        }
+
+        private readonly struct TaskStationSpec
+        {
+            public TaskStationSpec(string taskId, string displayName, string prompt, float durationSeconds, Vector3 position, ShipRepairTask.DifficultyTier difficulty, int maxFailuresBeforeLock)
+            {
+                TaskId = taskId;
+                DisplayName = displayName;
+                Prompt = prompt;
+                DurationSeconds = durationSeconds;
+                Position = position;
+                Difficulty = difficulty;
+                MaxFailuresBeforeLock = maxFailuresBeforeLock;
+            }
+
+            public string TaskId { get; }
+            public string DisplayName { get; }
+            public string Prompt { get; }
+            public float DurationSeconds { get; }
+            public Vector3 Position { get; }
+            public ShipRepairTask.DifficultyTier Difficulty { get; }
+            public int MaxFailuresBeforeLock { get; }
         }
 
         private static void EnsureFloodZones(Transform root)
