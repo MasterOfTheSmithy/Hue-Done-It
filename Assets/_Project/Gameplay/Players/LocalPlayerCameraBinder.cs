@@ -70,6 +70,14 @@ namespace HueDoneIt.Gameplay.Players
         private RoundPhase _lastRoundPhase = RoundPhase.Lobby;
         private float _shakeTimer;
         private string _lastPresentationSceneName;
+        private bool _isCpuAvatar;
+
+        private void Awake()
+        {
+            // CPU avatars are server-owned and can appear as IsOwner on host.
+            // Camera ownership must remain local-human-only, so we mark CPU avatars early.
+            _isCpuAvatar = TryGetComponent(out SimpleCpuOpponentAgent _);
+        }
 
         public override void OnNetworkSpawn()
         {
@@ -77,8 +85,11 @@ namespace HueDoneIt.Gameplay.Players
             _mover = GetComponent<NetworkPlayerAuthoritativeMover>();
             _roundState = FindFirstObjectByType<NetworkRoundState>();
 
-            if (!IsOwner)
+            // Only the local non-CPU avatar is allowed to own an active gameplay camera.
+            // This avoids host-owned CPU avatars stealing camera ownership.
+            if (!IsOwner || !IsClient || _isCpuAvatar)
             {
+                DisableAvatarCameraObjects();
                 enabled = false;
                 return;
             }
@@ -86,6 +97,7 @@ namespace HueDoneIt.Gameplay.Players
             // Prevent gameplay camera capture while hosting in Boot or any non-gameplay scene.
             if (!IsGameplaySceneActive())
             {
+                DisableAvatarCameraObjects();
                 LockCursor(false);
                 return;
             }
@@ -101,6 +113,7 @@ namespace HueDoneIt.Gameplay.Players
                 LockCursor(false);
             }
 
+            DisableAvatarCameraObjects();
             _cameraBound = false;
             base.OnNetworkDespawn();
         }
@@ -115,6 +128,7 @@ namespace HueDoneIt.Gameplay.Players
             // While in Boot, keep mouse free so lobby UI remains clickable.
             if (!IsGameplaySceneActive())
             {
+                DisableAvatarCameraObjects();
                 _cameraBound = false;
                 LockCursor(false);
                 return;
@@ -303,6 +317,14 @@ namespace HueDoneIt.Gameplay.Players
             cameraAnchor.localPosition = ownerCameraAnchorLocalPosition;
             cameraAnchor.localRotation = Quaternion.Euler(_pitch, 0f, 0f);
 
+            AudioListener mainListener = _mainCamera.GetComponent<AudioListener>();
+            if (mainListener != null)
+            {
+                mainListener.enabled = true;
+            }
+
+            _mainCamera.enabled = true;
+
             Transform cameraTransform = _mainCamera.transform;
             cameraTransform.SetParent(cameraAnchor, false);
             cameraTransform.localPosition = Vector3.zero;
@@ -329,6 +351,35 @@ namespace HueDoneIt.Gameplay.Players
             GameObject anchorObject = new(nameof(LocalPlayerCameraBinder) + "_Anchor");
             anchorObject.transform.SetParent(transform, false);
             cameraAnchor = anchorObject.transform;
+        }
+
+        private void DisableAvatarCameraObjects()
+        {
+            // Any camera or listener under this avatar must be off when avatar is not local-owner controlled.
+            // This enforces single active listener/camera ownership on the local human player only.
+            Camera[] cameras = GetComponentsInChildren<Camera>(true);
+            for (int i = 0; i < cameras.Length; i++)
+            {
+                Camera cameraRef = cameras[i];
+                if (cameraRef == null)
+                {
+                    continue;
+                }
+
+                cameraRef.enabled = false;
+            }
+
+            AudioListener[] listeners = GetComponentsInChildren<AudioListener>(true);
+            for (int i = 0; i < listeners.Length; i++)
+            {
+                AudioListener listener = listeners[i];
+                if (listener == null)
+                {
+                    continue;
+                }
+
+                listener.enabled = false;
+            }
         }
 
         private void ApplySceneLocalPresentation(bool force)
