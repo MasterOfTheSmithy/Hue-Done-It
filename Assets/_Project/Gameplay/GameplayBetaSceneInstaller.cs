@@ -120,36 +120,38 @@ namespace HueDoneIt.Gameplay
 
         private static void EnsureArenaLayout(Transform root)
         {
-            EnsureGround(root, "Platform_Arena", new Vector3(0f, -0.5f, 0f), new Vector3(30f, 1f, 30f), new Color(0.10f, 0.11f, 0.14f));
+            // Undertint beta map layout: 6 enclosed spaceship rooms with hallways and an ocean deck perimeter.
+            EnsureGround(root, "Undertint_OceanDeck", new Vector3(0f, -1.2f, 0f), new Vector3(56f, 1f, 42f), new Color(0.05f, 0.18f, 0.30f));
+            EnsureGround(root, "Undertint_ShipFloor", new Vector3(0f, -0.5f, 0f), new Vector3(46f, 1f, 32f), new Color(0.11f, 0.12f, 0.15f));
 
-            EnsureBlock(root, "Wall_01", new Vector3(0f, 2f, 15.25f), new Vector3(30.5f, 4f, 0.5f), new Color(0.18f, 0.20f, 0.23f));
-            EnsureBlock(root, "Wall_02", new Vector3(0f, 2f, -15.25f), new Vector3(30.5f, 4f, 0.5f), new Color(0.18f, 0.20f, 0.23f));
-            EnsureBlock(root, "Wall_03", new Vector3(15.25f, 2f, 0f), new Vector3(0.5f, 4f, 30.5f), new Color(0.18f, 0.20f, 0.23f));
-            EnsureBlock(root, "Wall_04", new Vector3(-15.25f, 2f, 0f), new Vector3(0.5f, 4f, 30.5f), new Color(0.18f, 0.20f, 0.23f));
+            EnsureBlock(root, "ShipHull_N", new Vector3(0f, 2f, 16.25f), new Vector3(46.5f, 4f, 0.5f), new Color(0.18f, 0.20f, 0.23f));
+            EnsureBlock(root, "ShipHull_S", new Vector3(0f, 2f, -16.25f), new Vector3(46.5f, 4f, 0.5f), new Color(0.18f, 0.20f, 0.23f));
+            EnsureBlock(root, "ShipHull_E", new Vector3(23.25f, 2f, 0f), new Vector3(0.5f, 4f, 32.5f), new Color(0.18f, 0.20f, 0.23f));
+            EnsureBlock(root, "ShipHull_W", new Vector3(-23.25f, 2f, 0f), new Vector3(0.5f, 4f, 32.5f), new Color(0.18f, 0.20f, 0.23f));
 
-            EnsureBlock(root, "Platform_01", new Vector3(0f, 0.3f, 0f), new Vector3(9f, 0.6f, 9f), new Color(0.20f, 0.23f, 0.30f));
-            EnsureBlock(root, "Platform_02", new Vector3(0f, 0.1f, 10f), new Vector3(22f, 0.2f, 3f), new Color(0.17f, 0.20f, 0.25f));
-            EnsureBlock(root, "Platform_03", new Vector3(0f, 0.1f, -10f), new Vector3(22f, 0.2f, 3f), new Color(0.17f, 0.20f, 0.25f));
-            EnsureBlock(root, "Platform_04", new Vector3(10f, 0.1f, 0f), new Vector3(3f, 0.2f, 22f), new Color(0.17f, 0.20f, 0.25f));
-            EnsureBlock(root, "Platform_05", new Vector3(-10f, 0.1f, 0f), new Vector3(3f, 0.2f, 22f), new Color(0.17f, 0.20f, 0.25f));
+            // Six enclosed rooms arranged as 3 columns x 2 rows.
+            EnsureRoom(root, "Room_01_Engine", new Vector3(-14f, 0f, 8f), new Color(0.20f, 0.24f, 0.30f));
+            EnsureRoom(root, "Room_02_Pump", new Vector3(0f, 0f, 8f), new Color(0.22f, 0.22f, 0.30f));
+            EnsureRoom(root, "Room_03_Navigation", new Vector3(14f, 0f, 8f), new Color(0.24f, 0.20f, 0.28f));
+            EnsureRoom(root, "Room_04_Cargo", new Vector3(-14f, 0f, -8f), new Color(0.20f, 0.28f, 0.22f));
+            EnsureRoom(root, "Room_05_Reactor", new Vector3(0f, 0f, -8f), new Color(0.30f, 0.23f, 0.20f));
+            EnsureRoom(root, "Room_06_Lab", new Vector3(14f, 0f, -8f), new Color(0.24f, 0.25f, 0.20f));
 
-            EnsureBlock(root, "Platform_06", new Vector3(0f, 2.1f, 6f), new Vector3(6f, 0.4f, 4f), new Color(0.22f, 0.22f, 0.29f));
-            EnsureBlock(root, "Platform_07", new Vector3(0f, 2.1f, -6f), new Vector3(6f, 0.4f, 4f), new Color(0.22f, 0.22f, 0.29f));
-            EnsureBlock(root, "Platform_08", new Vector3(-6f, 1.0f, 6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
-            EnsureBlock(root, "Platform_09", new Vector3(6f, 1.0f, 6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
-            EnsureBlock(root, "Platform_10", new Vector3(-6f, 1.0f, -6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
-            EnsureBlock(root, "Platform_11", new Vector3(6f, 1.0f, -6f), new Vector3(2f, 2f, 4f), new Color(0.26f, 0.26f, 0.33f));
+            // Floodable connecting hallways.
+            EnsureBlock(root, "Hall_NorthRow", new Vector3(0f, 0.1f, 8f), new Vector3(26f, 0.2f, 3f), new Color(0.17f, 0.20f, 0.25f));
+            EnsureBlock(root, "Hall_SouthRow", new Vector3(0f, 0.1f, -8f), new Vector3(26f, 0.2f, 3f), new Color(0.17f, 0.20f, 0.25f));
+            EnsureBlock(root, "Hall_Center", new Vector3(0f, 0.1f, 0f), new Vector3(6f, 0.2f, 11f), new Color(0.16f, 0.19f, 0.23f));
+            EnsureBlock(root, "Hall_WestConnector", new Vector3(-14f, 0.1f, 0f), new Vector3(6f, 0.2f, 11f), new Color(0.16f, 0.19f, 0.23f));
+            EnsureBlock(root, "Hall_EastConnector", new Vector3(14f, 0.1f, 0f), new Vector3(6f, 0.2f, 11f), new Color(0.16f, 0.19f, 0.23f));
+        }
 
-            EnsureBlock(root, "Cover_01", new Vector3(-3.5f, 1f, -2f), new Vector3(1f, 2f, 1f), new Color(0.28f, 0.34f, 0.45f));
-            EnsureBlock(root, "Cover_02", new Vector3(3.5f, 1f, -2f), new Vector3(1f, 2f, 1f), new Color(0.45f, 0.31f, 0.27f));
-            EnsureBlock(root, "Cover_03", new Vector3(-3.5f, 1f, 2f), new Vector3(1f, 2f, 1f), new Color(0.27f, 0.45f, 0.34f));
-            EnsureBlock(root, "Cover_04", new Vector3(3.5f, 1f, 2f), new Vector3(1f, 2f, 1f), new Color(0.45f, 0.27f, 0.41f));
-            EnsureBlock(root, "Cover_05", new Vector3(-8f, 1f, 0f), new Vector3(1.5f, 2f, 1.5f), new Color(0.24f, 0.33f, 0.50f));
-            EnsureBlock(root, "Cover_06", new Vector3(8f, 1f, 0f), new Vector3(1.5f, 2f, 1.5f), new Color(0.50f, 0.33f, 0.24f));
-
-            EnsureBlock(root, "Tunnel_01", new Vector3(-12f, 0.8f, 8f), new Vector3(5f, 1.6f, 2f), new Color(0.55f, 0.25f, 0.72f));
-            EnsureBlock(root, "Tunnel_02", new Vector3(12f, 0.8f, -8f), new Vector3(5f, 1.6f, 2f), new Color(0.55f, 0.25f, 0.72f));
-            EnsureCapsule(root, "EasterEgg_01", new Vector3(0f, 0.8f, 12f), new Vector3(1f, 1.6f, 1f), new Color(1f, 0.25f, 0.78f));
+        private static void EnsureRoom(Transform root, string roomName, Vector3 center, Color roomColor)
+        {
+            EnsureBlock(root, roomName + "_Floor", center + new Vector3(0f, 0.1f, 0f), new Vector3(10f, 0.2f, 8f), roomColor);
+            EnsureBlock(root, roomName + "_NorthWall", center + new Vector3(0f, 2f, 4f), new Vector3(10f, 4f, 0.35f), roomColor * 0.9f);
+            EnsureBlock(root, roomName + "_SouthWall", center + new Vector3(0f, 2f, -4f), new Vector3(10f, 4f, 0.35f), roomColor * 0.9f);
+            EnsureBlock(root, roomName + "_WestWall", center + new Vector3(-5f, 2f, 0f), new Vector3(0.35f, 4f, 8f), roomColor * 0.85f);
+            EnsureBlock(root, roomName + "_EastWall", center + new Vector3(5f, 2f, 0f), new Vector3(0.35f, 4f, 8f), roomColor * 0.85f);
         }
 
         private static void EnsureSpawnPoints(Transform root)

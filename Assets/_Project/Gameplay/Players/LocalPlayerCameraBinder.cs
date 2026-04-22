@@ -12,8 +12,8 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(NetworkPlayerAuthoritativeMover))]
     public sealed class LocalPlayerCameraBinder : NetworkBehaviour
     {
-        // Camera bind and cursor lock are only allowed in Gameplay_Undertint.
-        private const string GameplaySceneName = "Gameplay_Undertint";
+        // Camera bind and cursor lock are allowed in Lobby and Gameplay scenes only.
+        private static readonly string[] CameraPlayableScenes = { "Lobby", "Gameplay_Undertint" };
         [Header("Base Camera")]
         [SerializeField] private Transform cameraAnchor;
         [SerializeField] private Vector3 ownerCameraAnchorLocalPosition = new(0f, 0.75f, 0f);
@@ -154,11 +154,7 @@ namespace HueDoneIt.Gameplay.Players
             transform.Rotate(0f, delta.x, 0f, Space.Self);
             _pitch = Mathf.Clamp(_pitch - delta.y, minPitch, maxPitch);
         }
-        private bool IsGameplayScene()
-        {
-            return string.Equals(SceneManager.GetActiveScene().name, "Gameplay_Undertint", System.StringComparison.Ordinal);
-        }
-        private void ApplyBlobPresentation()
+                private void ApplyBlobPresentation()
         {
             if (cameraAnchor == null)
             {
@@ -289,7 +285,11 @@ namespace HueDoneIt.Gameplay.Players
             _mainCamera = Camera.main;
             if (_mainCamera == null)
             {
-                return;
+                // This fallback guarantees a render camera for the local owner in Lobby and Gameplay.
+                GameObject cameraObject = new(nameof(LocalPlayerCameraBinder) + "_OwnerMainCamera");
+                _mainCamera = cameraObject.AddComponent<Camera>();
+                cameraObject.tag = "MainCamera";
+                cameraObject.AddComponent<AudioListener>();
             }
 
             EnsureCameraAnchor();
@@ -330,10 +330,19 @@ namespace HueDoneIt.Gameplay.Players
             cameraAnchor = anchorObject.transform;
         }
 
-        private bool IsGameplaySceneActive()
+        private static bool IsGameplaySceneActive()
         {
-            // Scene gate prevents camera capture while host is still in Boot lobby.
-            return UnityEngine.SceneManagement.SceneManager.GetActiveScene().name == GameplaySceneName;
+            // Scene gate prevents camera capture while in Boot or any non-playable frontend scene.
+            string activeScene = UnityEngine.SceneManagement.SceneManager.GetActiveScene().name;
+            for (int i = 0; i < CameraPlayableScenes.Length; i++)
+            {
+                if (activeScene == CameraPlayableScenes[i])
+                {
+                    return true;
+                }
+            }
+
+            return false;
         }
 
         private static void LockCursor(bool locked)
