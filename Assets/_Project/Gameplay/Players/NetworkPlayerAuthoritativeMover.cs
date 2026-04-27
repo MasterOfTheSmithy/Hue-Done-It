@@ -1125,7 +1125,7 @@ namespace HueDoneIt.Gameplay.Players
                 Vector3 direction = remaining / distance;
                 GetCapsuleWorldPoints(currentPosition, out Vector3 point1, out Vector3 point2, out float radius);
 
-                if (!Physics.CapsuleCast(point1, point2, radius, direction, out RaycastHit hit, distance + collisionSkin, groundMask, QueryTriggerInteraction.Ignore))
+                if (!Physics.CapsuleCast(point1, point2, radius, direction, out RaycastHit hit, distance + collisionSkin, GetRuntimeCollisionMask(), QueryTriggerInteraction.Ignore))
                 {
                     currentPosition += remaining;
                     remaining = Vector3.zero;
@@ -1159,6 +1159,18 @@ namespace HueDoneIt.Gameplay.Players
             return ResolvePenetration(currentPosition);
         }
 
+        private int GetRuntimeCollisionMask()
+        {
+            int mask = groundMask.value;
+            int defaultLayer = LayerMask.NameToLayer("Default");
+            if (defaultLayer >= 0)
+            {
+                mask |= 1 << defaultLayer;
+            }
+
+            return mask != 0 ? mask : ~0;
+        }
+
         private bool IsGrounded(Vector3 position, out RaycastHit groundHit)
         {
             GetCapsuleWorldPoints(position, out Vector3 point1, out Vector3 point2, out float radius);
@@ -1167,7 +1179,7 @@ namespace HueDoneIt.Gameplay.Players
             Vector3 origin = bottom + (Vector3.up * 0.05f);
             float probeDistance = Mathf.Max(0.05f, groundCheckDistance + 0.05f);
 
-            if (Physics.SphereCast(origin, probeRadius, Vector3.down, out groundHit, probeDistance, groundMask, QueryTriggerInteraction.Ignore))
+            if (Physics.SphereCast(origin, probeRadius, Vector3.down, out groundHit, probeDistance, GetRuntimeCollisionMask(), QueryTriggerInteraction.Ignore))
             {
                 return IsGroundNormal(groundHit.normal);
             }
@@ -1220,7 +1232,7 @@ namespace HueDoneIt.Gameplay.Players
             for (int iteration = 0; iteration < depenetrationIterations; iteration++)
             {
                 GetCapsuleWorldPoints(resolvedPosition, out Vector3 point1, out Vector3 point2, out float radius);
-                Collider[] overlaps = Physics.OverlapCapsule(point1, point2, radius, groundMask, QueryTriggerInteraction.Ignore);
+                Collider[] overlaps = Physics.OverlapCapsule(point1, point2, radius, GetRuntimeCollisionMask(), QueryTriggerInteraction.Ignore);
 
                 bool moved = false;
                 for (int i = 0; i < overlaps.Length; i++)

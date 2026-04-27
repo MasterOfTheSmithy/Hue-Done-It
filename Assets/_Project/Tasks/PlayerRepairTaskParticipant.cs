@@ -14,6 +14,7 @@ namespace HueDoneIt.Tasks
     public sealed class PlayerRepairTaskParticipant : NetworkBehaviour
     {
         [SerializeField, Min(0.1f)] private float maxRepairRange = 2.5f;
+        [SerializeField, Min(0f)] private float taskUiRangePadding = 0.35f;
         [SerializeField] private Key puzzleConfirmKey = Key.E;
 
         private readonly NetworkVariable<ulong> _activeTaskNetworkObjectId =
@@ -32,6 +33,9 @@ namespace HueDoneIt.Tasks
         public event Action<NetworkRepairTask, float, bool> TaskProgressUpdated;
 
         public bool HasActiveTask => _trackedTask != null;
+        public NetworkRepairTask ActiveTask => _trackedTask;
+        public bool IsWithinActiveTaskRange => _trackedTask == null || Vector3.Distance(transform.position, _trackedTask.transform.position) <= Mathf.Max(maxRepairRange, _trackedTask.MaxUseDistance) + taskUiRangePadding;
+        public int ShipCheckpointIndex => _shipCheckpointIndex;
 
         public override void OnNetworkSpawn()
         {
@@ -107,6 +111,28 @@ namespace HueDoneIt.Tasks
                 _hasSentTerminalRequest = true;
                 RequestCompleteRepairServerRpc(_trackedTask.NetworkObjectId);
             }
+        }
+
+        public void RequestCompleteActiveTaskFromLocalUi()
+        {
+            if (!IsOwner || !IsClient || _trackedTask == null || _hasSentTerminalRequest)
+            {
+                return;
+            }
+
+            _hasSentTerminalRequest = true;
+            RequestCompleteRepairServerRpc(_trackedTask.NetworkObjectId);
+        }
+
+        public void RequestCancelActiveTaskFromLocalUi(string reason = "Task UI closed")
+        {
+            if (!IsOwner || !IsClient || _trackedTask == null || _hasSentTerminalRequest)
+            {
+                return;
+            }
+
+            _hasSentTerminalRequest = true;
+            RequestCancelRepairServerRpc(_trackedTask.NetworkObjectId, reason);
         }
 
         private void HandlePumpTask(Keyboard keyboard, float progress)

@@ -82,7 +82,7 @@ namespace HueDoneIt.Gameplay.Interaction
                 Vector3 interactionPoint = interactable.GetInteractionPoint(rayOrigin);
                 Vector3 toTarget = interactionPoint - rayOrigin;
                 float distance = toTarget.magnitude;
-                if (distance > Mathf.Max(interactionRange, interactable.MaxUseDistance) || distance <= 0.001f)
+                if (distance > GetAllowedInteractionDistance(interactable) || distance <= 0.001f)
                 {
                     continue;
                 }
@@ -129,12 +129,22 @@ namespace HueDoneIt.Gameplay.Interaction
             Vector3 targetPoint = interactable.GetInteractionPoint(rayOrigin);
             Vector3 toTarget = targetPoint - rayOrigin;
             float distance = toTarget.magnitude;
-            if (distance > Mathf.Max(interactionRange, interactable.MaxUseDistance) || distance <= 0.001f)
+            if (distance > GetAllowedInteractionDistance(interactable) || distance <= 0.001f)
             {
                 return false;
             }
 
             return !HasBlockingLineOfSight(rayOrigin, targetPoint, interactable);
+        }
+
+        private float GetAllowedInteractionDistance(NetworkInteractable interactable)
+        {
+            if (interactable == null)
+            {
+                return interactionRange;
+            }
+
+            return Mathf.Min(interactionRange, Mathf.Max(0.1f, interactable.MaxUseDistance));
         }
 
         private bool HasBlockingLineOfSight(Vector3 rayOrigin, Vector3 targetPoint, NetworkInteractable interactable)

@@ -1,5 +1,6 @@
 // File: Assets/_Project/Gameplay/Elimination/PlayerLifeState.cs
 using System;
+using HueDoneIt.Core.Netcode;
 using Unity.Collections;
 using Unity.Netcode;
 using UnityEngine;
@@ -78,9 +79,9 @@ namespace HueDoneIt.Gameplay.Elimination
             }
 
             _lifeState.Value = (byte)nextState;
-            _lastStateReason.Value = string.IsNullOrWhiteSpace(reason)
-                ? new FixedString64Bytes(nextState.ToString())
-                : new FixedString64Bytes(reason);
+            _lastStateReason.Value = FixedStringUtility.ToFixedString64(string.IsNullOrWhiteSpace(reason)
+                ? nextState.ToString()
+                : reason);
 
             Debug.Log($"Player {OwnerClientId} marked {nextState}. Reason={_lastStateReason.Value}");
             return true;

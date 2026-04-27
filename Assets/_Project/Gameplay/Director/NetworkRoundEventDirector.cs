@@ -307,7 +307,7 @@ namespace HueDoneIt.Gameplay.Director
 
         private void SetEvent(string label)
         {
-            _currentEventLabel.Value = new Unity.Collections.FixedString64Bytes(string.IsNullOrWhiteSpace(label) ? "Director event" : label);
+            _currentEventLabel.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(string.IsNullOrWhiteSpace(label) ? "Director event" : label);
         }
 
         private void ResolveRoundState()

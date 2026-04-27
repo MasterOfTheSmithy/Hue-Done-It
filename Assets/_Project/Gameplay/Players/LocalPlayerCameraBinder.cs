@@ -1,5 +1,6 @@
 // File: Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
 using HueDoneIt.Core.Bootstrap;
+using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.UI.Lobby;
 using Unity.Netcode;
@@ -66,6 +67,7 @@ namespace HueDoneIt.Gameplay.Players
         private float _currentRoll;
         private Vector3 _lastVelocity;
         private NetworkPlayerAuthoritativeMover _mover;
+        private PlayerLifeState _lifeState;
         private NetworkPlayerAuthoritativeMover.LocomotionState _lastState;
         private float _wallLaunchRollKick;
         private RoundPhase _lastRoundPhase = RoundPhase.Lobby;
@@ -76,6 +78,7 @@ namespace HueDoneIt.Gameplay.Players
         {
             base.OnNetworkSpawn();
             _mover = GetComponent<NetworkPlayerAuthoritativeMover>();
+            _lifeState = GetComponent<PlayerLifeState>();
             _roundState = FindFirstObjectByType<NetworkRoundState>();
 
             if (!CanOwnGameplayCamera())
@@ -131,6 +134,19 @@ namespace HueDoneIt.Gameplay.Players
                 ReleaseOwnerCameraBinding();
                 DisableAvatarCameraObjects();
                 LockCursor(false);
+                return;
+            }
+
+            if (_lifeState == null)
+            {
+                _lifeState = GetComponent<PlayerLifeState>();
+            }
+
+            if (_lifeState != null && !_lifeState.IsAlive)
+            {
+                ReleaseOwnerCameraBinding();
+                DisableAvatarCameraObjects();
+                LockCursor(true);
                 return;
             }
 

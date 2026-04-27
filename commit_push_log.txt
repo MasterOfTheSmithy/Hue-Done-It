@@ -1,4 +1,4 @@
-===== Tue 04/21/2026 20:50:12.41 =====
+===== Mon 04/27/2026 16:48:36.65 =====
 STEP 1: starting in C:\HueDoneIt\game\Hue Done It
 STEP 2: cd done (err=0) in C:\HueDoneIt\game\Hue Done It
 C:\Program Files\Git\cmd\git.exe
@@ -6,19 +6,58 @@ STEP 3: git found
 true
 STEP 4: confirmed inside git work tree
 STEP 5: current origin=https://github.com/MasterOfTheSmithy/Hue-Done-It.git
-STEP 6: branch=main
+STEP 6: branch=playable-beta-stability-pass
 STEP 7: commit message=chore: update project state
 STEP 8: git status --short before add
  M Assembly-CSharp.csproj
- M Assets/Scenes/Gameplay_Undertint.unity
+ M Assets.zip
+ M Assets/_Project/Evidence/NetworkEvidenceShard.cs
+ M Assets/_Project/Flood/FloodSequenceController.cs
+ M Assets/_Project/Gameplay/Director/NetworkRoundEventDirector.cs
+ M Assets/_Project/Gameplay/Elimination/EliminationManager.cs
+ M Assets/_Project/Gameplay/Elimination/PlayerLifeState.cs
+ M Assets/_Project/Gameplay/Elimination/PlayerRemains.cs
+ M Assets/_Project/Gameplay/Environment/NetworkBleachLeakHazard.cs
+ M Assets/_Project/Gameplay/Environment/NetworkPaintScannerStation.cs
+ M Assets/_Project/Gameplay/Environment/NetworkSecurityCameraStation.cs
+ M Assets/_Project/Gameplay/GameplayBetaSceneInstaller.cs
+ M Assets/_Project/Gameplay/Interaction/PlayerInteractionController.cs
+ M Assets/_Project/Gameplay/Interaction/PlayerInteractionDetector.cs
+ M Assets/_Project/Gameplay/Inventory/PlayerInventoryState.cs
+ M Assets/_Project/Gameplay/Lobby/NetworkLobbyState.cs
+ M Assets/_Project/Gameplay/Paint/StainReceiver.cs
  M Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
+ M Assets/_Project/Gameplay/Players/NetworkPlayerAuthoritativeMover.cs
+ M Assets/_Project/Gameplay/Players/NetworkPlayerAvatar.cs
+ M Assets/_Project/Gameplay/Players/SimpleCpuOpponentAgent.cs
  M Assets/_Project/Gameplay/Round/NetworkRoundState.cs
- M Assets/_Project/UI/Boot/BootConnectionOverlay.cs
- M Assets/_Project/UI/Boot/BootNetworkButtons.cs
+ M Assets/_Project/Tasks/NetworkRepairTask.cs
+ M Assets/_Project/Tasks/PlayerRepairTaskParticipant.cs
+ M Assets/_Project/Tasks/TaskObjectiveBase.cs
+ M Assets/_Project/UI/Gameplay/GameplayInvestorHud.cs
+ M Assets/_Project/UI/Tasks/RepairTaskStatusView.cs
  M commit_push_log.txt
-?? "Assets (2).zip"
-?? Assets/_Project/Core/Bootstrap/BootSessionConfig.cs.meta
-?? Assets/_Project/Core/Bootstrap/RuntimeGameSettings.cs.meta
-?? Assets/_Project/Core/Bootstrap/RuntimeInputBindings.cs.meta
-?? _temp_backup/
+?? Assets/_Project/Core/Netcode.meta
+?? Assets/_Project/Core/Netcode/
+?? Assets/_Project/Flood/BetaFloodWarningLights.cs
+?? Assets/_Project/Flood/BetaFloodWarningLights.cs.meta
+?? Assets/_Project/Gameplay/Beta.meta
+?? Assets/_Project/Gameplay/Beta/
+?? Assets/_Project/Gameplay/Players/DeadPlayerSpectatorCamera.cs
+?? Assets/_Project/Gameplay/Players/DeadPlayerSpectatorCamera.cs.meta
+?? Assets/_Project/README_BetaHardeningPass2.md
+?? Assets/_Project/README_BetaHardeningPass2.md.meta
+?? Assets/_Project/README_BetaLoopMapUiSpectatePatch.md
+?? Assets/_Project/README_BetaLoopMapUiSpectatePatch.md.meta
+?? Assets/_Project/README_DynamicLoopHudMapFloodPatch.md
+?? Assets/_Project/README_DynamicLoopHudMapFloodPatch.md.meta
+?? Assets/_Project/README_EvenMoreProductionRefinementPass.md
+?? Assets/_Project/README_EvenMoreProductionRefinementPass.md.meta
+?? Assets/_Project/README_MoreProductionRefinementPass.md
+?? Assets/_Project/README_MoreProductionRefinementPass.md.meta
+?? Assets/_Project/README_MovementFloodTaskProductionPass.md
+?? Assets/_Project/README_MovementFloodTaskProductionPass.md.meta
+?? Assets/_Project/UI/Gameplay/BetaGameplayEmergencyOverlay.cs
+?? Assets/_Project/UI/Gameplay/BetaGameplayEmergencyOverlay.cs.meta
+?? _temp_backup/Assets/
 STEP 9: git add -A

@@ -1,5 +1,6 @@
 // File: Assets/_Project/Gameplay/Round/NetworkRoundState.cs
 using System;
+using HueDoneIt.Core.Netcode;
 using System.Collections.Generic;
 using HueDoneIt.Flood;
 using HueDoneIt.Flood.Integration;
@@ -282,7 +283,7 @@ namespace HueDoneIt.Gameplay.Round
             SetFloodFlowActive(false);
             BeginMeetingVote($"Body report by {BuildClientLabel(reportingClientId)}. Use voting pods: accuse a nearby suspect or skip.");
             SetPhase(RoundPhase.Reported, reportedDurationSeconds);
-            _roundMessage.Value = new FixedString128Bytes($"Body reported by {BuildClientLabel(reportingClientId)}. Clock reduced.");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128($"Body reported by {BuildClientLabel(reportingClientId)}. Clock reduced.");
             SetObjective($"Report in progress. Vote at the meeting pods. Time penalty: {Mathf.RoundToInt(reportRoundTimePenaltySeconds)}s.");
             return true;
         }
@@ -312,7 +313,7 @@ namespace HueDoneIt.Gameplay.Round
 
             string source = string.IsNullOrWhiteSpace(sourceLabel) ? "Emergency meeting" : sourceLabel;
             string penaltyText = penalty > 0f ? $" Clock reduced by {Mathf.RoundToInt(penalty)}s." : string.Empty;
-            _roundMessage.Value = new FixedString128Bytes($"{source} called by {BuildClientLabel(callerClientId)}.{penaltyText}");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128($"{source} called by {BuildClientLabel(callerClientId)}.{penaltyText}");
             SetObjective("Emergency meeting in progress. Vote, inspect summaries, then resume tasks.");
             return true;
         }
@@ -335,7 +336,7 @@ namespace HueDoneIt.Gameplay.Round
             string source = string.IsNullOrWhiteSpace(sourceLabel) ? "Sabotage" : sourceLabel;
             _sabotageEventCount.Value = Mathf.Max(0, _sabotageEventCount.Value + 1);
             string actor = BuildClientLabel(instigatorClientId);
-            _roundMessage.Value = new FixedString128Bytes($"{source} triggered by {actor}. Flood pressure accelerated.");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128($"{source} triggered by {actor}. Flood pressure accelerated.");
             SetObjective($"Sabotage active: stabilize critical systems and avoid surge routes. Time penalty: {Mathf.RoundToInt(penalty)}s.");
             UpdatePressureState();
             BroadcastPressureStageToFloodControllers();
@@ -360,7 +361,7 @@ namespace HueDoneIt.Gameplay.Round
             _crewStabilizationEventCount.Value = Mathf.Max(0, _crewStabilizationEventCount.Value + 1);
             string source = string.IsNullOrWhiteSpace(sourceLabel) ? "Crew stabilization" : sourceLabel;
             string actor = BuildClientLabel(instigatorClientId);
-            _roundMessage.Value = new FixedString128Bytes($"{source} secured by {actor}. Flood pressure delayed.");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128($"{source} secured by {actor}. Flood pressure delayed.");
             SetObjective($"Crew stabilization active: continue critical systems. Time recovered: {Mathf.RoundToInt(bonus)}s.");
             UpdatePressureState();
             BroadcastPressureStageToFloodControllers();
@@ -385,7 +386,7 @@ namespace HueDoneIt.Gameplay.Round
             _environmentEventCount.Value = Mathf.Max(0, _environmentEventCount.Value + 1);
             string source = string.IsNullOrWhiteSpace(sourceLabel) ? "Environmental event" : sourceLabel;
             string message = string.IsNullOrWhiteSpace(detail) ? "Ship systems shifted." : detail;
-            _roundMessage.Value = new FixedString128Bytes($"{source}: {message}");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128($"{source}: {message}");
             string penaltyText = penalty > 0f ? $" Time penalty: {Mathf.RoundToInt(penalty)}s." : string.Empty;
             SetObjective($"Environmental event: {message}{penaltyText}");
             UpdatePressureState();
@@ -418,7 +419,7 @@ namespace HueDoneIt.Gameplay.Round
             _meetingVotes[voterClientId] = accusedClientId;
             UpdateMeetingVoteCounters();
             string source = string.IsNullOrWhiteSpace(sourceLabel) ? "Voting podium" : sourceLabel;
-            _meetingSummary.Value = new FixedString128Bytes($"{source}: {BuildClientLabel(voterClientId)} voted against {BuildClientLabel(accusedClientId)}. {_meetingVotesCast.Value}/{_meetingEligibleVotes.Value} votes.");
+            _meetingSummary.Value = FixedStringUtility.ToFixedString128($"{source}: {BuildClientLabel(voterClientId)} voted against {BuildClientLabel(accusedClientId)}. {_meetingVotesCast.Value}/{_meetingEligibleVotes.Value} votes.");
             TryCloseMeetingEarlyWhenComplete();
             return true;
         }
@@ -438,7 +439,7 @@ namespace HueDoneIt.Gameplay.Round
             _meetingVotes[voterClientId] = SkipVoteClientId;
             UpdateMeetingVoteCounters();
             string source = string.IsNullOrWhiteSpace(sourceLabel) ? "Voting podium" : sourceLabel;
-            _meetingSummary.Value = new FixedString128Bytes($"{source}: {BuildClientLabel(voterClientId)} voted to skip. {_meetingVotesCast.Value}/{_meetingEligibleVotes.Value} votes.");
+            _meetingSummary.Value = FixedStringUtility.ToFixedString128($"{source}: {BuildClientLabel(voterClientId)} voted to skip. {_meetingVotesCast.Value}/{_meetingEligibleVotes.Value} votes.");
             TryCloseMeetingEarlyWhenComplete();
             return true;
         }
@@ -449,7 +450,7 @@ namespace HueDoneIt.Gameplay.Round
             _meetingVotesCast.Value = 0;
             _meetingEligibleVotes.Value = CountEligibleMeetingVoters();
             _meetingEjectedClientId.Value = ulong.MaxValue;
-            _meetingSummary.Value = new FixedString128Bytes(string.IsNullOrWhiteSpace(summary) ? "Meeting open. Vote or skip." : summary);
+            _meetingSummary.Value = FixedStringUtility.ToFixedString128(string.IsNullOrWhiteSpace(summary) ? "Meeting open. Vote or skip." : summary);
         }
 
         private void ResetMeetingVoteState(string summary)
@@ -458,7 +459,7 @@ namespace HueDoneIt.Gameplay.Round
             _meetingVotesCast.Value = 0;
             _meetingEligibleVotes.Value = 0;
             _meetingEjectedClientId.Value = ulong.MaxValue;
-            _meetingSummary.Value = new FixedString128Bytes(string.IsNullOrWhiteSpace(summary) ? "Meeting inactive." : summary);
+            _meetingSummary.Value = FixedStringUtility.ToFixedString128(string.IsNullOrWhiteSpace(summary) ? "Meeting inactive." : summary);
         }
 
         private void UpdateMeetingVoteCounters()
@@ -483,7 +484,7 @@ namespace HueDoneIt.Gameplay.Round
         {
             if (!IsServer || _meetingVotes.Count <= 0)
             {
-                _meetingSummary.Value = new FixedString128Bytes("Meeting ended with no votes cast.");
+                _meetingSummary.Value = FixedStringUtility.ToFixedString128("Meeting ended with no votes cast.");
                 return;
             }
 
@@ -528,16 +529,16 @@ namespace HueDoneIt.Gameplay.Round
             if (bestTarget == ulong.MaxValue || tied || bestVotes < requiredVotes || bestVotes <= skipVotes || !TryGetClientLifeState(bestTarget, out PlayerLifeState targetLifeState))
             {
                 _meetingEjectedClientId.Value = ulong.MaxValue;
-                _meetingSummary.Value = new FixedString128Bytes($"Vote skipped/no majority. Accuse {bestVotes}, skip {skipVotes}, required {requiredVotes}.");
-                _roundMessage.Value = new FixedString128Bytes("Meeting ended without an ejection.");
+                _meetingSummary.Value = FixedStringUtility.ToFixedString128($"Vote skipped/no majority. Accuse {bestVotes}, skip {skipVotes}, required {requiredVotes}.");
+                _roundMessage.Value = FixedStringUtility.ToFixedString128("Meeting ended without an ejection.");
                 return;
             }
 
             if (targetLifeState.ServerTrySetEliminated("Voted out by meeting"))
             {
                 _meetingEjectedClientId.Value = bestTarget;
-                _meetingSummary.Value = new FixedString128Bytes($"{BuildClientLabel(bestTarget)} was voted out with {bestVotes}/{eligible} votes.");
-                _roundMessage.Value = new FixedString128Bytes($"{BuildClientLabel(bestTarget)} was voted out.");
+                _meetingSummary.Value = FixedStringUtility.ToFixedString128($"{BuildClientLabel(bestTarget)} was voted out with {bestVotes}/{eligible} votes.");
+                _roundMessage.Value = FixedStringUtility.ToFixedString128($"{BuildClientLabel(bestTarget)} was voted out.");
                 EvaluateWinConditions();
             }
         }
@@ -599,7 +600,7 @@ namespace HueDoneIt.Gameplay.Round
             _reportingClientId.Value = ulong.MaxValue;
             _reportedVictimClientId.Value = ulong.MaxValue;
             _roundEndServerTime.Value = GetServerTime() + roundDurationSeconds;
-            _roundMessage.Value = new FixedString128Bytes("Round starting. Roles assigned.");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128("Round starting. Roles assigned.");
             _resumeGraceEndTime = 0f;
             _pressure01.Value = 0f;
             _pressureStage.Value = (byte)PressureStage.Early;
@@ -618,7 +619,7 @@ namespace HueDoneIt.Gameplay.Round
         private void StartCrash()
         {
             SetPhase(RoundPhase.Crash, crashDurationSeconds);
-            _roundMessage.Value = new FixedString128Bytes("Ship impact! Hold on.");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128("Ship impact! Hold on.");
             SetObjective("Ship is crashing. Regain control.");
             ApplyCrashImpulseToPlayers();
         }
@@ -626,7 +627,7 @@ namespace HueDoneIt.Gameplay.Round
         private void StartFreeRoam(string message)
         {
             SetPhase(RoundPhase.FreeRoam, Mathf.Max(0.1f, RoundTimeRemaining));
-            _roundMessage.Value = new FixedString128Bytes(message);
+            _roundMessage.Value = FixedStringUtility.ToFixedString128(message);
             SetFloodFlowActive(true);
             BroadcastPressureStageToFloodControllers();
             UpdateObjectiveForCurrentState();
@@ -659,7 +660,7 @@ namespace HueDoneIt.Gameplay.Round
             if ((byte)nextStage != _pressureStage.Value)
             {
                 _pressureStage.Value = (byte)nextStage;
-                _roundMessage.Value = new FixedString128Bytes($"Pressure shifted to {nextStage}. Routes are changing.");
+                _roundMessage.Value = FixedStringUtility.ToFixedString128($"Pressure shifted to {nextStage}. Routes are changing.");
                 BroadcastPressureStageToFloodControllers();
             }
         }
@@ -1029,12 +1030,20 @@ namespace HueDoneIt.Gameplay.Round
         private bool TryProjectSpawnToFloor(Vector3 authoredPosition, out Vector3 spawnPosition, out string rejectReason)
         {
             Vector3 rayOrigin = authoredPosition + (Vector3.up * Mathf.Max(1f, spawnCapsuleHeight));
-            float rayDistance = Mathf.Max(1f, spawnFloorProbeDistance);
-            if (!Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit floorHit, rayDistance, spawnSolidMask, QueryTriggerInteraction.Ignore))
+            float rayDistance = Mathf.Max(4f, spawnFloorProbeDistance + spawnCapsuleHeight + 2f);
+            int floorMask = spawnSolidMask.value != 0 ? spawnSolidMask.value : ~0;
+
+            if (!Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit floorHit, rayDistance, floorMask, QueryTriggerInteraction.Ignore) &&
+                !Physics.Raycast(rayOrigin, Vector3.down, out floorHit, rayDistance, ~0, QueryTriggerInteraction.Ignore))
             {
+                // Beta fallback: some generated floor planes use a layer not present in the authored spawn mask.
+                // Do not fail the whole round for that. Put the blob at a conservative playable height and let
+                // the collision stabilizer/depenetration pass resolve small overlaps.
+                float halfHeight = Mathf.Max(spawnCapsuleRadius, spawnCapsuleHeight * 0.5f);
                 spawnPosition = authoredPosition;
-                rejectReason = "no floor below";
-                return false;
+                spawnPosition.y = Mathf.Max(spawnPosition.y, halfHeight + 0.35f);
+                rejectReason = string.Empty;
+                return true;
             }
 
             if (floorHit.normal.y < 0.45f)
@@ -1044,8 +1053,8 @@ namespace HueDoneIt.Gameplay.Round
                 return false;
             }
 
-            float halfHeight = Mathf.Max(spawnCapsuleRadius, spawnCapsuleHeight * 0.5f);
-            spawnPosition = floorHit.point + Vector3.up * (halfHeight + 0.05f);
+            float resolvedHalfHeight = Mathf.Max(spawnCapsuleRadius, spawnCapsuleHeight * 0.5f);
+            spawnPosition = floorHit.point + Vector3.up * (resolvedHalfHeight + 0.05f);
             rejectReason = string.Empty;
             return true;
         }
@@ -1437,7 +1446,7 @@ namespace HueDoneIt.Gameplay.Round
                 SetFloodFlowActive(false);
                 BeginMeetingVote($"Scheduled meeting at {Mathf.RoundToInt(ScheduledVoteSeconds[i] / 60f * 10f) / 10f}m. Use voting pods to accuse or skip.");
                 SetPhase(RoundPhase.Reported, reportedDurationSeconds);
-                _roundMessage.Value = new FixedString128Bytes($"Emergency vote triggered at {Mathf.RoundToInt(ScheduledVoteSeconds[i] / 60f * 10f) / 10f}m mark.");
+                _roundMessage.Value = FixedStringUtility.ToFixedString128($"Emergency vote triggered at {Mathf.RoundToInt(ScheduledVoteSeconds[i] / 60f * 10f) / 10f}m mark.");
                 SetObjective("Emergency vote in progress. Cast a vote or skip before the timer ends.");
                 break;
             }
@@ -1453,7 +1462,7 @@ namespace HueDoneIt.Gameplay.Round
             CancelActiveTasks("Round resolved");
             SetFloodFlowActive(false);
             _winner.Value = (byte)winner;
-            _roundMessage.Value = new FixedString128Bytes(message);
+            _roundMessage.Value = FixedStringUtility.ToFixedString128(message);
             SetObjective("Round resolved: " + message);
             SetPhase(RoundPhase.Resolved, resolvedDurationSeconds);
         }
@@ -1462,7 +1471,7 @@ namespace HueDoneIt.Gameplay.Round
         {
             if (CurrentPhase == RoundPhase.Lobby || CurrentPhase == RoundPhase.PostRound)
             {
-                _roundMessage.Value = new FixedString128Bytes("Player connected. Preparing next round.");
+                _roundMessage.Value = FixedStringUtility.ToFixedString128("Player connected. Preparing next round.");
             }
         }
 
@@ -1486,7 +1495,7 @@ namespace HueDoneIt.Gameplay.Round
             _reportedVictimClientId.Value = ulong.MaxValue;
             _winner.Value = (byte)RoundWinner.None;
             _roundEndServerTime.Value = 0f;
-            _roundMessage.Value = new FixedString128Bytes("Waiting for players");
+            _roundMessage.Value = FixedStringUtility.ToFixedString128("Waiting for players");
             _pressure01.Value = 0f;
             _pressureStage.Value = (byte)PressureStage.Early;
             _sabotageEventCount.Value = 0;
@@ -1503,7 +1512,7 @@ namespace HueDoneIt.Gameplay.Round
 
         private void SetObjective(string objective)
         {
-            _currentObjective.Value = new FixedString128Bytes(objective);
+            _currentObjective.Value = FixedStringUtility.ToFixedString128(objective);
         }
 
         private void SetPhase(RoundPhase phase, float durationSeconds)

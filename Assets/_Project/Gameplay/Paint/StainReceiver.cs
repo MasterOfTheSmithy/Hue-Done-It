@@ -282,8 +282,8 @@ namespace HueDoneIt.Gameplay.Paint
         {
             EnsureGlobalRoot();
 
-            GlobalDecal decal = GlobalPool.Count > 0 ? GlobalPool.Pop() : CreateGlobalDecal();
-            if (decal == null)
+            GlobalDecal decal = AcquireValidGlobalDecal();
+            if (!IsGlobalDecalUsable(decal))
             {
                 return;
             }
@@ -301,12 +301,14 @@ namespace HueDoneIt.Gameplay.Paint
 
             float baseScale = Mathf.Clamp(splatData.Radius, 0.06f, 2.6f);
             float stretch = Mathf.Clamp(splatData.StretchAmount, 1f, 3.5f);
-            decal.Transform.localScale = new Vector3(baseScale * stretch, baseScale, 1f);
+            float organicJitter = 0.88f + (Mathf.Abs(Mathf.Sin((splatData.PatternSeed + 17) * 12.9898f)) * 0.24f);
+            decal.Transform.localScale = new Vector3(baseScale * stretch * organicJitter, baseScale / Mathf.Max(0.65f, organicJitter), 1f);
 
             float alpha = Mathf.Clamp01((wet ? 0.28f : 0.44f) * Mathf.Clamp(splatData.Intensity, 0.35f, 1.5f));
             Color renderedColor = color;
             renderedColor.a = alpha;
 
+            decal.PropertyBlock ??= new MaterialPropertyBlock();
             decal.Renderer.GetPropertyBlock(decal.PropertyBlock);
             decal.PropertyBlock.SetColor(BaseColorId, renderedColor);
             decal.PropertyBlock.SetColor(ColorId, renderedColor);
@@ -315,6 +317,28 @@ namespace HueDoneIt.Gameplay.Paint
 
             GlobalDecals.Add(decal);
             TrimGlobalDecals();
+        }
+
+        private static GlobalDecal AcquireValidGlobalDecal()
+        {
+            while (GlobalPool.Count > 0)
+            {
+                GlobalDecal pooled = GlobalPool.Pop();
+                if (IsGlobalDecalUsable(pooled))
+                {
+                    return pooled;
+                }
+            }
+
+            return CreateGlobalDecal();
+        }
+
+        private static bool IsGlobalDecalUsable(GlobalDecal decal)
+        {
+            return decal != null &&
+                   decal.GameObject != null &&
+                   decal.Transform != null &&
+                   decal.Renderer != null;
         }
 
         private void RegisterActivity(PaintSplatData splatData)
@@ -571,11 +595,19 @@ namespace HueDoneIt.Gameplay.Paint
 
         private static void TrimGlobalDecals()
         {
+            for (int i = GlobalDecals.Count - 1; i >= 0; i--)
+            {
+                if (!IsGlobalDecalUsable(GlobalDecals[i]))
+                {
+                    GlobalDecals.RemoveAt(i);
+                }
+            }
+
             while (GlobalDecals.Count > MaxGlobalFallbackDecals)
             {
                 GlobalDecal oldest = GlobalDecals[0];
                 GlobalDecals.RemoveAt(0);
-                if (oldest == null || oldest.GameObject == null)
+                if (!IsGlobalDecalUsable(oldest))
                 {
                     continue;
                 }
@@ -1117,7 +1149,7 @@ namespace HueDoneIt.Gameplay.Paint
             for (int i = GlobalDecals.Count - 1; i >= 0; i--)
             {
                 GlobalDecal decal = GlobalDecals[i];
-                if (decal == null || decal.GameObject == null)
+                if (!IsGlobalDecalUsable(decal))
                 {
                     GlobalDecals.RemoveAt(i);
                     continue;

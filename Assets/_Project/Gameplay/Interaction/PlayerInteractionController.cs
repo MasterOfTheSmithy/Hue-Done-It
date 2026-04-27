@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Interaction/PlayerInteractionController.cs
+using System;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Players;
@@ -99,12 +100,22 @@ namespace HueDoneIt.Gameplay.Interaction
             }
 
             InteractionContext context = new(client.PlayerObject, senderClientId, true);
-            if (!interactable.CanInteract(context))
+            bool success;
+            try
             {
+                if (!interactable.CanInteract(context))
+                {
+                    return;
+                }
+
+                success = interactable.TryInteract(context);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"Interaction failed safely. Client={senderClientId}, Object={interactable.name}, Type={interactable.GetType().Name}, Error={exception.Message}");
                 return;
             }
 
-            bool success = interactable.TryInteract(context);
             if (!success)
             {
                 return;

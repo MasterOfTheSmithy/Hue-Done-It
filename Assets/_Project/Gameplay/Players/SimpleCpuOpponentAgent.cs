@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Players/SimpleCpuOpponentAgent.cs
+using System;
 using System.Collections.Generic;
 using HueDoneIt.Flood;
 using HueDoneIt.Flood.Integration;
@@ -91,7 +92,7 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             _nextRepathTime = Time.time + 0.05f;
-            _nextJumpTime = Time.time + Random.Range(jumpIntervalMin, jumpIntervalMax);
+            _nextJumpTime = Time.time + UnityEngine.Random.Range(jumpIntervalMin, jumpIntervalMax);
             _nextTaskRefreshTime = Time.time + 0.2f;
             _lastPathSamplePosition = transform.position;
             _avoidanceDirection = transform.forward;
@@ -284,7 +285,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (bestPodium.CanInteract(context))
             {
-                bestPodium.TryInteract(context);
+                TryInteractSafely(bestPodium, context);
             }
 
             return true;
@@ -366,7 +367,7 @@ namespace HueDoneIt.Gameplay.Players
             }
 
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
-            bestConsole.TryInteract(context);
+            TryInteractSafely(bestConsole, context);
             return true;
         }
 
@@ -406,7 +407,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (bestStation.CanInteract(context))
             {
-                bestStation.TryInteract(context);
+                TryInteractSafely(bestStation, context);
             }
 
             return true;
@@ -453,7 +454,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (bestBeacon.CanInteract(context))
             {
-                bestBeacon.TryInteract(context);
+                TryInteractSafely(bestBeacon, context);
             }
 
             return true;
@@ -476,7 +477,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (station.CanInteract(context))
             {
-                station.TryInteract(context);
+                TryInteractSafely(station, context);
             }
 
             return true;
@@ -530,7 +531,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (tripwire.CanInteract(context))
             {
-                tripwire.TryInteract(context);
+                TryInteractSafely(tripwire, context);
             }
 
             return true;
@@ -584,7 +585,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (station.CanInteract(context))
             {
-                station.TryInteract(context);
+                TryInteractSafely(station, context);
             }
 
             return true;
@@ -642,7 +643,7 @@ namespace HueDoneIt.Gameplay.Players
                 InteractionContext context = new(NetworkObject, OwnerClientId, true);
                 if (beacon.CanInteract(context))
                 {
-                    beacon.TryInteract(context);
+                    TryInteractSafely(beacon, context);
                 }
             }
 
@@ -700,7 +701,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (scanner.CanInteract(context))
             {
-                scanner.TryInteract(context);
+                TryInteractSafely(scanner, context);
             }
 
             return true;
@@ -754,7 +755,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (station.CanInteract(context))
             {
-                station.TryInteract(context);
+                TryInteractSafely(station, context);
             }
 
             return true;
@@ -809,7 +810,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (station.CanInteract(context))
             {
-                station.TryInteract(context);
+                TryInteractSafely(station, context);
             }
 
             return true;
@@ -891,7 +892,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (bestBeacon.CanInteract(context))
             {
-                bestBeacon.TryInteract(context);
+                TryInteractSafely(bestBeacon, context);
             }
 
             return true;
@@ -914,7 +915,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (station.CanInteract(context))
             {
-                station.TryInteract(context);
+                TryInteractSafely(station, context);
             }
 
             return true;
@@ -980,7 +981,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (vent.CanInteract(context))
             {
-                vent.TryInteract(context);
+                TryInteractSafely(vent, context);
             }
 
             return true;
@@ -1051,7 +1052,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (bestVent.CanInteract(context))
             {
-                bestVent.TryInteract(context);
+                TryInteractSafely(bestVent, context);
             }
 
             return true;
@@ -1074,7 +1075,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (station.CanInteract(context))
             {
-                station.TryInteract(context);
+                TryInteractSafely(station, context);
             }
 
             return true;
@@ -1130,7 +1131,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (bestStation.CanInteract(context))
             {
-                bestStation.TryInteract(context);
+                TryInteractSafely(bestStation, context);
             }
 
             return true;
@@ -1204,7 +1205,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (station.CanInteract(context))
             {
-                station.TryInteract(context);
+                TryInteractSafely(station, context);
             }
 
             return true;
@@ -1265,7 +1266,7 @@ namespace HueDoneIt.Gameplay.Players
             InteractionContext context = new(NetworkObject, OwnerClientId, true);
             if (_currentAdvancedStep.CanInteract(context))
             {
-                _currentAdvancedStep.TryInteract(context);
+                TryInteractSafely(_currentAdvancedStep, context);
             }
 
             _currentAdvancedStep = null;
@@ -1663,7 +1664,7 @@ namespace HueDoneIt.Gameplay.Players
             away.y = 0f;
             if (away.sqrMagnitude < 0.001f)
             {
-                away = Random.insideUnitSphere;
+                away = UnityEngine.Random.insideUnitSphere;
                 away.y = 0f;
             }
 
@@ -1675,7 +1676,7 @@ namespace HueDoneIt.Gameplay.Players
             if (Time.time >= _nextRepathTime || Vector3.Distance(transform.position, _moveTarget) < 1.1f)
             {
                 _nextRepathTime = Time.time + repathIntervalSeconds;
-                Vector2 ring = Random.insideUnitCircle * wanderRadius;
+                Vector2 ring = UnityEngine.Random.insideUnitCircle * wanderRadius;
                 _moveTarget = ClampToArena(transform.position + new Vector3(ring.x, 0f, ring.y));
             }
 
@@ -1699,7 +1700,7 @@ namespace HueDoneIt.Gameplay.Players
             bool shouldJump = Time.time >= _nextJumpTime;
             if (shouldJump)
             {
-                _nextJumpTime = Time.time + Random.Range(jumpIntervalMin, jumpIntervalMax);
+                _nextJumpTime = Time.time + UnityEngine.Random.Range(jumpIntervalMin, jumpIntervalMax);
             }
 
             _mover.ServerSetExternalInput(direction, yaw, shouldJump, false, false, 0.25f);
@@ -1817,6 +1818,24 @@ namespace HueDoneIt.Gameplay.Players
             _shipCheckpointIndex = 0;
             _shipCheckpointWindow = 0f;
             _shipCheckpointFractions.Clear();
+        }
+
+        private bool TryInteractSafely(NetworkInteractable interactable, in InteractionContext context)
+        {
+            if (interactable == null)
+            {
+                return false;
+            }
+
+            try
+            {
+                return interactable.TryInteract(context);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogError($"CPU interaction failed safely. Agent={name}, Object={interactable.name}, Type={interactable.GetType().Name}, Error={exception.Message}");
+                return false;
+            }
         }
 
         private void ResolveReferences()

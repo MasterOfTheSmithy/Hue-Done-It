@@ -128,12 +128,12 @@ namespace HueDoneIt.Gameplay.Environment
             int readySabotage = CountReadySabotageConsoles();
             int bleachResidue = CountBleachPlayersInRadius();
             int actionableEvidence = CountActionableEvidenceInRadius();
-            string detail = $"Scan result: {activeLeaks} active leak(s), {readySabotage} armed sabotage console(s), {actionableEvidence} fresh evidence shard(s), bleach residue {(bleachResidue > 0 ? "detected" : "not detected")} within {Mathf.RoundToInt(scanRadius)}m.";
+            string detail = $"Leaks {activeLeaks} | Sabotage {readySabotage} | Evidence {actionableEvidence} | Bleach {(bleachResidue > 0 ? "YES" : "no")}";
 
             NetworkSabotageConsole quarantined = QuarantineNearestSabotageConsole();
             if (quarantined != null)
             {
-                detail += " Nearest sabotage console quarantined.";
+                detail += " | Quarantine active";
             }
 
             NetworkRoundState roundState = FindFirstObjectByType<NetworkRoundState>();

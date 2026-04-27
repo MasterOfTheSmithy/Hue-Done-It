@@ -74,7 +74,7 @@ namespace HueDoneIt.Gameplay.Players
                 _outfitIndex.Value = BootSessionConfig.SelectedOutfit;
 
                 bool isCpu = GetComponent<SimpleCpuOpponentAgent>() != null;
-                _playerLabel.Value = new FixedString32Bytes((isCpu ? "CPU" : "Player") + $" {OwnerClientId}");
+                _playerLabel.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString32((isCpu ? "CPU" : "Player") + $" {OwnerClientId}");
             }
 
             _opacity.OnValueChanged += HandleOpacityChanged;
