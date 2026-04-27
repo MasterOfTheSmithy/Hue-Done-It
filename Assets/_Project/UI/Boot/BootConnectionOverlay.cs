@@ -102,6 +102,7 @@ namespace HueDoneIt.UI.Boot
         {
             GUILayout.Label("Main Menu", GUI.skin.box);
             GUILayout.Label("Boot is menu-only. Character customization and map voting happen in Lobby.");
+            DrawStatusLine();
 
             if (GUILayout.Button("Create Lobby", GUILayout.Height(48f)))
             {
@@ -129,6 +130,7 @@ namespace HueDoneIt.UI.Boot
             GUILayout.Label("Create Lobby", GUI.skin.box);
             DrawConnectionFields();
             GUILayout.Label("Create Lobby enters the 3D Lobby scene. Match control, map voting, CPUs, and customization are in-world there.");
+            DrawStatusLine();
 
             if (GUILayout.Button("Host Lobby", GUILayout.Height(48f)))
             {
@@ -146,6 +148,7 @@ namespace HueDoneIt.UI.Boot
             GUILayout.Label("Join Lobby", GUI.skin.box);
             DrawConnectionFields();
             GUILayout.Label("Join enters the 3D Lobby scene and then connects as a client.");
+            DrawStatusLine();
 
             if (GUILayout.Button("Join as Client", GUILayout.Height(48f)))
             {
@@ -205,6 +208,15 @@ namespace HueDoneIt.UI.Boot
             _address = GUILayout.TextField(_address ?? string.Empty, 64);
             GUILayout.Label("Port");
             _portString = GUILayout.TextField(_portString ?? "7777", 8);
+        }
+
+        private void DrawStatusLine()
+        {
+            string status = _buttons != null ? _buttons.StatusMessage : "Network controls are not available.";
+            GUILayout.Space(6f);
+            GUILayout.Label("Status: " + status, GUI.skin.box);
+            GUILayout.Label($"Build {Application.version} // Unity {Application.unityVersion}");
+            GUILayout.Space(4f);
         }
 
         private void ApplyConnectionFields()

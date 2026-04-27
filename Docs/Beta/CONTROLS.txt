@@ -1,0 +1,27 @@
+Hue Done It - Controls
+
+Movement:
+- WASD: move
+- Mouse: look
+- Space: jump
+- Shift: burst/slime push if enabled
+
+Interaction:
+- E: interact with tasks, pickups, lobby controls, or emergency/report prompts
+- R: report a nearby body/remains when prompted
+- Tab: objectives/map if the current HUD build exposes it
+- Esc: pause/settings if available
+
+Inventory:
+- Number keys 1-3: select/use slots if bound in the current build
+- Drop/use prompts are shown by the inventory HUD when supported
+- Small items can enter inventory. Large objective items must be carried or used in-world.
+
+Bleach controls:
+- F: primary inject/pop kill when close, off cooldown, in line of sight, and outside meetings
+- Q: secondary ability when assigned and off cooldown
+
+Meeting:
+- Vote through the meeting UI.
+- Dead players cannot vote in the current beta rules.
+- Ties skip ejection.

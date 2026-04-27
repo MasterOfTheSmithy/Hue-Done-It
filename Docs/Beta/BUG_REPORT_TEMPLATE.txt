@@ -1,0 +1,25 @@
+Hue Done It - Beta Bug Report
+
+Build version:
+Host or client:
+Player count:
+Map:
+
+What happened:
+
+Expected behavior:
+
+Reproduction steps:
+1.
+2.
+3.
+
+Did it happen more than once?
+
+Screenshot or video attached?
+
+Player.log attached?
+
+Any visible status/error message:
+
+Notes:

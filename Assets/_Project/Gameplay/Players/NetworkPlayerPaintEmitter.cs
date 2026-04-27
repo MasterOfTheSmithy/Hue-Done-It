@@ -29,8 +29,13 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField] private bool spawnFallbackAirSplat = true;
         [SerializeField, Min(0.1f)] private float fallbackLifetimeSeconds = 3.5f;
 
+        [Header("Budget")]
+        [SerializeField, Min(1)] private int maxReplicatedPaintEventsPerSecond = 24;
+
         private PlayerColorProfile _colorProfile;
         private PlayerFloodZoneTracker _floodTracker;
+        private float _paintBudgetWindowStart;
+        private int _paintEventsThisWindow;
 
         private void Awake()
         {
@@ -72,6 +77,11 @@ namespace HueDoneIt.Gameplay.Players
                 return;
             }
 
+            if (!TryConsumePaintBudget())
+            {
+                return;
+            }
+
             PaintSplatData scaled = BuildScaledSplat(kind, position, normal, radius, intensity, forceMagnitude, velocityDirection, splatType, permanence, patternIndex);
             ReceivePaintClientRpc(
                 (byte)scaled.EventKind,
@@ -89,6 +99,24 @@ namespace HueDoneIt.Gameplay.Players
                 scaled.StretchAmount,
                 scaled.RotationDegrees,
                 _colorProfile != null ? _colorProfile.PlayerColor : Color.white);
+        }
+
+        private bool TryConsumePaintBudget()
+        {
+            float now = Time.unscaledTime;
+            if (now - _paintBudgetWindowStart >= 1f)
+            {
+                _paintBudgetWindowStart = now;
+                _paintEventsThisWindow = 0;
+            }
+
+            if (_paintEventsThisWindow >= maxReplicatedPaintEventsPerSecond)
+            {
+                return false;
+            }
+
+            _paintEventsThisWindow++;
+            return true;
         }
 
         private PaintSplatData BuildScaledSplat(

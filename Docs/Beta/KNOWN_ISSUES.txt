@@ -1,0 +1,9 @@
+Hue Done It - Known Beta Issues
+
+- This pass focuses on host/lobby/start flow, safe spawning, dry flood starts, localized paint budgets, and core match stability.
+- Multiplayer joining is expected to use LAN/direct IP unless another transport or relay setup is configured outside the build.
+- Inventory pickup state is networked, but item use/drop polish is still limited.
+- Killer secondary abilities exist in a simple beta form and need more feedback, balance, and fail-state messaging.
+- Some task and meeting UI is still functional placeholder UI.
+- CPU fillers can exercise match flow but may not behave like real players in meetings or pathing edge cases.
+- Unity compile validation depends on the local editor installation and may need to be repeated on a developer machine before distributing a build.

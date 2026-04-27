@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Elimination/EliminationManager.cs
+using System;
 using HueDoneIt.Evidence;
 using HueDoneIt.Gameplay.Round;
 using Unity.Netcode;
@@ -11,6 +12,8 @@ namespace HueDoneIt.Gameplay.Elimination
     public sealed class EliminationManager : NetworkBehaviour
     {
         [SerializeField, Min(0.1f)] private float maxEliminationRange = 2.5f;
+        [SerializeField, Min(0f)] private float lineOfSightHeight = 0.8f;
+        [SerializeField] private LayerMask lineOfSightMask = ~0;
         [SerializeField] private PlayerRemains remainsPrefab;
 
         private NetworkRoundState _roundState;
@@ -66,6 +69,12 @@ namespace HueDoneIt.Gameplay.Elimination
                 return false;
             }
 
+            if (!HasClearLineOfSight(killerObject, targetObject))
+            {
+                Debug.LogWarning($"Elimination rejected: line of sight blocked. Killer={killerObject.OwnerClientId}, Target={targetObject.OwnerClientId}");
+                return false;
+            }
+
             if (!targetLifeState.ServerTrySetEliminated())
             {
                 return false;
@@ -79,6 +88,45 @@ namespace HueDoneIt.Gameplay.Elimination
             SpawnEvidenceShard(killerObject, targetObject);
 
             Debug.Log($"Elimination accepted. Killer={killerObject.OwnerClientId}, Target={targetObject.OwnerClientId}");
+            return true;
+        }
+
+        private bool HasClearLineOfSight(NetworkObject killerObject, NetworkObject targetObject)
+        {
+            Vector3 origin = killerObject.transform.position + (Vector3.up * lineOfSightHeight);
+            Vector3 destination = targetObject.transform.position + (Vector3.up * lineOfSightHeight);
+            Vector3 direction = destination - origin;
+            float distance = direction.magnitude;
+            if (distance <= 0.01f)
+            {
+                return true;
+            }
+
+            RaycastHit[] hits = Physics.RaycastAll(origin, direction / distance, distance + 0.05f, lineOfSightMask, QueryTriggerInteraction.Ignore);
+            Array.Sort(hits, (a, b) => a.distance.CompareTo(b.distance));
+
+            for (int i = 0; i < hits.Length; i++)
+            {
+                RaycastHit hit = hits[i];
+                if (hit.collider == null)
+                {
+                    continue;
+                }
+
+                if (hit.transform.IsChildOf(killerObject.transform))
+                {
+                    continue;
+                }
+
+                NetworkObject hitObject = hit.collider.GetComponentInParent<NetworkObject>();
+                if (hitObject == targetObject || hit.transform.IsChildOf(targetObject.transform))
+                {
+                    return true;
+                }
+
+                return false;
+            }
+
             return true;
         }
 
