@@ -4,6 +4,7 @@ using System.Collections.Generic;
 using HueDoneIt.Flood;
 using HueDoneIt.Flood.Integration;
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Environment;
 using HueDoneIt.Gameplay.Inventory;
 using HueDoneIt.Gameplay.Players;
 using HueDoneIt.Gameplay.Director;
@@ -57,6 +58,14 @@ namespace HueDoneIt.Gameplay.Round
         [Header("Spawn")]
         [SerializeField] private string spawnPointPrefix = "SpawnPoint_";
         [SerializeField] private float spawnHeightOffset = 0.05f;
+        [SerializeField, Min(0.1f)] private float spawnCapsuleHeight = 2f;
+        [SerializeField, Min(0.05f)] private float spawnCapsuleRadius = 0.45f;
+        [SerializeField, Min(0.1f)] private float spawnFloorProbeDistance = 8f;
+        [SerializeField, Min(0.1f)] private float spawnMinimumPlayerSeparation = 1.6f;
+        [SerializeField, Min(0.1f)] private float spawnEscapeProbeDistance = 1.25f;
+        [SerializeField] private LayerMask spawnSolidMask = ~0;
+        [SerializeField] private LayerMask spawnHazardMask = ~0;
+        [SerializeField] private bool logSpawnValidation;
 
         private readonly NetworkVariable<byte> _phase =
             new((byte)RoundPhase.Lobby, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -270,6 +279,7 @@ namespace HueDoneIt.Gameplay.Round
             _reportedVictimClientId.Value = reportedVictimClientId;
             CancelActiveTasks("Body reported");
             ApplyReportTimePenalty();
+            SetFloodFlowActive(false);
             BeginMeetingVote($"Body report by {BuildClientLabel(reportingClientId)}. Use voting pods: accuse a nearby suspect or skip.");
             SetPhase(RoundPhase.Reported, reportedDurationSeconds);
             _roundMessage.Value = new FixedString128Bytes($"Body reported by {BuildClientLabel(reportingClientId)}. Clock reduced.");
@@ -296,6 +306,7 @@ namespace HueDoneIt.Gameplay.Round
             _reportingClientId.Value = callerClientId;
             _reportedVictimClientId.Value = ulong.MaxValue;
             CancelActiveTasks("Emergency meeting");
+            SetFloodFlowActive(false);
             BeginMeetingVote($"{BuildClientLabel(callerClientId)} called a meeting. Use voting pods: accuse a nearby suspect or skip.");
             SetPhase(RoundPhase.Reported, reportedDurationSeconds);
 
@@ -734,6 +745,7 @@ namespace HueDoneIt.Gameplay.Round
             List<NetworkClient> sortedClients = new(NetworkManager.ConnectedClientsList);
             sortedClients.Sort((a, b) => a.ClientId.CompareTo(b.ClientId));
             HashSet<ulong> movedNetworkObjectIds = new();
+            List<Vector3> claimedSpawnPositions = new();
 
             int spawnIndex = 0;
             foreach (NetworkClient client in sortedClients)
@@ -765,8 +777,18 @@ namespace HueDoneIt.Gameplay.Round
 
                 if (spawnPoints.Count > 0)
                 {
-                    Transform spawnPoint = spawnPoints[spawnIndex % spawnPoints.Count];
-                    MoveObjectToSpawn(client.PlayerObject, spawnPoint);
+                    if (TrySelectSafeSpawn(spawnPoints, spawnIndex, claimedSpawnPositions, out Vector3 spawnPosition, out float spawnYaw))
+                    {
+                        MoveObjectToSpawn(client.PlayerObject, spawnPosition, spawnYaw);
+                        claimedSpawnPositions.Add(spawnPosition);
+                    }
+                    else
+                    {
+                        Transform spawnPoint = spawnPoints[spawnIndex % spawnPoints.Count];
+                        MoveObjectToSpawn(client.PlayerObject, spawnPoint.position + (Vector3.up * spawnHeightOffset), spawnPoint.rotation.eulerAngles.y);
+                        Debug.LogWarning($"NetworkRoundState: falling back to unvalidated spawn '{spawnPoint.name}' for client {client.ClientId}.");
+                    }
+
                     movedNetworkObjectIds.Add(client.PlayerObject.NetworkObjectId);
                     spawnIndex++;
                 }
@@ -807,22 +829,29 @@ namespace HueDoneIt.Gameplay.Round
 
                 if (spawnPoints.Count > 0)
                 {
-                    Transform spawnPoint = spawnPoints[spawnIndex % spawnPoints.Count];
-                    MoveObjectToSpawn(avatar.NetworkObject, spawnPoint);
+                    if (TrySelectSafeSpawn(spawnPoints, spawnIndex, claimedSpawnPositions, out Vector3 spawnPosition, out float spawnYaw))
+                    {
+                        MoveObjectToSpawn(avatar.NetworkObject, spawnPosition, spawnYaw);
+                        claimedSpawnPositions.Add(spawnPosition);
+                    }
+                    else
+                    {
+                        Transform spawnPoint = spawnPoints[spawnIndex % spawnPoints.Count];
+                        MoveObjectToSpawn(avatar.NetworkObject, spawnPoint.position + (Vector3.up * spawnHeightOffset), spawnPoint.rotation.eulerAngles.y);
+                        Debug.LogWarning($"NetworkRoundState: falling back to unvalidated spawn '{spawnPoint.name}' for avatar {avatar.name}.");
+                    }
+
                     spawnIndex++;
                 }
             }
         }
 
-        private void MoveObjectToSpawn(NetworkObject targetObject, Transform spawnPoint)
+        private void MoveObjectToSpawn(NetworkObject targetObject, Vector3 spawnPosition, float spawnYaw)
         {
-            if (targetObject == null || spawnPoint == null)
+            if (targetObject == null)
             {
                 return;
             }
-
-            Vector3 spawnPosition = spawnPoint.position + (Vector3.up * spawnHeightOffset);
-            float spawnYaw = spawnPoint.rotation.eulerAngles.y;
 
             if (targetObject.TryGetComponent(out NetworkPlayerAuthoritativeMover mover))
             {
@@ -832,6 +861,236 @@ namespace HueDoneIt.Gameplay.Round
             {
                 targetObject.transform.SetPositionAndRotation(spawnPosition, Quaternion.Euler(0f, spawnYaw, 0f));
             }
+        }
+
+        private bool TrySelectSafeSpawn(List<Transform> spawnPoints, int preferredIndex, List<Vector3> claimedPositions, out Vector3 spawnPosition, out float spawnYaw)
+        {
+            spawnPosition = Vector3.zero;
+            spawnYaw = 0f;
+
+            if (spawnPoints == null || spawnPoints.Count == 0)
+            {
+                return TryFindSafeFallback(Vector3.zero, claimedPositions, out spawnPosition, out spawnYaw);
+            }
+
+            string lastRejectReason = string.Empty;
+            for (int offset = 0; offset < spawnPoints.Count; offset++)
+            {
+                Transform spawnPoint = spawnPoints[(preferredIndex + offset) % spawnPoints.Count];
+                if (spawnPoint == null)
+                {
+                    continue;
+                }
+
+                if (TryResolveSafeSpawnCandidate(spawnPoint.position + (Vector3.up * spawnHeightOffset), claimedPositions, out spawnPosition, out lastRejectReason))
+                {
+                    spawnYaw = spawnPoint.rotation.eulerAngles.y;
+                    if (logSpawnValidation)
+                    {
+                        Debug.Log($"NetworkRoundState: selected safe spawn '{spawnPoint.name}' at {spawnPosition}.");
+                    }
+
+                    return true;
+                }
+
+                if (logSpawnValidation)
+                {
+                    Debug.Log($"NetworkRoundState: rejected spawn '{spawnPoint.name}' ({lastRejectReason}).");
+                }
+            }
+
+            Vector3 fallbackOrigin = spawnPoints[Mathf.Abs(preferredIndex) % spawnPoints.Count].position;
+            if (TryFindSafeFallback(fallbackOrigin, claimedPositions, out spawnPosition, out spawnYaw))
+            {
+                Debug.LogWarning($"NetworkRoundState: authored spawns were unsafe; using fallback at {spawnPosition}. Last rejection: {lastRejectReason}");
+                return true;
+            }
+
+            Debug.LogError($"NetworkRoundState: no safe spawn found. Last rejection: {lastRejectReason}");
+            return false;
+        }
+
+        private bool TryFindSafeFallback(Vector3 origin, List<Vector3> claimedPositions, out Vector3 spawnPosition, out float spawnYaw)
+        {
+            spawnPosition = Vector3.zero;
+            spawnYaw = 0f;
+
+            Vector3[] directions =
+            {
+                Vector3.zero,
+                Vector3.forward,
+                Vector3.back,
+                Vector3.left,
+                Vector3.right,
+                (Vector3.forward + Vector3.left).normalized,
+                (Vector3.forward + Vector3.right).normalized,
+                (Vector3.back + Vector3.left).normalized,
+                (Vector3.back + Vector3.right).normalized
+            };
+
+            for (int ring = 0; ring < 7; ring++)
+            {
+                float radius = ring * 2.25f;
+                for (int i = 0; i < directions.Length; i++)
+                {
+                    Vector3 candidate = origin + (directions[i] * radius) + Vector3.up;
+                    if (!TryResolveSafeSpawnCandidate(candidate, claimedPositions, out spawnPosition, out _))
+                    {
+                        continue;
+                    }
+
+                    Vector3 look = (Vector3.zero - spawnPosition);
+                    look.y = 0f;
+                    spawnYaw = look.sqrMagnitude > 0.001f ? Quaternion.LookRotation(look.normalized, Vector3.up).eulerAngles.y : 0f;
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryResolveSafeSpawnCandidate(Vector3 authoredPosition, List<Vector3> claimedPositions, out Vector3 spawnPosition, out string rejectReason)
+        {
+            rejectReason = string.Empty;
+            spawnPosition = authoredPosition;
+
+            if (!TryProjectSpawnToFloor(authoredPosition, out spawnPosition, out rejectReason))
+            {
+                return false;
+            }
+
+            float minDistanceSqr = spawnMinimumPlayerSeparation * spawnMinimumPlayerSeparation;
+            for (int i = 0; i < claimedPositions.Count; i++)
+            {
+                Vector3 claimed = claimedPositions[i];
+                Vector3 delta = spawnPosition - claimed;
+                delta.y = 0f;
+                if (delta.sqrMagnitude < minDistanceSqr)
+                {
+                    rejectReason = "too close to another selected spawn";
+                    return false;
+                }
+            }
+
+            GetSpawnCapsule(spawnPosition, out Vector3 pointA, out Vector3 pointB, out float radius);
+
+            Collider[] solidHits = Physics.OverlapCapsule(pointA, pointB, radius, spawnSolidMask, QueryTriggerInteraction.Ignore);
+            for (int i = 0; i < solidHits.Length; i++)
+            {
+                Collider hit = solidHits[i];
+                if (ShouldIgnoreSpawnCollider(hit))
+                {
+                    continue;
+                }
+
+                rejectReason = "inside solid collider " + hit.name;
+                return false;
+            }
+
+            Collider[] hazardHits = Physics.OverlapCapsule(pointA, pointB, radius, spawnHazardMask, QueryTriggerInteraction.Collide);
+            for (int i = 0; i < hazardHits.Length; i++)
+            {
+                Collider hit = hazardHits[i];
+                if (hit == null)
+                {
+                    continue;
+                }
+
+                FloodZone zone = hit.GetComponentInParent<FloodZone>();
+                if (zone != null && !zone.IsSafe)
+                {
+                    rejectReason = "inside active flood zone " + zone.ZoneId;
+                    return false;
+                }
+
+                NetworkBleachLeakHazard hazard = hit.GetComponentInParent<NetworkBleachLeakHazard>();
+                if (hazard != null && !hazard.IsSuppressed)
+                {
+                    rejectReason = "inside active hazard " + hazard.DisplayName;
+                    return false;
+                }
+
+                if (hit.name.IndexOf("Kill", StringComparison.OrdinalIgnoreCase) >= 0)
+                {
+                    rejectReason = "inside kill volume " + hit.name;
+                    return false;
+                }
+            }
+
+            if (!HasUsableEscapeSpace(spawnPosition))
+            {
+                rejectReason = "no usable escape space";
+                return false;
+            }
+
+            return true;
+        }
+
+        private bool TryProjectSpawnToFloor(Vector3 authoredPosition, out Vector3 spawnPosition, out string rejectReason)
+        {
+            Vector3 rayOrigin = authoredPosition + (Vector3.up * Mathf.Max(1f, spawnCapsuleHeight));
+            float rayDistance = Mathf.Max(1f, spawnFloorProbeDistance);
+            if (!Physics.Raycast(rayOrigin, Vector3.down, out RaycastHit floorHit, rayDistance, spawnSolidMask, QueryTriggerInteraction.Ignore))
+            {
+                spawnPosition = authoredPosition;
+                rejectReason = "no floor below";
+                return false;
+            }
+
+            if (floorHit.normal.y < 0.45f)
+            {
+                spawnPosition = authoredPosition;
+                rejectReason = "floor normal too steep";
+                return false;
+            }
+
+            float halfHeight = Mathf.Max(spawnCapsuleRadius, spawnCapsuleHeight * 0.5f);
+            spawnPosition = floorHit.point + Vector3.up * (halfHeight + 0.05f);
+            rejectReason = string.Empty;
+            return true;
+        }
+
+        private void GetSpawnCapsule(Vector3 position, out Vector3 pointA, out Vector3 pointB, out float radius)
+        {
+            radius = Mathf.Max(0.05f, spawnCapsuleRadius);
+            float halfHeight = Mathf.Max(radius, spawnCapsuleHeight * 0.5f);
+            float segmentHalf = Mathf.Max(0f, halfHeight - radius);
+            pointA = position + (Vector3.up * segmentHalf);
+            pointB = position - (Vector3.up * segmentHalf);
+        }
+
+        private static bool ShouldIgnoreSpawnCollider(Collider hit)
+        {
+            if (hit == null || hit.isTrigger)
+            {
+                return true;
+            }
+
+            return hit.GetComponentInParent<NetworkPlayerAvatar>() != null ||
+                   hit.GetComponentInParent<PlayerRemains>() != null;
+        }
+
+        private bool HasUsableEscapeSpace(Vector3 spawnPosition)
+        {
+            Vector3 origin = spawnPosition + (Vector3.up * 0.25f);
+            Vector3[] directions =
+            {
+                Vector3.forward,
+                Vector3.back,
+                Vector3.left,
+                Vector3.right
+            };
+
+            int openDirections = 0;
+            for (int i = 0; i < directions.Length; i++)
+            {
+                if (!Physics.Raycast(origin, directions[i], spawnEscapeProbeDistance, spawnSolidMask, QueryTriggerInteraction.Ignore))
+                {
+                    openDirections++;
+                }
+            }
+
+            return openDirections >= 2;
         }
 
         private void ResetTasks()
@@ -925,12 +1184,7 @@ namespace HueDoneIt.Gameplay.Round
             }
 
             Shuffle(players);
-            int bleachIndex = players.Length >= 2 ? UnityEngine.Random.Range(0, players.Length) : -1;
-            BleachSecondaryAbility assignedSecondary = BleachSecondaryAbility.None;
-            if (bleachIndex >= 0)
-            {
-                assignedSecondary = (BleachSecondaryAbility)UnityEngine.Random.Range(1, 4);
-            }
+            int bleachCount = CalculateBleachCount(players.Length);
 
             for (int i = 0; i < players.Length; i++)
             {
@@ -940,9 +1194,29 @@ namespace HueDoneIt.Gameplay.Round
                     continue;
                 }
 
-                bool isBleach = i == bleachIndex;
-                controller.ServerAssignRole(isBleach ? PlayerRole.Bleach : PlayerRole.Color, isBleach ? assignedSecondary : BleachSecondaryAbility.None);
+                bool isBleach = i < bleachCount;
+                BleachSecondaryAbility secondary = isBleach
+                    ? (BleachSecondaryAbility)UnityEngine.Random.Range(1, 4)
+                    : BleachSecondaryAbility.None;
+                controller.ServerAssignRole(isBleach ? PlayerRole.Bleach : PlayerRole.Color, secondary);
             }
+
+            Debug.Log($"NetworkRoundState: assigned {bleachCount} Bleach role(s) for {players.Length} spawned participant(s).");
+        }
+
+        private static int CalculateBleachCount(int playerCount)
+        {
+            if (playerCount >= 7)
+            {
+                return 2;
+            }
+
+            if (playerCount >= 2)
+            {
+                return 1;
+            }
+
+            return 0;
         }
 
         public void GetMaintenanceProgress(out int completed, out int required, out int total, out int locked)
@@ -1160,6 +1434,7 @@ namespace HueDoneIt.Gameplay.Round
                 _reportingClientId.Value = ulong.MaxValue;
                 _reportedVictimClientId.Value = ulong.MaxValue;
                 CancelActiveTasks("Scheduled vote");
+                SetFloodFlowActive(false);
                 BeginMeetingVote($"Scheduled meeting at {Mathf.RoundToInt(ScheduledVoteSeconds[i] / 60f * 10f) / 10f}m. Use voting pods to accuse or skip.");
                 SetPhase(RoundPhase.Reported, reportedDurationSeconds);
                 _roundMessage.Value = new FixedString128Bytes($"Emergency vote triggered at {Mathf.RoundToInt(ScheduledVoteSeconds[i] / 60f * 10f) / 10f}m mark.");

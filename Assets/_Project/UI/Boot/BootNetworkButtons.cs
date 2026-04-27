@@ -27,12 +27,14 @@ namespace HueDoneIt.UI.Boot
         // The component is marked DontDestroyOnLoad so the callback survives the load.
         private bool _pendingHostStartAfterLobbyLoad;
         private bool _pendingClientStartAfterLobbyLoad;
+        private string _statusMessage = "Ready.";
 
         // This value is read by the boot frontend to show current status.
         public bool IsNetworkActive => TryResolveNetworkManager(out NetworkManager manager) && manager.IsListening;
 
         // This value is read by the boot frontend to decide if Start Match is allowed.
         public bool IsHost => TryResolveNetworkManager(out NetworkManager manager) && manager.IsHost;
+        public string StatusMessage => _statusMessage;
 
         private void Awake()
         {
@@ -57,6 +59,12 @@ namespace HueDoneIt.UI.Boot
             // Apply persisted runtime settings on startup so volume and window mode are not stale.
             RuntimeGameSettings.Apply();
             EnsureBootCursorUnlocked();
+            if (TryResolveNetworkManager(out NetworkManager manager))
+            {
+                PreserveNetworkManager(manager);
+                RegisterNetworkCallbacks(manager);
+                SetStatus($"Ready on {GetConfiguredAddress(defaultAddress)}:{GetConfiguredPort(defaultPort)}.");
+            }
             SceneManager.sceneLoaded += HandleSceneLoaded;
         }
 
@@ -65,6 +73,12 @@ namespace HueDoneIt.UI.Boot
             if (_instance == this)
             {
                 SceneManager.sceneLoaded -= HandleSceneLoaded;
+                if (networkManager != null)
+                {
+                    networkManager.OnClientConnectedCallback -= HandleClientConnected;
+                    networkManager.OnClientDisconnectCallback -= HandleClientDisconnected;
+                }
+
                 _instance = null;
             }
         }
@@ -81,12 +95,21 @@ namespace HueDoneIt.UI.Boot
         {
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
+                SetStatus("Cannot host: NetworkManager is missing.");
                 return;
             }
 
             if (SceneManager.GetActiveScene().name == "Boot" && !manager.IsListening)
             {
+                if (!Application.CanStreamedLevelBeLoaded(lobbySceneName))
+                {
+                    SetStatus($"Cannot host: Lobby scene '{lobbySceneName}' is missing from Build Settings.");
+                    return;
+                }
+
+                PreserveNetworkManager(manager);
                 _pendingHostStartAfterLobbyLoad = true;
+                SetStatus("Loading lobby before starting host...");
                 SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
                 return;
             }
@@ -104,23 +127,36 @@ namespace HueDoneIt.UI.Boot
         {
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
+                SetStatus("Cannot join: NetworkManager is missing.");
                 return;
             }
 
             if (manager.IsListening)
             {
+                SetStatus("Already connected. Shut down before starting a new client session.");
                 return;
             }
 
             if (SceneManager.GetActiveScene().name == "Boot")
             {
+                if (!Application.CanStreamedLevelBeLoaded(lobbySceneName))
+                {
+                    SetStatus($"Cannot join: Lobby scene '{lobbySceneName}' is missing from Build Settings.");
+                    return;
+                }
+
+                PreserveNetworkManager(manager);
                 _pendingClientStartAfterLobbyLoad = true;
+                SetStatus($"Loading lobby, then joining {GetConfiguredAddress(defaultAddress)}:{GetConfiguredPort(defaultPort)}...");
                 SceneManager.LoadScene(lobbySceneName, LoadSceneMode.Single);
                 return;
             }
 
             ConfigureTransportForClient(manager);
             bool started = manager.StartClient();
+            SetStatus(started
+                ? $"Joining {GetConfiguredAddress(defaultAddress)}:{GetConfiguredPort(defaultPort)}..."
+                : "Join failed: transport or NetworkManager refused StartClient.");
             Debug.Log($"BootNetworkButtons.StartClient started={started}");
             if (!started)
             {
@@ -138,8 +174,12 @@ namespace HueDoneIt.UI.Boot
         {
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
+                SetStatus($"Scene '{scene.name}' loaded, but NetworkManager was missing.");
                 return;
             }
+
+            PreserveNetworkManager(manager);
+            RegisterNetworkCallbacks(manager);
 
             if (_pendingHostStartAfterLobbyLoad && scene.name == lobbySceneName)
             {
@@ -152,14 +192,21 @@ namespace HueDoneIt.UI.Boot
                 _pendingClientStartAfterLobbyLoad = false;
                 ConfigureTransportForClient(manager);
                 bool started = manager.StartClient();
+                SetStatus(started
+                    ? $"Joining {GetConfiguredAddress(defaultAddress)}:{GetConfiguredPort(defaultPort)}..."
+                    : "Join failed after lobby load: transport or NetworkManager refused StartClient.");
                 Debug.Log($"BootNetworkButtons.StartClient (after Lobby load) started={started}");
             }
         }
 
         private void StartHostNow(NetworkManager manager)
         {
+            PreserveNetworkManager(manager);
             ConfigureTransportForHost(manager);
             bool started = manager.StartHost();
+            SetStatus(started
+                ? $"Hosting lobby on port {GetConfiguredPort(defaultPort)}."
+                : "Host failed: transport or NetworkManager refused StartHost.");
             Debug.Log($"BootNetworkButtons.StartHostLobby started={started}");
         }
 
@@ -169,12 +216,14 @@ namespace HueDoneIt.UI.Boot
         {
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
+                SetStatus("Cannot start match: NetworkManager is missing.");
                 Debug.LogWarning("BootNetworkButtons.StartMatchFromLobby ignored because NetworkManager is missing.");
                 return;
             }
 
             if (!manager.IsHost)
             {
+                SetStatus("Only the host can start the match.");
                 Debug.LogWarning("BootNetworkButtons.StartMatchFromLobby ignored because local peer is not host.");
                 return;
             }
@@ -190,9 +239,11 @@ namespace HueDoneIt.UI.Boot
         {
             if (!TryResolveNetworkManager(out NetworkManager manager))
             {
+                SetStatus("Shutdown ignored: NetworkManager is missing.");
                 return;
             }
 
+            SetStatus("Network session shut down.");
             manager.Shutdown();
         }
 
@@ -236,6 +287,13 @@ namespace HueDoneIt.UI.Boot
                 return;
             }
 
+            if (SceneManager.GetActiveScene().name == lobbySceneName)
+            {
+                SetStatus("Hosting lobby.");
+                return;
+            }
+
+            PreserveNetworkManager(manager);
             LoadSceneIfHost(manager, lobbySceneName);
         }
 
@@ -254,10 +312,12 @@ namespace HueDoneIt.UI.Boot
 
             if (!manager.NetworkConfig.EnableSceneManagement)
             {
+                Debug.Log($"BootNetworkButtons: loading scene '{sceneName}' locally.");
                 SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
                 return;
             }
 
+            Debug.Log($"BootNetworkButtons: loading scene '{sceneName}' through NGO scene management.");
             manager.SceneManager.LoadScene(sceneName, LoadSceneMode.Single);
         }
 
@@ -266,6 +326,7 @@ namespace HueDoneIt.UI.Boot
             manager = networkManager != null ? networkManager : NetworkManager.Singleton;
             if (manager != null)
             {
+                networkManager = manager;
                 return true;
             }
 
@@ -319,6 +380,48 @@ namespace HueDoneIt.UI.Boot
             }
 
             Debug.LogWarning("BootNetworkButtons: UnityTransport.SetConnectionData not found.");
+        }
+
+        private void PreserveNetworkManager(NetworkManager manager)
+        {
+            if (manager == null)
+            {
+                return;
+            }
+
+            DontDestroyOnLoad(manager.gameObject);
+            networkManager = manager;
+        }
+
+        private void RegisterNetworkCallbacks(NetworkManager manager)
+        {
+            if (manager == null)
+            {
+                return;
+            }
+
+            manager.OnClientConnectedCallback -= HandleClientConnected;
+            manager.OnClientDisconnectCallback -= HandleClientDisconnected;
+            manager.OnClientConnectedCallback += HandleClientConnected;
+            manager.OnClientDisconnectCallback += HandleClientDisconnected;
+        }
+
+        private void HandleClientConnected(ulong clientId)
+        {
+            SetStatus(IsHost
+                ? $"Client {clientId} connected."
+                : $"Connected to host as client {clientId}.");
+        }
+
+        private void HandleClientDisconnected(ulong clientId)
+        {
+            SetStatus($"Client {clientId} disconnected.");
+        }
+
+        private void SetStatus(string message)
+        {
+            _statusMessage = string.IsNullOrWhiteSpace(message) ? "Ready." : message;
+            Debug.Log("BootNetworkButtons: " + _statusMessage);
         }
     }
 }

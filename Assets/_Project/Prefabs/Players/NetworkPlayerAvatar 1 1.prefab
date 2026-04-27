@@ -51,6 +51,7 @@ GameObject:
   - component: {fileID: 3532009244096514659}
   - component: {fileID: 4655996133291631213}
   - component: {fileID: 61280649614058439}
+  - component: {fileID: 5529183849462751021}
   - component: {fileID: 4373497747903838006}
   - component: {fileID: 7269045906836543037}
   - component: {fileID: 1023681972751851875}
@@ -222,9 +223,9 @@ MonoBehaviour:
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::HueDoneIt.Gameplay.Players.NetworkPlayerAuthoritativeMover
   ShowTopMostFoldoutHeaderGroup: 1
-  moveSpeed: 4
-  inputSendRate: 20
-  remoteLerpSpeed: 12
+  moveSpeed: 6.2
+  inputSendRate: 30
+  remoteLerpSpeed: 16
 --- !u!114 &6076692440333380690
 MonoBehaviour:
   m_ObjectHideFlags: 0
@@ -289,6 +290,20 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::HueDoneIt.Tasks.PlayerRepairTaskParticipant
   ShowTopMostFoldoutHeaderGroup: 1
   maxRepairRange: 2.5
+--- !u!114 &5529183849462751021
+MonoBehaviour:
+  m_ObjectHideFlags: 0
+  m_CorrespondingSourceObject: {fileID: 0}
+  m_PrefabInstance: {fileID: 0}
+  m_PrefabAsset: {fileID: 0}
+  m_GameObject: {fileID: 3779543268225496616}
+  m_Enabled: 1
+  m_EditorHideFlags: 0
+  m_Script: {fileID: 11500000, guid: 6475f57b39521874bba2ff3ae2a5dc05, type: 3}
+  m_Name:
+  m_EditorClassIdentifier: Assembly-CSharp::HueDoneIt.Gameplay.Inventory.PlayerInventoryState
+  ShowTopMostFoldoutHeaderGroup: 1
+  itemCatalog: []
 --- !u!114 &4373497747903838006
 MonoBehaviour:
   m_ObjectHideFlags: 0

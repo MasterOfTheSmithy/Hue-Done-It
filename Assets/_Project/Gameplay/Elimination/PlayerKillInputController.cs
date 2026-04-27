@@ -585,7 +585,7 @@ namespace HueDoneIt.Gameplay.Elimination
                     continue;
                 }
 
-                return hitObject == null || hitObject == targetNetworkObject;
+                return hitObject == targetNetworkObject;
             }
 
             return true;

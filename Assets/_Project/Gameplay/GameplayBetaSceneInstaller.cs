@@ -335,7 +335,7 @@ namespace HueDoneIt.Gameplay
         private static void EnsureVisualFloodMarkers(Transform root)
         {
             EnsureMarker(root, "FloodZone_Main", new Vector3(0f, 0.6f, 0f), new Vector3(16f, 1.2f, 10f), new Color(0.10f, 0.35f, 0.95f, 0.22f));
-            EnsureMarker(root, "FloodZone_LowArea", new Vector3(0f, -0.2f, -12f), new Vector3(8f, 1.2f, 4f), new Color(0.95f, 0.10f, 0.12f, 0.22f));
+            EnsureMarker(root, "FloodZone_LowArea", new Vector3(0f, 0.6f, -12f), new Vector3(8f, 1.2f, 4f), new Color(0.95f, 0.10f, 0.12f, 0.22f));
         }
         private static void EnsureRoundEventDirector(Transform root)
         {
@@ -1502,7 +1502,7 @@ namespace HueDoneIt.Gameplay
 
             if (lowZone == null)
             {
-                GameObject zoneObject = CreateAuthoritativePrimitive(root, "FloodZone_LowArea", PrimitiveType.Cube, new Vector3(0f, -0.2f, -12f), new Vector3(8f, 1.2f, 4f));
+                GameObject zoneObject = CreateAuthoritativePrimitive(root, "FloodZone_LowArea", PrimitiveType.Cube, new Vector3(0f, 0.6f, -12f), new Vector3(8f, 1.2f, 4f));
                 lowZone = GetOrAddComponent<FloodZone>(zoneObject);
                 SetPrivateField(typeof(FloodZone), lowZone, "zoneId", "Flood_LowArea");
                 SetPrivateField(typeof(FloodZone), lowZone, "initialState", FloodZoneState.Dry);
@@ -1510,7 +1510,7 @@ namespace HueDoneIt.Gameplay
             }
 
             ConfigureFloodZone(mainZone, "FloodZone_Main", new Vector3(0f, 0.6f, 0f), new Vector3(16f, 1.2f, 10f), new Color(0.10f, 0.35f, 0.95f, 0.22f));
-            ConfigureFloodZone(lowZone, "FloodZone_LowArea", new Vector3(0f, -0.2f, -12f), new Vector3(8f, 1.2f, 4f), new Color(0.95f, 0.10f, 0.12f, 0.22f));
+            ConfigureFloodZone(lowZone, "FloodZone_LowArea", new Vector3(0f, 0.6f, -12f), new Vector3(8f, 1.2f, 4f), new Color(0.95f, 0.10f, 0.12f, 0.22f));
             SetPrivateField(typeof(FloodZone), mainZone, "initialState", FloodZoneState.Dry);
             SetPrivateField(typeof(FloodZone), lowZone, "initialState", FloodZoneState.Dry);
         }
@@ -1638,11 +1638,11 @@ namespace HueDoneIt.Gameplay
                 new FloodSequenceController.ZoneSequence
                 {
                     zone = mainZone,
-                    initialDelaySeconds = 8f,
+                    initialDelaySeconds = 10f,
                     loop = false,
                     states = new List<FloodSequenceController.StateDuration>
                     {
-                        new FloodSequenceController.StateDuration { state = FloodZoneState.Wet, durationSeconds = 12f },
+                        new FloodSequenceController.StateDuration { state = FloodZoneState.Wet, durationSeconds = 14f },
                         new FloodSequenceController.StateDuration { state = FloodZoneState.Flooding, durationSeconds = 18f },
                         new FloodSequenceController.StateDuration { state = FloodZoneState.Submerged, durationSeconds = 999f }
                     }
@@ -1650,10 +1650,12 @@ namespace HueDoneIt.Gameplay
                 new FloodSequenceController.ZoneSequence
                 {
                     zone = lowZone,
-                    initialDelaySeconds = 0f,
+                    initialDelaySeconds = 28f,
                     loop = false,
                     states = new List<FloodSequenceController.StateDuration>
                     {
+                        new FloodSequenceController.StateDuration { state = FloodZoneState.Wet, durationSeconds = 12f },
+                        new FloodSequenceController.StateDuration { state = FloodZoneState.Flooding, durationSeconds = 18f },
                         new FloodSequenceController.StateDuration { state = FloodZoneState.Submerged, durationSeconds = 999f }
                     }
                 }

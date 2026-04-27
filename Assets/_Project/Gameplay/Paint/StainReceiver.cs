@@ -29,6 +29,7 @@ namespace HueDoneIt.Gameplay.Paint
 
         [Header("Splat Rendering")]
         [SerializeField, Min(8)] private int maxSplatDecals = 96;
+        [SerializeField, Min(0)] private int prewarmSplatDecals = 12;
         [SerializeField, Min(0.5f)] private float temporaryLifetimeSeconds = 7f;
         [SerializeField, Min(0.5f)] private float heavyTemporaryLifetimeSeconds = 12f;
         [SerializeField, Min(0f)] private float zOffset = 0.015f;
@@ -75,6 +76,7 @@ namespace HueDoneIt.Gameplay.Paint
 
         private static readonly List<GlobalDecal> GlobalDecals = new();
         private static readonly Stack<GlobalDecal> GlobalPool = new();
+        private const int MaxGlobalFallbackDecals = 256;
         private static Transform _localizedRoot;
         private static Transform _globalRoot;
         private static Material _fallbackGlobalMaterial;
@@ -312,6 +314,7 @@ namespace HueDoneIt.Gameplay.Paint
             decal.ExpireAt = Time.time + Mathf.Max(0.1f, lifetimeSeconds);
 
             GlobalDecals.Add(decal);
+            TrimGlobalDecals();
         }
 
         private void RegisterActivity(PaintSplatData splatData)
@@ -555,13 +558,30 @@ namespace HueDoneIt.Gameplay.Paint
 
         private void PrewarmPool()
         {
-            for (int i = 0; i < maxSplatDecals; i++)
+            int count = Mathf.Clamp(prewarmSplatDecals, 0, maxSplatDecals);
+            for (int i = 0; i < count; i++)
             {
                 DecalInstance instance = CreateDecalInstance();
                 if (instance != null)
                 {
                     _pool.Push(instance);
                 }
+            }
+        }
+
+        private static void TrimGlobalDecals()
+        {
+            while (GlobalDecals.Count > MaxGlobalFallbackDecals)
+            {
+                GlobalDecal oldest = GlobalDecals[0];
+                GlobalDecals.RemoveAt(0);
+                if (oldest == null || oldest.GameObject == null)
+                {
+                    continue;
+                }
+
+                oldest.GameObject.SetActive(false);
+                GlobalPool.Push(oldest);
             }
         }
 
