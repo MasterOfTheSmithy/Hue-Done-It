@@ -49,6 +49,7 @@
   </ItemGroup>
   <ItemGroup>
     <Compile Include="Assets\_Project\Gameplay\Beta\BetaPlayableMapDirector.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Beta\BetaRoomDeclutterDirector.cs" />
     <Compile Include="Assets\_Project\Gameplay\Paint\PaintWorldManager.cs" />
     <Compile Include="Assets\_Project\Gameplay\Lobby\LobbySceneInstaller.cs" />
     <Compile Include="Assets\_Project\Gameplay\Round\NetworkRoundState.cs" />
@@ -62,6 +63,7 @@
     <Compile Include="Assets\_Project\Gameplay\Beta\BetaTaskPhysicalPresenter.cs" />
     <Compile Include="Assets\_Project\Tasks\RepairTaskState.cs" />
     <Compile Include="Assets\_Project\Gameplay\Beta\BetaTaskWorldAffordancePresenter.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Beta\BetaObjectiveGlowDirector.cs" />
     <Compile Include="Assets\_Project\Gameplay\Environment\NetworkEmergencySealStation.cs" />
     <Compile Include="Assets\_Project\Flood\FloodZoneState.cs" />
     <Compile Include="Assets\_Project\Gameplay\Environment\NetworkSlimeLaunchPad.cs" />
@@ -84,6 +86,7 @@
     <Compile Include="Assets\_Project\Gameplay\Lobby\LobbyMatchControlInteractable.cs" />
     <Compile Include="Assets\_Project\Gameplay\Paint\StainReceiver.cs" />
     <Compile Include="Assets\_Project\Gameplay\Beta\BetaCollisionPlayabilityRepair.cs" />
+    <Compile Include="Assets\_Project\Gameplay\Beta\BetaFeedbackAudioDirector.cs" />
     <Compile Include="Assets\_Project\Gameplay\Environment\NetworkEmergencyMeetingConsole.cs" />
     <Compile Include="Assets\_Project\UI\Gameplay\BetaGameplayEmergencyOverlay.cs" />
     <Compile Include="Assets\_Project\Gameplay\Beta\BetaWaterColorDiffusion.cs" />

@@ -60,15 +60,16 @@ namespace HueDoneIt.Gameplay.Beta
                 return true;
             }
 
-            return Object.FindObjectOfType<NetworkRepairTask>() != null ||
-                   Object.FindObjectOfType<FloodSequenceController>() != null;
+            return Object.FindFirstObjectByType<NetworkRepairTask>() != null ||
+                   Object.FindFirstObjectByType<FloodSequenceController>() != null;
         }
 
         private static void EnsureComponents(GameObject root)
         {
-            // Full beta playability stack. Keep one readable map/layout path active, then layer safety,
-            // task clarity, flood pacing, and lightweight physical task feedback on top.
+            // Full beta playability stack. Keep one readable map/layout path active, then layer traversal cleanup,
+            // glowing local objectives, task clarity, flood pacing, physical feedback, and procedural audio.
             Ensure<BetaPlayableMapDirector>(root);
+            Ensure<BetaRoomDeclutterDirector>(root);
             Ensure<BetaTaskAndStationLayoutDirector>(root);
             Ensure<BetaCollisionPlayabilityRepair>(root);
             Ensure<BetaFloorCollisionRepair>(root);
@@ -78,11 +79,13 @@ namespace HueDoneIt.Gameplay.Beta
             Ensure<BetaTaskDifficultyTuner>(root);
             Ensure<BetaTaskEndpointGuard>(root);
             Ensure<BetaTaskWorldAffordancePresenter>(root);
+            Ensure<BetaObjectiveGlowDirector>(root);
             Ensure<BetaTaskPhysicalPresenter>(root);
             Ensure<BetaPointClickTaskOverlay>(root);
             Ensure<BetaPlayabilityObjectiveBoard>(root);
             Ensure<BetaWaterColorDiffusion>(root);
             Ensure<BetaFloodWarningBeaconInstaller>(root);
+            Ensure<BetaFeedbackAudioDirector>(root);
             Ensure<BetaRuntimePaintBudgetTuner>(root);
             Ensure<BetaPlayerSafetyNet>(root);
             Ensure<BetaMatchFlowSanityMonitor>(root);

@@ -18,7 +18,7 @@ namespace HueDoneIt.Gameplay.Beta
         [SerializeField] private Color cleanWaterColor = new(0.08f, 0.58f, 0.92f, 0.38f);
 
         private readonly Dictionary<FloodZone, ZoneTint> _zoneTints = new();
-        private readonly MaterialPropertyBlock _block = new();
+        private MaterialPropertyBlock _block;
         private float _nextScanTime;
 
         private sealed class ZoneTint
@@ -29,6 +29,8 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void Update()
         {
+            _block ??= new MaterialPropertyBlock();
+
             if (Time.time >= _nextScanTime)
             {
                 _nextScanTime = Time.time + scanIntervalSeconds;
@@ -122,6 +124,7 @@ namespace HueDoneIt.Gameplay.Beta
                     waterColor = stained;
                 }
 
+                _block ??= new MaterialPropertyBlock();
                 waterRenderer.GetPropertyBlock(_block);
                 _block.SetColor("_BaseColor", waterColor);
                 _block.SetColor("_Color", waterColor);

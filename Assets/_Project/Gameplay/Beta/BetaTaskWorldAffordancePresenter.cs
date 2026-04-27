@@ -24,10 +24,13 @@ namespace HueDoneIt.Gameplay.Beta
 
         private float _nextRefreshTime;
         private Material _ringMaterial;
+        private MaterialPropertyBlock _propertyBlock;
         private Transform _localPlayer;
 
         private void Update()
         {
+            _propertyBlock ??= new MaterialPropertyBlock();
+
             if (Time.unscaledTime < _nextRefreshTime)
             {
                 return;
@@ -40,7 +43,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void EnsureMarkers()
         {
-            NetworkRepairTask[] tasks = FindObjectsOfType<NetworkRepairTask>();
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
             for (int i = 0; i < tasks.Length; i++)
             {
                 NetworkRepairTask task = tasks[i];
@@ -123,20 +126,12 @@ namespace HueDoneIt.Gameplay.Beta
                     continue;
                 }
 
-                Material material = renderer.material;
-                if (material == null)
-                {
-                    continue;
-                }
-
-                if (material.HasProperty("_BaseColor"))
-                {
-                    material.SetColor("_BaseColor", ringColor);
-                }
-                else if (material.HasProperty("_Color"))
-                {
-                    material.SetColor("_Color", ringColor);
-                }
+                _propertyBlock ??= new MaterialPropertyBlock();
+                renderer.GetPropertyBlock(_propertyBlock);
+                _propertyBlock.SetColor("_BaseColor", ringColor);
+                _propertyBlock.SetColor("_Color", ringColor);
+                _propertyBlock.SetColor("_EmissionColor", ringColor * 0.45f);
+                renderer.SetPropertyBlock(_propertyBlock);
             }
 
             TextMesh label = marker.GetComponentInChildren<TextMesh>(true);

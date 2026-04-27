@@ -8,7 +8,6 @@ namespace HueDoneIt.Gameplay.Beta
 {
     /// <summary>
     /// Keeps beta/debug overlays compatible with projects configured for the new Input System only.
-    /// Calling UnityEngine.Input.GetKeyDown in that mode throws InvalidOperationException every frame.
     /// </summary>
     internal static class BetaInputBridge
     {
@@ -26,11 +25,7 @@ namespace HueDoneIt.Gameplay.Beta
             }
 #endif
 
-#if ENABLE_LEGACY_INPUT_MANAGER
-            return Input.GetKeyDown(keyCode);
-#else
             return false;
-#endif
         }
 
 #if ENABLE_INPUT_SYSTEM

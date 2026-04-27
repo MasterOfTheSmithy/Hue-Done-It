@@ -118,7 +118,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void AddNamedAnchors()
         {
-            Transform[] transforms = FindObjectsOfType<Transform>();
+            Transform[] transforms = FindObjectsByType<Transform>(FindObjectsSortMode.None);
             for (int i = 0; i < transforms.Length; i++)
             {
                 Transform t = transforms[i];
@@ -139,7 +139,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void AddTaskAnchors()
         {
-            NetworkRepairTask[] tasks = FindObjectsOfType<NetworkRepairTask>();
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
             for (int i = 0; i < tasks.Length; i++)
             {
                 NetworkRepairTask task = tasks[i];

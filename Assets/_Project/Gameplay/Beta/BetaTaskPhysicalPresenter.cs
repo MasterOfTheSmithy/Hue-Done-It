@@ -16,7 +16,7 @@ namespace HueDoneIt.Gameplay.Beta
         [SerializeField] private Color failedColor = new(1f, 0.28f, 0.18f, 1f);
 
         private readonly List<TaskProp> _props = new();
-        private readonly MaterialPropertyBlock _block = new();
+        private MaterialPropertyBlock _block;
         private float _nextRebuildTime;
 
         private sealed class TaskProp
@@ -30,6 +30,8 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void Update()
         {
+            _block ??= new MaterialPropertyBlock();
+
             if (Time.unscaledTime >= _nextRebuildTime)
             {
                 _nextRebuildTime = Time.unscaledTime + rebuildIntervalSeconds;
@@ -188,6 +190,7 @@ namespace HueDoneIt.Gameplay.Beta
                 return;
             }
 
+            _block ??= new MaterialPropertyBlock();
             renderer.GetPropertyBlock(_block);
             _block.SetColor("_BaseColor", color);
             _block.SetColor("_Color", color);

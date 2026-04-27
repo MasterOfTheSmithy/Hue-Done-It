@@ -1,6 +1,9 @@
 // File: Assets/_Project/Gameplay/Beta/BetaCollisionPlayabilityRepair.cs
+using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Interaction;
 using HueDoneIt.Gameplay.Players;
+using HueDoneIt.Tasks;
+using Unity.Netcode;
 using UnityEngine;
 
 namespace HueDoneIt.Gameplay.Beta
@@ -82,7 +85,12 @@ namespace HueDoneIt.Gameplay.Beta
 
             Transform t = colliderRef.transform;
             if (t.GetComponentInParent<NetworkPlayerAuthoritativeMover>() != null ||
-                t.GetComponentInParent<NetworkInteractable>() != null)
+                t.GetComponentInParent<NetworkInteractable>() != null ||
+                t.GetComponentInParent<NetworkObject>() != null ||
+                t.GetComponentInParent<NetworkRepairTask>() != null ||
+                t.GetComponentInParent<TaskObjectiveBase>() != null ||
+                t.GetComponentInParent<FloodZone>() != null ||
+                t.GetComponentInParent<FloodSequenceController>() != null)
             {
                 return false;
             }
