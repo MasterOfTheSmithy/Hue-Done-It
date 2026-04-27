@@ -321,6 +321,89 @@ namespace HueDoneIt.Gameplay.Players
             return state is FloodZoneState.Wet or FloodZoneState.Flooding or FloodZoneState.Submerged;
         }
 
+
+        private StainReceiver ResolveReceiver(RaycastHit hit)
+        {
+            if (hit.collider == null || hit.collider.isTrigger)
+            {
+                return null;
+            }
+
+            StainReceiver receiver = hit.collider.GetComponent<StainReceiver>();
+            if (receiver != null)
+            {
+                return receiver;
+            }
+
+            receiver = hit.collider.GetComponentInParent<StainReceiver>();
+            if (receiver != null)
+            {
+                return receiver;
+            }
+
+            Renderer renderer = ResolveRendererForHit(hit);
+            if (renderer == null)
+            {
+                return null;
+            }
+
+            if (renderer.GetComponentInParent<NetworkPlayerAvatar>() != null)
+            {
+                return null;
+            }
+
+            receiver = renderer.GetComponent<StainReceiver>();
+            if (receiver == null)
+            {
+                receiver = renderer.gameObject.AddComponent<StainReceiver>();
+            }
+
+            receiver.ConfigureTargetRenderer(renderer);
+            return receiver;
+        }
+
+        private static Renderer ResolveRendererForHit(RaycastHit hit)
+        {
+            Renderer best = hit.collider.GetComponent<Renderer>();
+            float bestDistance = best != null ? Vector3.Distance(best.bounds.ClosestPoint(hit.point), hit.point) : float.MaxValue;
+
+            Renderer[] childRenderers = hit.collider.GetComponentsInChildren<Renderer>(true);
+            for (int i = 0; i < childRenderers.Length; i++)
+            {
+                Renderer candidate = childRenderers[i];
+                if (candidate == null)
+                {
+                    continue;
+                }
+
+                float distance = Vector3.Distance(candidate.bounds.ClosestPoint(hit.point), hit.point);
+                if (distance < bestDistance)
+                {
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+
+            Renderer[] parentRenderers = hit.collider.GetComponentsInParent<Renderer>(true);
+            for (int i = 0; i < parentRenderers.Length; i++)
+            {
+                Renderer candidate = parentRenderers[i];
+                if (candidate == null)
+                {
+                    continue;
+                }
+
+                float distance = Vector3.Distance(candidate.bounds.ClosestPoint(hit.point), hit.point);
+                if (distance < bestDistance)
+                {
+                    best = candidate;
+                    bestDistance = distance;
+                }
+            }
+
+            return best;
+        }
+
         [ClientRpc]
         private void ReceivePaintClientRpc(
             byte eventKind,
@@ -360,19 +443,34 @@ namespace HueDoneIt.Gameplay.Players
             bool wet = IsWetPresentation();
             bool applied = false;
 
+            bool hitUsesSurfacePaint = false;
+
             if (Physics.Raycast(position + (normal * 0.2f), -normal, out RaycastHit hit, stainProbeDistance, stainMask, QueryTriggerInteraction.Ignore))
             {
-                StainReceiver receiver = hit.collider.GetComponentInParent<StainReceiver>();
+                splatData.Position = hit.point;
+                splatData.Normal = hit.normal;
+
+                hitUsesSurfacePaint =
+                    hit.collider.GetComponentInParent<PaintSurfaceChunk>() != null ||
+                    hit.collider.GetComponentInParent<PaintSurfaceOverlayRenderer>() != null ||
+                    hit.collider.GetComponentInParent<WaterPaintReceiver>() != null;
+
+                // Texture paint is useful for accumulated/drying surface history, but it should
+                // never be the only visible path. Primitive cube UVs are shared across faces, so a
+                // texture-only fallback can look like the whole mesh changed color. A projected
+                // receiver decal anchored at the raycast point is the authoritative player-facing
+                // splat and keeps impact marks local to the contact patch.
+                applied = PaintWorldManager.SubmitLegacy(splatData, color);
+
+                StainReceiver receiver = ResolveReceiver(hit);
                 if (receiver != null)
                 {
-                    splatData.Position = hit.point;
-                    splatData.Normal = hit.normal;
-                    receiver.ApplyStain(color, splatData, wet);
+                    receiver.ApplyLocalizedSplat(color, splatData, wet);
                     applied = true;
                 }
             }
 
-            if (!applied && spawnFallbackAirSplat)
+            if (!applied && !hitUsesSurfacePaint && spawnFallbackAirSplat)
             {
                 StainReceiver.SpawnGlobalSplat(color, splatData, wet, fallbackLifetimeSeconds);
             }

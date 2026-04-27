@@ -1,6 +1,7 @@
 // File: Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
 using HueDoneIt.Core.Bootstrap;
 using HueDoneIt.Gameplay.Round;
+using HueDoneIt.UI.Lobby;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
@@ -14,10 +15,11 @@ namespace HueDoneIt.Gameplay.Players
     {
         // Camera bind and cursor lock are allowed in Lobby and Gameplay scenes only.
         private static readonly string[] CameraPlayableScenes = { "Lobby", "Gameplay_Undertint" };
+
         [Header("Base Camera")]
         [SerializeField] private Transform cameraAnchor;
-        [SerializeField] private Vector3 ownerCameraAnchorLocalPosition = new(0f, 0.75f, 0f);
-        [SerializeField] private Vector3 lobbyCameraAnchorLocalPosition = new(0f, 1.9f, -3.2f);
+        [SerializeField] private Vector3 ownerCameraAnchorLocalPosition = new(0f, 0.92f, 0f);
+        [SerializeField] private Vector3 lobbyCameraAnchorLocalPosition = new(0f, 0.92f, 0f);
         [SerializeField] private float mouseSensitivity = 0.12f;
         [SerializeField] private float minPitch = -85f;
         [SerializeField] private float maxPitch = 85f;
@@ -49,7 +51,6 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0f)] private float ragdollCameraChaosRoll = 9f;
         [SerializeField, Min(0f)] private float ragdollCameraChaosPositional = 0.055f;
 
-
         [Header("Impact Feedback")]
         [SerializeField, Min(0f)] private float crashShakeAmplitude = 0.06f;
         [SerializeField, Min(0.1f)] private float crashShakeFrequency = 21f;
@@ -70,14 +71,6 @@ namespace HueDoneIt.Gameplay.Players
         private RoundPhase _lastRoundPhase = RoundPhase.Lobby;
         private float _shakeTimer;
         private string _lastPresentationSceneName;
-        private bool _isCpuAvatar;
-
-        private void Awake()
-        {
-            // CPU avatars are server-owned and can appear as IsOwner on host.
-            // Camera ownership must remain local-human-only, so we mark CPU avatars early.
-            _isCpuAvatar = TryGetComponent(out SimpleCpuOpponentAgent _);
-        }
 
         public override void OnNetworkSpawn()
         {
@@ -85,10 +78,9 @@ namespace HueDoneIt.Gameplay.Players
             _mover = GetComponent<NetworkPlayerAuthoritativeMover>();
             _roundState = FindFirstObjectByType<NetworkRoundState>();
 
-            // Only the local non-CPU avatar is allowed to own an active gameplay camera.
-            // This avoids host-owned CPU avatars stealing camera ownership.
-            if (!IsOwner || !IsClient || _isCpuAvatar)
+            if (!CanOwnGameplayCamera())
             {
+                ReleaseOwnerCameraBinding();
                 DisableAvatarCameraObjects();
                 enabled = false;
                 return;
@@ -97,6 +89,7 @@ namespace HueDoneIt.Gameplay.Players
             // Prevent gameplay camera capture while hosting in Boot or any non-gameplay scene.
             if (!IsGameplaySceneActive())
             {
+                ReleaseOwnerCameraBinding();
                 DisableAvatarCameraObjects();
                 LockCursor(false);
                 return;
@@ -113,23 +106,30 @@ namespace HueDoneIt.Gameplay.Players
                 LockCursor(false);
             }
 
+            ReleaseOwnerCameraBinding();
             DisableAvatarCameraObjects();
-            _cameraBound = false;
             base.OnNetworkDespawn();
+        }
+
+        private void OnDisable()
+        {
+            ReleaseOwnerCameraBinding();
         }
 
         private void LateUpdate()
         {
-            if (!IsSpawned || !IsOwner || !IsClient)
+            if (!CanOwnGameplayCamera())
             {
+                ReleaseOwnerCameraBinding();
+                DisableAvatarCameraObjects();
                 return;
             }
 
             // While in Boot, keep mouse free so lobby UI remains clickable.
             if (!IsGameplaySceneActive())
             {
+                ReleaseOwnerCameraBinding();
                 DisableAvatarCameraObjects();
-                _cameraBound = false;
                 LockCursor(false);
                 return;
             }
@@ -155,13 +155,30 @@ namespace HueDoneIt.Gameplay.Players
             mouseSensitivity = RuntimeGameSettings.LookSensitivity;
             Keyboard keyboard = Keyboard.current;
             Mouse mouse = Mouse.current;
+
+            bool isLobbyScene = SceneManager.GetActiveScene().name == "Lobby";
+
+            // Escape always frees the cursor so UI can be used.
             if (keyboard != null && keyboard.escapeKey.wasPressedThisFrame)
             {
                 LockCursor(false);
             }
-            else if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+            // In Lobby, do not lock on left click because left click is needed for menu buttons.
+            // Use right click as the intentional "return to look" action instead.
+            else if (isLobbyScene)
             {
-                LockCursor(true);
+                if (mouse != null && mouse.rightButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+                {
+                    LockCursor(true);
+                }
+            }
+            else
+            {
+                // Gameplay scenes can still use left click to recapture look after UI is closed.
+                if (mouse != null && mouse.leftButton.wasPressedThisFrame && Cursor.lockState != CursorLockMode.Locked)
+                {
+                    LockCursor(true);
+                }
             }
 
             if (mouse == null || Cursor.lockState != CursorLockMode.Locked)
@@ -265,7 +282,7 @@ namespace HueDoneIt.Gameplay.Players
 
             _currentRoll = Mathf.Lerp(_currentRoll, targetRoll, rollLerpSpeed * Time.deltaTime);
 
-            Vector3 baseAnchorPosition = IsLobbySceneActive() ? lobbyCameraAnchorLocalPosition : ownerCameraAnchorLocalPosition;
+            Vector3 baseAnchorPosition = ownerCameraAnchorLocalPosition;
             cameraAnchor.localPosition = baseAnchorPosition + _currentPresentationOffset;
             cameraAnchor.localRotation = Quaternion.Euler(_pitch, yawLean, _currentRoll);
 
@@ -282,7 +299,6 @@ namespace HueDoneIt.Gameplay.Players
 
             _lastState = currentState;
         }
-
 
         private void HandleRoundPhaseFeedback()
         {
@@ -303,7 +319,16 @@ namespace HueDoneIt.Gameplay.Players
 
         private void BindOwnerCamera()
         {
-            _mainCamera = Camera.main;
+            if (!CanOwnGameplayCamera())
+            {
+                return;
+            }
+
+            if (_mainCamera == null)
+            {
+                _mainCamera = Camera.main;
+            }
+
             if (_mainCamera == null)
             {
                 // This fallback guarantees a render camera for the local owner in Lobby and Gameplay.
@@ -353,6 +378,29 @@ namespace HueDoneIt.Gameplay.Players
             cameraAnchor = anchorObject.transform;
         }
 
+        private void ReleaseOwnerCameraBinding()
+        {
+            if (!_cameraBound || _mainCamera == null)
+            {
+                _cameraBound = false;
+                return;
+            }
+
+            if (cameraAnchor != null && _mainCamera.transform.parent == cameraAnchor)
+            {
+                _mainCamera.transform.SetParent(null, false);
+            }
+
+            AudioListener mainListener = _mainCamera.GetComponent<AudioListener>();
+            if (mainListener != null)
+            {
+                mainListener.enabled = false;
+            }
+
+            _mainCamera.enabled = false;
+            _cameraBound = false;
+        }
+
         private void DisableAvatarCameraObjects()
         {
             // Any camera or listener under this avatar must be off when avatar is not local-owner controlled.
@@ -392,18 +440,16 @@ namespace HueDoneIt.Gameplay.Players
 
             _lastPresentationSceneName = activeSceneName;
 
-            // Lobby uses a third-person offset so local players can see their own avatar.
-            // Gameplay uses a tighter first-person anchor for action readability.
-            bool isLobbyScene = IsLobbySceneActive();
-            Vector3 targetAnchorPosition = isLobbyScene ? lobbyCameraAnchorLocalPosition : ownerCameraAnchorLocalPosition;
             if (cameraAnchor != null)
             {
-                cameraAnchor.localPosition = targetAnchorPosition;
+                cameraAnchor.localPosition = SceneManager.GetActiveScene().name == "Lobby"
+                    ? lobbyCameraAnchorLocalPosition
+                    : ownerCameraAnchorLocalPosition;
             }
 
-            // Owner body renderers stay visible in Lobby for presentation and customization checks.
-            // They are hidden in Gameplay to avoid first-person self-occlusion.
-            bool ownerBodyVisible = isLobbyScene;
+            // Both Lobby and Gameplay now run first-person for the owning player.
+            // Owner renderers are hidden in all playable scenes to prevent self-occlusion.
+            bool ownerBodyVisible = false;
             _ownerRenderers ??= GetComponentsInChildren<MeshRenderer>(true);
             for (int i = 0; i < _ownerRenderers.Length; i++)
             {
@@ -415,6 +461,16 @@ namespace HueDoneIt.Gameplay.Players
 
                 renderer.enabled = ownerBodyVisible;
             }
+        }
+
+        private bool CanOwnGameplayCamera()
+        {
+            return IsSpawned && IsOwner && IsClient && !IsCpuAvatar();
+        }
+
+        private bool IsCpuAvatar()
+        {
+            return TryGetComponent(out SimpleCpuOpponentAgent _);
         }
 
         private static bool IsLobbySceneActive()

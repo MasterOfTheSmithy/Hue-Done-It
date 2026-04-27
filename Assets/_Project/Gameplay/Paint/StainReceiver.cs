@@ -1,3 +1,4 @@
+// File: Assets/_Project/Gameplay/Paint/StainReceiver.cs
 using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.Rendering;
@@ -9,15 +10,16 @@ namespace HueDoneIt.Gameplay.Paint
     {
         [Header("Surface Tint")]
         [SerializeField] private Renderer targetRenderer;
-        [SerializeField, Min(0f)] private float stainBlendPerHit = 0.05f;
+        [SerializeField] private bool enableWholeSurfaceTint;
+        [SerializeField, Min(0f)] private float stainBlendPerHit = 0.02f;
         [SerializeField, Min(0f)] private float decayPerSecond = 0.012f;
 
         [Header("Area Story Accumulation")]
         [SerializeField, Min(1f)] private float maxActivityScore = 40f;
         [SerializeField, Min(0f)] private float activityDecayPerSecond = 0.45f;
         [SerializeField, Min(0f)] private float activityToDensityMultiplier = 0.18f;
-        [SerializeField, Min(0f)] private float activityToTintBlend = 0.16f;
-        [SerializeField, Min(1)] private int maxPermanentEvidenceMarks = 48;
+        [SerializeField, Min(0f)] private float activityToTintBlend = 0.08f;
+        [SerializeField, Min(1)] private int maxPermanentEvidenceMarks = 32;
         [SerializeField, Min(0f)] private float movementWearThreshold = 4f;
 
         [Header("Flood Interaction")]
@@ -26,11 +28,12 @@ namespace HueDoneIt.Gameplay.Paint
         [SerializeField] private Color wetRoomTint = new(0.72f, 0.8f, 0.9f, 1f);
 
         [Header("Splat Rendering")]
-        [SerializeField, Min(8)] private int maxSplatDecals = 160;
+        [SerializeField, Min(8)] private int maxSplatDecals = 96;
         [SerializeField, Min(0.5f)] private float temporaryLifetimeSeconds = 7f;
         [SerializeField, Min(0.5f)] private float heavyTemporaryLifetimeSeconds = 12f;
         [SerializeField, Min(0f)] private float zOffset = 0.015f;
         [SerializeField] private List<Texture2D> splatPatterns = new();
+        [SerializeField, Min(1)] private int generatedPatternCount = 6;
         [SerializeField] private Shader splatShader;
         [SerializeField] private bool randomizeRotation = true;
         [SerializeField] private bool randomizeFlip = true;
@@ -38,6 +41,10 @@ namespace HueDoneIt.Gameplay.Paint
         [SerializeField] private Vector2 alphaRange = new(0.26f, 0.9f);
         [SerializeField, Min(0f)] private float stretchMultiplier = 0.65f;
         [SerializeField] private Vector2 stretchClamp = new(1f, 4.5f);
+        [SerializeField, Min(0.1f)] private float maxLocalizedDecalMajorAxis = 4.8f;
+        [SerializeField, Min(0.1f)] private float maxLocalizedDecalMinorAxis = 2.15f;
+        [SerializeField, Min(0.1f)] private float maxHeavyImpactMajorAxis = 6.2f;
+        [SerializeField, Min(0.1f)] private float maxHeavyImpactMinorAxis = 2.75f;
 
         [Header("Type Lifetime Thresholds")]
         [SerializeField, Min(0f)] private float landingPermanentForceThreshold = 13f;
@@ -48,6 +55,7 @@ namespace HueDoneIt.Gameplay.Paint
 
         [Header("Debug")]
         [SerializeField] private bool debugDrawDirection;
+        [SerializeField] private bool allowLegacyDecals = true;
 
         private readonly List<DecalInstance> _activeDecals = new();
         private readonly Stack<DecalInstance> _pool = new();
@@ -67,6 +75,7 @@ namespace HueDoneIt.Gameplay.Paint
 
         private static readonly List<GlobalDecal> GlobalDecals = new();
         private static readonly Stack<GlobalDecal> GlobalPool = new();
+        private static Transform _localizedRoot;
         private static Transform _globalRoot;
         private static Material _fallbackGlobalMaterial;
 
@@ -138,10 +147,10 @@ namespace HueDoneIt.Gameplay.Paint
             _activityScore = Mathf.Max(0f, _activityScore - (activityDecayPerSecond * Time.deltaTime));
             _movementWear = Mathf.Max(0f, _movementWear - (activityDecayPerSecond * 0.35f * Time.deltaTime));
 
-            if (_hasBaseColor)
+            if (_hasBaseColor && enableWholeSurfaceTint)
             {
                 Color neutralized = Color.Lerp(_stainColor, _baseColor, decayPerSecond * Time.deltaTime);
-                float activityBlend = ActivityScore01 * activityToTintBlend;
+                float activityBlend = ActivityScore01 * activityToTintBlend * 0.6f;
                 Color activeTint = Color.Lerp(neutralized, _stainColor, activityBlend);
                 Color hazardTint = Color.Lerp(activeTint, wetRoomTint, _roomHazard01 * 0.22f);
                 _stainColor = Color.Lerp(hazardTint, _baseColor, _roomWashout01 * floodWashoutStrength * 0.22f);
@@ -158,27 +167,84 @@ namespace HueDoneIt.Gameplay.Paint
             _roomWashout01 = Mathf.Clamp01(washout01);
         }
 
+
+        public void ConfigureLegacyDecals(bool enabled)
+        {
+            allowLegacyDecals = enabled;
+        }
+
+        public void ConfigureTargetRenderer(Renderer renderer)
+        {
+            if (renderer == null)
+            {
+                return;
+            }
+
+            targetRenderer = renderer;
+            _propertyBlock ??= new MaterialPropertyBlock();
+            CacheBaseColor();
+        }
+
         public void ApplyStain(Color color, PaintSplatData splatData, bool wet)
         {
+            ApplyStainInternal(color, splatData, wet, enableWholeSurfaceTint);
+        }
+
+        public void ApplyLocalizedSplat(Color color, PaintSplatData splatData, bool wet)
+        {
+            ApplyStainInternal(color, splatData, wet, false);
+        }
+
+        private void ApplyStainInternal(Color color, PaintSplatData splatData, bool wet, bool allowWholeSurfaceTint)
+        {
+            if (targetRenderer == null)
+            {
+                targetRenderer = GetComponent<Renderer>();
+            }
+
             if (!_hasBaseColor)
             {
                 CacheBaseColor();
             }
 
             float wetFactor = Mathf.Clamp01(_roomWashout01 + (wet ? 0.4f : 0f));
-            float blend = Mathf.Clamp01(stainBlendPerHit * Mathf.Max(0.2f, splatData.Intensity));
-            blend *= 1f - (wetFactor * floodDilutionStrength * 0.7f);
+            float intensity01 = Mathf.Clamp01(Mathf.Max(0.18f, splatData.Intensity) / 1.65f);
+            float kinetic01 = Mathf.InverseLerp(0.4f, 14f, splatData.ForceMagnitude);
+            float eventTintWeight = splatData.EventKind switch
+            {
+                PaintEventKind.Move => Mathf.Lerp(0.16f, 0.42f, kinetic01),
+                PaintEventKind.WallStick => 0.38f,
+                PaintEventKind.WallLaunch => 0.48f,
+                PaintEventKind.Land => 0.54f,
+                PaintEventKind.Punch => 0.58f,
+                PaintEventKind.RagdollImpact => 0.72f,
+                PaintEventKind.TaskInteract => 0.5f,
+                PaintEventKind.ThrownObjectImpact => 0.62f,
+                _ => 0.3f
+            };
 
-            _stainColor = Color.Lerp(_hasBaseColor ? _stainColor : color, color, blend);
-            _stainColor = Color.Lerp(_stainColor, _baseColor, wetFactor * floodDilutionStrength * 0.2f);
-            ApplyTint(_stainColor);
+            if (allowWholeSurfaceTint)
+            {
+                float blend = Mathf.Clamp01(stainBlendPerHit * Mathf.Lerp(0.25f, 1f, intensity01) * eventTintWeight);
+                blend *= 1f - (wetFactor * floodDilutionStrength * 0.8f);
+
+                _stainColor = Color.Lerp(_hasBaseColor ? _stainColor : color, color, blend);
+                _stainColor = Color.Lerp(_stainColor, _baseColor, wetFactor * floodDilutionStrength * 0.18f);
+                ApplyTint(_stainColor);
+            }
 
             RegisterActivity(splatData);
+            if (!allowLegacyDecals)
+            {
+                return;
+            }
+
             SpawnDensityAdjustedSplats(color, splatData, wet || wetFactor > 0.01f);
 
             if (splatData.EventKind == PaintEventKind.Move)
             {
-                _movementWear += Mathf.Clamp(splatData.Intensity * 0.35f, 0.08f, 0.5f);
+                float wearContribution = Mathf.Lerp(0.02f, 0.42f, kinetic01) * Mathf.Lerp(0.4f, 1f, intensity01);
+                _movementWear += wearContribution;
                 if (_movementWear >= movementWearThreshold)
                 {
                     _movementWear = 0f;
@@ -302,8 +368,12 @@ namespace HueDoneIt.Gameplay.Paint
                 return;
             }
 
+            Color finalColor = _hasBaseColor
+                ? Color.Lerp(_baseColor, color, 0.22f + (ActivityScore01 * 0.18f))
+                : color;
+
             targetRenderer.GetPropertyBlock(_propertyBlock);
-            _propertyBlock.SetColor(_useBaseColorProperty ? BaseColorId : ColorId, color);
+            _propertyBlock.SetColor(_useBaseColorProperty ? BaseColorId : ColorId, finalColor);
             targetRenderer.SetPropertyBlock(_propertyBlock);
         }
 
@@ -315,6 +385,16 @@ namespace HueDoneIt.Gameplay.Paint
             }
 
             _patternMaterials.Clear();
+            if (splatPatterns == null)
+            {
+                splatPatterns = new List<Texture2D>();
+            }
+
+            if (splatPatterns.Count == 0)
+            {
+                GenerateFallbackPatterns();
+            }
+
             int count = splatPatterns != null ? splatPatterns.Count : 0;
 
             if (count <= 0)
@@ -367,6 +447,76 @@ namespace HueDoneIt.Gameplay.Paint
             }
         }
 
+
+        private void GenerateFallbackPatterns()
+        {
+            splatPatterns.Clear();
+            int count = Mathf.Clamp(generatedPatternCount, 1, 16);
+            for (int i = 0; i < count; i++)
+            {
+                splatPatterns.Add(GeneratePattern(i));
+            }
+        }
+
+        private Texture2D GeneratePattern(int seed)
+        {
+            const int size = 64;
+            Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false, true);
+            texture.name = "GeneratedSplat_" + seed;
+            texture.wrapMode = TextureWrapMode.Clamp;
+            texture.filterMode = FilterMode.Bilinear;
+
+            Color32[] pixels = new Color32[size * size];
+            float baseRotation = Hash01((uint)(seed * 193 + 17)) * Mathf.PI * 2f;
+            int lobeCount = 4 + Mathf.FloorToInt(Hash01((uint)(seed * 313 + 29)) * 5f);
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    float u = ((x + 0.5f) / size) * 2f - 1f;
+                    float v = ((y + 0.5f) / size) * 2f - 1f;
+                    float radius = Mathf.Sqrt((u * u) + (v * v));
+                    float angle = Mathf.Atan2(v, u) + baseRotation;
+
+                    float lobe = Mathf.Sin(angle * lobeCount) * 0.18f;
+                    float noise = (Hash21((uint)(seed + 1), x, y) - 0.5f) * 0.12f;
+                    float edge = 0.78f + lobe + noise;
+                    float alpha = Mathf.Clamp01(1f - Mathf.InverseLerp(edge, edge + 0.18f, radius));
+                    alpha *= alpha;
+
+                    pixels[(y * size) + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
+                }
+            }
+
+            texture.SetPixels32(pixels);
+            texture.Apply(false, false);
+            return texture;
+        }
+
+
+        private static float Hash01(uint seed)
+        {
+            seed ^= 2747636419u;
+            seed *= 2654435769u;
+            seed ^= seed >> 16;
+            seed *= 2654435769u;
+            seed ^= seed >> 16;
+            seed *= 2654435769u;
+            return (seed & 0x00FFFFFFu) / 16777215f;
+        }
+
+        private static float Hash21(uint seed, int x, int y)
+        {
+            unchecked
+            {
+                uint combined = seed;
+                combined ^= (uint)(x * 73856093);
+                combined ^= (uint)(y * 19349663);
+                return Hash01(combined);
+            }
+        }
+
         private Material BuildPatternMaterial(Texture2D pattern)
         {
             if (splatShader == null)
@@ -374,7 +524,7 @@ namespace HueDoneIt.Gameplay.Paint
                 return null;
             }
 
-            Material material = new(splatShader)
+            Material material = new Material(splatShader)
             {
                 renderQueue = (int)RenderQueue.Transparent
             };
@@ -391,6 +541,11 @@ namespace HueDoneIt.Gameplay.Paint
             if (material.HasProperty("_Surface"))
             {
                 material.SetFloat("_Surface", 1f);
+            }
+
+            if (material.HasProperty("_Cull"))
+            {
+                material.SetFloat("_Cull", (float)CullMode.Off);
             }
 
             material.SetFloat("_ZWrite", 0f);
@@ -412,9 +567,11 @@ namespace HueDoneIt.Gameplay.Paint
 
         private DecalInstance CreateDecalInstance()
         {
+            EnsureLocalizedRoot();
+
             GameObject decal = GameObject.CreatePrimitive(PrimitiveType.Quad);
             decal.name = "StainDecal";
-            decal.transform.SetParent(transform, true);
+            decal.transform.SetParent(_localizedRoot, true);
             Collider decalCollider = decal.GetComponent<Collider>();
             if (decalCollider != null)
             {
@@ -475,7 +632,17 @@ namespace HueDoneIt.Gameplay.Paint
                     {
                         renderQueue = (int)RenderQueue.Transparent
                     };
-                    _fallbackGlobalMaterial.SetFloat("_Surface", 1f);
+
+                    if (_fallbackGlobalMaterial.HasProperty("_Surface"))
+                    {
+                        _fallbackGlobalMaterial.SetFloat("_Surface", 1f);
+                    }
+
+                    if (_fallbackGlobalMaterial.HasProperty("_Cull"))
+                    {
+                        _fallbackGlobalMaterial.SetFloat("_Cull", (float)CullMode.Off);
+                    }
+
                     _fallbackGlobalMaterial.SetFloat("_ZWrite", 0f);
                     _fallbackGlobalMaterial.enableInstancing = true;
                 }
@@ -494,6 +661,24 @@ namespace HueDoneIt.Gameplay.Paint
                 PropertyBlock = new MaterialPropertyBlock(),
                 ExpireAt = 0f
             };
+        }
+
+        private static void EnsureLocalizedRoot()
+        {
+            if (_localizedRoot != null)
+            {
+                return;
+            }
+
+            GameObject root = GameObject.Find("__LocalizedPaintDecals");
+            if (root == null)
+            {
+                root = new GameObject("__LocalizedPaintDecals");
+            }
+
+            root.transform.SetPositionAndRotation(Vector3.zero, Quaternion.identity);
+            root.transform.localScale = Vector3.one;
+            _localizedRoot = root.transform;
         }
 
         private static void EnsureGlobalRoot()
@@ -516,7 +701,10 @@ namespace HueDoneIt.Gameplay.Paint
         {
             SplatVisualProfile profile = BuildVisualProfile(splatData, wet);
             float activityBoost = ActivityScore01 * activityToDensityMultiplier;
-            int splatCount = 1 + profile.AdditionalSplats + Mathf.Clamp(Mathf.FloorToInt(splatData.ForceMagnitude * forceToDensityMultiplier), 0, 4) + Mathf.Clamp(Mathf.FloorToInt(activityBoost * 3f), 0, 2);
+            int kineticSplats = splatData.EventKind == PaintEventKind.RagdollImpact
+                ? Mathf.Clamp(Mathf.FloorToInt(splatData.ForceMagnitude * (forceToDensityMultiplier + 0.16f)), 1, 8)
+                : Mathf.Clamp(Mathf.FloorToInt(splatData.ForceMagnitude * forceToDensityMultiplier), 0, 5);
+            int splatCount = 1 + profile.AdditionalSplats + kineticSplats + Mathf.Clamp(Mathf.FloorToInt(activityBoost * 3f), 0, 2);
 
             Vector3 normal = splatData.Normal.sqrMagnitude > 0.001f ? splatData.Normal.normalized : Vector3.up;
             Vector3 dragDirection = ResolveDragDirection(splatData, normal);
@@ -524,20 +712,73 @@ namespace HueDoneIt.Gameplay.Paint
 
             for (int i = 0; i < splatCount; i++)
             {
-                float along = i == 0 ? 0f : (splatData.Radius * 0.22f * i);
-                float lateralSign = ((i & 1) == 0 ? -1f : 1f);
-                float lateral = i == 0 ? 0f : (splatData.Radius * 0.12f * lateralSign * (1f + (0.2f * i)));
-                Vector3 offset = (dragDirection * along) + (bitangent * lateral);
-                float localStretch = Mathf.Lerp(profile.StretchMultiplier, profile.StretchMultiplier * 0.65f, i / Mathf.Max(1f, splatCount - 1f));
-                float localRadius = Mathf.Lerp(profile.RadiusMultiplier, profile.RadiusMultiplier * 0.78f, i / Mathf.Max(1f, splatCount - 1f));
+                float t = i / Mathf.Max(1f, splatCount - 1f);
+                Vector3 offset = ComputeSplatOffset(splatData, normal, dragDirection, bitangent, i, splatCount);
+
+                float localStretch = Mathf.Lerp(profile.StretchMultiplier, profile.StretchMultiplier * 0.65f, t);
+                float localRadius = Mathf.Lerp(profile.RadiusMultiplier, profile.RadiusMultiplier * 0.78f, t);
+
+                if (i > 0 && (splatData.EventKind == PaintEventKind.RagdollImpact || splatData.SplatType == PaintSplatType.HeavyImpact || splatData.SplatType == PaintSplatType.RagdollImpact))
+                {
+                    uint localSeed = unchecked((uint)(splatData.PatternSeed + (i * 251)));
+                    localRadius *= Mathf.Lerp(0.24f, 0.52f, Hash01(localSeed + 17u));
+                    localStretch *= Mathf.Lerp(0.42f, 0.9f, Hash01(localSeed + 29u));
+                }
+                else if (i > 0 && (splatData.EventKind == PaintEventKind.Land || splatData.EventKind == PaintEventKind.WallLaunch))
+                {
+                    uint localSeed = unchecked((uint)(splatData.PatternSeed + (i * 173)));
+                    localRadius *= Mathf.Lerp(0.32f, 0.66f, Hash01(localSeed + 11u));
+                    localStretch *= Mathf.Lerp(0.55f, 0.95f, Hash01(localSeed + 19u));
+                }
+
                 SpawnDecal(color, splatData, profile, offset, i, localRadius, localStretch, dragDirection);
             }
+        }
+
+        private Vector3 ComputeSplatOffset(PaintSplatData splatData, Vector3 normal, Vector3 dragDirection, Vector3 bitangent, int localIndex, int splatCount)
+        {
+            if (localIndex <= 0)
+            {
+                return Vector3.zero;
+            }
+
+            uint seed = unchecked((uint)(splatData.PatternSeed + (localIndex * 4099)));
+            float force01 = Mathf.InverseLerp(3f, 24f, splatData.ForceMagnitude);
+            float count01 = localIndex / Mathf.Max(1f, splatCount - 1f);
+            float side = Hash01(seed + 3u) < 0.5f ? -1f : 1f;
+
+            if (splatData.EventKind == PaintEventKind.RagdollImpact || splatData.SplatType == PaintSplatType.HeavyImpact || splatData.SplatType == PaintSplatType.RagdollImpact)
+            {
+                float cone = Mathf.Lerp(0.18f, 1.25f, Hash01(seed + 7u));
+                float lateral = (Hash01(seed + 11u) * 2f - 1f) * Mathf.Lerp(0.18f, 1.05f, force01);
+                float distance = splatData.Radius * Mathf.Lerp(0.42f, 1.85f, force01) * cone;
+                return (dragDirection * distance) + (bitangent * lateral * splatData.Radius);
+            }
+
+            if (splatData.EventKind == PaintEventKind.Land)
+            {
+                float angle = Hash01(seed + 13u) * Mathf.PI * 2f;
+                float distance = splatData.Radius * Mathf.Lerp(0.18f, 1.15f, Hash01(seed + 17u)) * Mathf.Lerp(0.55f, 1.25f, force01);
+                Vector3 radial = (dragDirection * Mathf.Cos(angle)) + (bitangent * Mathf.Sin(angle));
+                return radial.normalized * distance;
+            }
+
+            if (splatData.EventKind == PaintEventKind.WallStick || splatData.EventKind == PaintEventKind.Move || splatData.EventKind == PaintEventKind.FloodDrip)
+            {
+                float along = splatData.Radius * Mathf.Lerp(0.12f, 0.56f, count01);
+                float lateral = side * splatData.Radius * Mathf.Lerp(0.06f, 0.28f, Hash01(seed + 23u));
+                return (dragDirection * along) + (bitangent * lateral);
+            }
+
+            float defaultAlong = splatData.Radius * Mathf.Lerp(0.14f, 0.72f, count01);
+            float defaultLateral = side * splatData.Radius * Mathf.Lerp(0.08f, 0.38f, Hash01(seed + 31u));
+            return (dragDirection * defaultAlong) + (bitangent * defaultLateral);
         }
 
         private SplatVisualProfile BuildVisualProfile(PaintSplatData splatData, bool wet)
         {
             float localWashout = Mathf.Clamp01(_roomWashout01 + (wet ? 0.32f : 0f));
-            SplatVisualProfile profile = new()
+            SplatVisualProfile profile = new SplatVisualProfile
             {
                 RadiusMultiplier = 1f,
                 AlphaMultiplier = wet ? 0.75f : 1f,
@@ -561,16 +802,15 @@ namespace HueDoneIt.Gameplay.Paint
                     profile.PreferDirectionalMask = true;
                     break;
                 case PaintEventKind.Land:
-                    profile.RadiusMultiplier = 1.2f;
+                    profile.RadiusMultiplier = Mathf.Lerp(1.05f, 1.55f, Mathf.InverseLerp(4f, 18f, splatData.ForceMagnitude));
                     profile.AlphaMultiplier *= 1.05f;
-                    profile.StretchMultiplier *= 1.1f;
-                    profile.AdditionalSplats = 1;
+                    profile.StretchMultiplier *= Mathf.Lerp(1.1f, 1.65f, Mathf.InverseLerp(4f, 18f, splatData.ForceMagnitude));
+                    profile.AdditionalSplats = Mathf.Clamp(Mathf.RoundToInt(Mathf.InverseLerp(4f, 18f, splatData.ForceMagnitude) * 3f), 1, 3);
                     profile.Lifetime = heavyTemporaryLifetimeSeconds;
                     if (splatData.ForceMagnitude >= landingPermanentForceThreshold)
                     {
                         profile.ForcePermanent = true;
                     }
-
                     break;
                 case PaintEventKind.WallStick:
                     profile.RadiusMultiplier = 0.9f;
@@ -595,10 +835,10 @@ namespace HueDoneIt.Gameplay.Paint
                     profile.PreferDirectionalMask = true;
                     break;
                 case PaintEventKind.RagdollImpact:
-                    profile.RadiusMultiplier = 1.45f;
-                    profile.AlphaMultiplier *= 1.2f;
-                    profile.StretchMultiplier *= Mathf.Lerp(1.3f, 2.4f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude));
-                    profile.AdditionalSplats = 3;
+                    profile.RadiusMultiplier = Mathf.Lerp(1.45f, 2.25f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude));
+                    profile.AlphaMultiplier *= 1.25f;
+                    profile.StretchMultiplier *= Mathf.Lerp(1.55f, 3.2f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude));
+                    profile.AdditionalSplats = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(3f, 7f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude))), 3, 7);
                     profile.ForcePermanent = true;
                     profile.PreferDirectionalMask = true;
                     break;
@@ -619,7 +859,6 @@ namespace HueDoneIt.Gameplay.Paint
                     {
                         profile.ForcePermanent = true;
                     }
-
                     break;
                 case PaintEventKind.FloodDrip:
                     profile.RadiusMultiplier = 0.68f;
@@ -700,6 +939,16 @@ namespace HueDoneIt.Gameplay.Paint
                 xScale *= -1f;
             }
 
+            float sign = xScale < 0f ? -1f : 1f;
+            float maxMajor = splatData.EventKind == PaintEventKind.RagdollImpact || splatData.SplatType == PaintSplatType.HeavyImpact || splatData.SplatType == PaintSplatType.RagdollImpact
+                ? maxHeavyImpactMajorAxis
+                : maxLocalizedDecalMajorAxis;
+            float maxMinor = splatData.EventKind == PaintEventKind.RagdollImpact || splatData.SplatType == PaintSplatType.HeavyImpact || splatData.SplatType == PaintSplatType.RagdollImpact
+                ? maxHeavyImpactMinorAxis
+                : maxLocalizedDecalMinorAxis;
+
+            xScale = sign * Mathf.Clamp(Mathf.Abs(xScale), 0.035f, Mathf.Max(0.04f, maxMajor));
+            yScale = Mathf.Clamp(yScale, 0.035f, Mathf.Max(0.04f, maxMinor));
             instance.Transform.localScale = new Vector3(xScale, yScale, 1f);
 
             int materialIndex = ResolvePatternIndex(splatData, localIndex, profile.PreferDirectionalMask);
@@ -760,27 +1009,25 @@ namespace HueDoneIt.Gameplay.Paint
             return count;
         }
 
-        private int ResolvePatternIndex(PaintSplatData splatData, int localIndex, bool preferDirectional)
+        private int ResolvePatternIndex(PaintSplatData splatData, int localIndex, bool preferDirectionalMask)
         {
-            if (_patternMaterials.Count == 0)
+            if (_patternMaterials.Count <= 1)
             {
                 return 0;
             }
 
-            if (_patternLookup.TryGetValue(splatData.SplatType, out int[] preferredIndices) && preferredIndices != null && preferredIndices.Length > 0)
+            if (_patternLookup.TryGetValue(splatData.SplatType, out int[] mappedIndices) && mappedIndices.Length > 0)
             {
-                int preferredIndex = Mathf.Abs(splatData.PatternSeed + (localIndex * 17)) % preferredIndices.Length;
-                return Mathf.Clamp(preferredIndices[preferredIndex], 0, _patternMaterials.Count - 1);
+                int mapped = Mathf.Abs((splatData.PatternSeed + localIndex) % mappedIndices.Length);
+                return Mathf.Clamp(mappedIndices[mapped], 0, _patternMaterials.Count - 1);
             }
 
-            int patternCount = _patternMaterials.Count;
-            int baseIndex = Mathf.Abs(splatData.PatternIndex + localIndex);
-            if (preferDirectional && patternCount > 1)
+            if (preferDirectionalMask)
             {
-                baseIndex += 1;
+                return Mathf.Abs((splatData.PatternSeed + (localIndex * 3)) % _patternMaterials.Count);
             }
 
-            return baseIndex % patternCount;
+            return Mathf.Abs((splatData.PatternSeed + localIndex) % _patternMaterials.Count);
         }
 
         private DecalInstance AcquireDecalInstance()
@@ -790,67 +1037,57 @@ namespace HueDoneIt.Gameplay.Paint
                 return _pool.Pop();
             }
 
-            if (_activeDecals.Count == 0)
+            if (_activeDecals.Count > 0)
             {
-                return null;
+                DecalInstance recycled = _activeDecals[0];
+                _activeDecals.RemoveAt(0);
+                return recycled;
             }
 
-            int candidateIndex = -1;
-            float oldestExpiry = float.PositiveInfinity;
+            return CreateDecalInstance();
+        }
 
-            for (int i = 0; i < _activeDecals.Count; i++)
+        private void TrimIfOverBudget()
+        {
+            while (_activeDecals.Count > maxSplatDecals)
             {
-                DecalInstance active = _activeDecals[i];
-                if (active.Permanent)
-                {
-                    continue;
-                }
-
-                if (active.ExpireAt < oldestExpiry)
-                {
-                    oldestExpiry = active.ExpireAt;
-                    candidateIndex = i;
-                }
+                ReleaseDecal(_activeDecals[0]);
+                _activeDecals.RemoveAt(0);
             }
-
-            if (candidateIndex < 0)
-            {
-                candidateIndex = 0;
-            }
-
-            DecalInstance recycled = _activeDecals[candidateIndex];
-            _activeDecals.RemoveAt(candidateIndex);
-            return recycled;
         }
 
         private void TickDecals()
         {
             float now = Time.time;
-
             for (int i = _activeDecals.Count - 1; i >= 0; i--)
             {
-                DecalInstance decal = _activeDecals[i];
-                if (decal.Permanent)
-                {
-                    continue;
-                }
-
-                if (now >= decal.ExpireAt)
+                DecalInstance instance = _activeDecals[i];
+                if (instance == null || instance.GameObject == null)
                 {
                     _activeDecals.RemoveAt(i);
-                    decal.GameObject.SetActive(false);
-                    _pool.Push(decal);
                     continue;
                 }
 
-                float normalizedLife = Mathf.InverseLerp(decal.SpawnAt, decal.ExpireAt, now);
-                float alphaMultiplier = 1f - normalizedLife;
-                decal.Renderer.GetPropertyBlock(decal.PropertyBlock);
-                Color fadeColor = decal.PropertyBlock.GetColor(BaseColorId);
-                fadeColor.a = decal.InitialAlpha * alphaMultiplier;
-                decal.PropertyBlock.SetColor(BaseColorId, fadeColor);
-                decal.PropertyBlock.SetColor(ColorId, fadeColor);
-                decal.Renderer.SetPropertyBlock(decal.PropertyBlock);
+                if (instance.Permanent)
+                {
+                    continue;
+                }
+
+                if (now >= instance.ExpireAt)
+                {
+                    ReleaseDecal(instance);
+                    _activeDecals.RemoveAt(i);
+                    continue;
+                }
+
+                float life01 = Mathf.InverseLerp(instance.ExpireAt, instance.SpawnAt, now);
+                float alpha = instance.InitialAlpha * life01;
+                instance.Renderer.GetPropertyBlock(instance.PropertyBlock);
+                Color currentColor = instance.PropertyBlock.GetColor(ColorId);
+                currentColor.a = alpha;
+                instance.PropertyBlock.SetColor(ColorId, currentColor);
+                instance.PropertyBlock.SetColor(BaseColorId, currentColor);
+                instance.Renderer.SetPropertyBlock(instance.PropertyBlock);
             }
         }
 
@@ -860,49 +1097,30 @@ namespace HueDoneIt.Gameplay.Paint
             for (int i = GlobalDecals.Count - 1; i >= 0; i--)
             {
                 GlobalDecal decal = GlobalDecals[i];
-                if (now < decal.ExpireAt)
+                if (decal == null || decal.GameObject == null)
                 {
+                    GlobalDecals.RemoveAt(i);
                     continue;
                 }
 
-                GlobalDecals.RemoveAt(i);
-                decal.GameObject.SetActive(false);
-                GlobalPool.Push(decal);
+                if (now >= decal.ExpireAt)
+                {
+                    decal.GameObject.SetActive(false);
+                    GlobalDecals.RemoveAt(i);
+                    GlobalPool.Push(decal);
+                }
             }
         }
 
-        private void TrimIfOverBudget()
+        private void ReleaseDecal(DecalInstance instance)
         {
-            while (_activeDecals.Count > maxSplatDecals)
+            if (instance == null || instance.GameObject == null)
             {
-                int indexToRemove = -1;
-                float oldestExpiry = float.PositiveInfinity;
-
-                for (int i = 0; i < _activeDecals.Count; i++)
-                {
-                    DecalInstance decal = _activeDecals[i];
-                    if (decal.Permanent)
-                    {
-                        continue;
-                    }
-
-                    if (decal.ExpireAt < oldestExpiry)
-                    {
-                        oldestExpiry = decal.ExpireAt;
-                        indexToRemove = i;
-                    }
-                }
-
-                if (indexToRemove < 0)
-                {
-                    indexToRemove = 0;
-                }
-
-                DecalInstance removed = _activeDecals[indexToRemove];
-                _activeDecals.RemoveAt(indexToRemove);
-                removed.GameObject.SetActive(false);
-                _pool.Push(removed);
+                return;
             }
+
+            instance.GameObject.SetActive(false);
+            _pool.Push(instance);
         }
     }
 }

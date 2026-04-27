@@ -20,14 +20,14 @@ namespace HueDoneIt.Flood.Integration
         [SerializeField] private float reportIntervalSeconds = 0.15f;
 
         [Header("Saturation")]
-        [SerializeField] private float dryRecoveryPerSecond = 0.2f;
-        [SerializeField] private float wetSaturationPerSecond = 0.08f;
-        [SerializeField] private float floodingSaturationPerSecond = 0.22f;
-        [SerializeField] private float submergedSaturationPerSecond = 0.45f;
+        [SerializeField] private float dryRecoveryPerSecond = 0.26f;
+        [SerializeField] private float wetSaturationPerSecond = 0.04f;
+        [SerializeField] private float floodingSaturationPerSecond = 0.10f;
+        [SerializeField] private float submergedSaturationPerSecond = 0.18f;
         [SerializeField, Range(0f, 1f)] private float criticalThreshold = 0.7f;
         [SerializeField, Range(0f, 1f)] private float deathThreshold = 1f;
-        [SerializeField, Min(0.1f)] private float fullSubmergedGraceSeconds = 2.8f;
-        [SerializeField, Min(0f)] private float dangerousFlowVelocity = 0.24f;
+        [SerializeField, Min(0.1f)] private float fullSubmergedGraceSeconds = 6.5f;
+        [SerializeField, Min(0f)] private float dangerousFlowVelocity = 1.85f;
 
         [Header("Flood Paint")]
         [SerializeField, Min(0.05f)] private float floodDripIntervalSeconds = 0.35f;
@@ -113,6 +113,23 @@ namespace HueDoneIt.Flood.Integration
             _waterLevel01.Value = 0f;
             _flowVelocity.Value = 0f;
             _submergedTimer = 0f;
+        }
+
+        public bool ServerReduceSaturation(float amount01, string reason = "Decontaminated")
+        {
+            if (!IsServer || amount01 <= 0f)
+            {
+                return false;
+            }
+
+            float previous = _saturation.Value;
+            _saturation.Value = Mathf.Clamp01(_saturation.Value - amount01);
+            if (_saturation.Value < previous && _paintEmitter != null)
+            {
+                EmitFloodPaint(PaintEventKind.FloodDrip, 0.25f);
+            }
+
+            return _saturation.Value < previous;
         }
 
         private void UpdateLocalObservedZone()

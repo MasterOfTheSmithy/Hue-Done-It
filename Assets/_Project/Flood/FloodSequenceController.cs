@@ -43,9 +43,9 @@ namespace HueDoneIt.Flood
         [SerializeField, Min(0.1f)] private float earlySpeedMultiplier = 0.8f;
         [SerializeField, Min(0.1f)] private float midSpeedMultiplier = 1f;
         [SerializeField, Min(0.1f)] private float lateSpeedMultiplier = 1.35f;
-        [SerializeField, Min(2f)] private float earlyPulseCadenceSeconds = 20f;
-        [SerializeField, Min(2f)] private float midPulseCadenceSeconds = 13f;
-        [SerializeField, Min(2f)] private float latePulseCadenceSeconds = 8f;
+        [SerializeField, Min(2f)] private float earlyPulseCadenceSeconds = 28f;
+        [SerializeField, Min(2f)] private float midPulseCadenceSeconds = 18f;
+        [SerializeField, Min(2f)] private float latePulseCadenceSeconds = 11f;
         [SerializeField, Min(0.5f)] private float pulseTelegraphSeconds = 4f;
         [SerializeField, Min(0.5f)] private float pulseFloodDurationSeconds = 5.5f;
         [SerializeField, Min(0.5f)] private float pulseSubmergeDurationSeconds = 3.5f;
@@ -230,34 +230,38 @@ namespace HueDoneIt.Flood
             sequences = new List<ZoneSequence>();
             if (mainZone != null)
             {
-                ApplyZoneInitialState(mainZone, FloodZoneState.Wet);
+                ApplyZoneInitialState(mainZone, FloodZoneState.Dry);
                 sequences.Add(new ZoneSequence
                 {
                     zone = mainZone,
-                    initialDelaySeconds = 0f,
+                    initialDelaySeconds = 18f,
                     loop = true,
                     states = new List<StateDuration>
                     {
-                        new() { state = FloodZoneState.Wet, durationSeconds = 14f },
-                        new() { state = FloodZoneState.Flooding, durationSeconds = 16f },
-                        new() { state = FloodZoneState.Wet, durationSeconds = 12f }
+                        // Start the round with a real dry grace period so players never spawn inside active water.
+                        new() { state = FloodZoneState.Dry, durationSeconds = 12f },
+                        new() { state = FloodZoneState.Wet, durationSeconds = 16f },
+                        new() { state = FloodZoneState.Flooding, durationSeconds = 12f },
+                        new() { state = FloodZoneState.Wet, durationSeconds = 14f }
                     }
                 });
             }
 
             if (lowZone != null)
             {
-                ApplyZoneInitialState(lowZone, FloodZoneState.Flooding);
+                ApplyZoneInitialState(lowZone, FloodZoneState.Dry);
                 sequences.Add(new ZoneSequence
                 {
                     zone = lowZone,
-                    initialDelaySeconds = 6f,
+                    initialDelaySeconds = 26f,
                     loop = true,
                     states = new List<StateDuration>
                     {
+                        // Bilge/low-area flooding should be a pressure event, not the spawn state.
+                        new() { state = FloodZoneState.Dry, durationSeconds = 10f },
+                        new() { state = FloodZoneState.Wet, durationSeconds = 10f },
                         new() { state = FloodZoneState.Flooding, durationSeconds = 10f },
-                        new() { state = FloodZoneState.Submerged, durationSeconds = 8f },
-                        new() { state = FloodZoneState.Flooding, durationSeconds = 10f }
+                        new() { state = FloodZoneState.Wet, durationSeconds = 12f }
                     }
                 });
             }

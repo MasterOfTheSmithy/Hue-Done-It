@@ -171,6 +171,39 @@ namespace HueDoneIt.Gameplay.Elimination
             return Mathf.Max(0f, _secondaryCooldownEndServerTime.Value - GetServerTime());
         }
 
+        public float GetMimicRemaining()
+        {
+            return Mathf.Max(0f, _mimicEndServerTime.Value - GetServerTime());
+        }
+
+        public string BuildAbilityStatusLine()
+        {
+            if (CurrentRole != PlayerRole.Bleach)
+            {
+                return "Color kit: Report bodies / repair / survive";
+            }
+
+            string primary = IsPrimaryWindupActive
+                ? $"Injecting {Mathf.CeilToInt(Mathf.Max(0f, _primaryWindupEndServerTime.Value - GetServerTime()))}s"
+                : (GetPrimaryCooldownRemaining() > 0f ? $"Inject CD {Mathf.CeilToInt(GetPrimaryCooldownRemaining())}s" : "Inject ready");
+
+            string secondary = CurrentSecondaryAbility switch
+            {
+                BleachSecondaryAbility.Mimic => IsMimicking
+                    ? $"Mimic active {Mathf.CeilToInt(GetMimicRemaining())}s"
+                    : (GetSecondaryCooldownRemaining() > 0f ? $"Mimic CD {Mathf.CeilToInt(GetSecondaryCooldownRemaining())}s" : "Mimic ready"),
+                BleachSecondaryAbility.Corrupt => GetSecondaryCooldownRemaining() > 0f
+                    ? $"Corrupt CD {Mathf.CeilToInt(GetSecondaryCooldownRemaining())}s"
+                    : "Corrupt ready",
+                BleachSecondaryAbility.Overload => _overloadConsumed.Value
+                    ? "Overload spent"
+                    : (GetSecondaryCooldownRemaining() > 0f ? $"Overload CD {Mathf.CeilToInt(GetSecondaryCooldownRemaining())}s" : "Overload ready"),
+                _ => "No secondary"
+            };
+
+            return $"Bleach kit: {primary} // {secondary}";
+        }
+
         private void SubscribeToState()
         {
             if (!_subscribedToNetworkVariables)

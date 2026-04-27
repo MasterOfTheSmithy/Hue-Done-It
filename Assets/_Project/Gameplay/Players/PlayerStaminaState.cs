@@ -68,6 +68,18 @@ namespace HueDoneIt.Gameplay.Players
             return ServerTryConsume(wallStickDrainPerSecond * Mathf.Max(0f, deltaTime));
         }
 
+        public bool ServerRestoreStamina(float amount)
+        {
+            if (!IsServer || amount <= 0f)
+            {
+                return false;
+            }
+
+            float previous = _stamina.Value;
+            _stamina.Value = Mathf.Clamp(_stamina.Value + amount, 0f, maxStamina);
+            return _stamina.Value > previous;
+        }
+
         public void ServerRegenerate(float deltaTime, bool grounded, bool idle)
         {
             if (!IsServer || deltaTime <= 0f || Time.time < _regenBlockedUntil)

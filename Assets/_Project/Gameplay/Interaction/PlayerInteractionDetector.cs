@@ -14,9 +14,11 @@ namespace HueDoneIt.Gameplay.Interaction
         [SerializeField] private LayerMask detectionMask = ~0;
         [SerializeField] private LayerMask lineOfSightMask = ~0;
         [SerializeField] private int overlapBufferSize = 16;
+        [SerializeField] private int lineOfSightHitBufferSize = 12;
         [SerializeField, Min(0.01f)] private float screenCenterProbeRadius = 0.18f;
 
         private Collider[] _overlapResults;
+        private RaycastHit[] _lineOfSightHits;
         private NetworkInteractable _currentInteractable;
         private PlayerLifeState _lifeState;
 
@@ -27,6 +29,7 @@ namespace HueDoneIt.Gameplay.Interaction
         private void Awake()
         {
             _overlapResults = new Collider[Mathf.Max(1, overlapBufferSize)];
+            _lineOfSightHits = new RaycastHit[Mathf.Max(1, lineOfSightHitBufferSize)];
             _lifeState = GetComponent<PlayerLifeState>();
         }
 
@@ -55,11 +58,12 @@ namespace HueDoneIt.Gameplay.Interaction
                 return focused;
             }
 
-            int hitCount = Physics.OverlapSphereNonAlloc(transform.position, interactionRange, _overlapResults, detectionMask, QueryTriggerInteraction.Collide);
-            float bestScore = float.MinValue;
-            NetworkInteractable best = null;
             Vector3 fallbackForward = GetFallbackForward();
             Vector3 rayOrigin = GetRayOrigin();
+            int hitCount = Physics.OverlapSphereNonAlloc(rayOrigin, interactionRange, _overlapResults, detectionMask, QueryTriggerInteraction.Collide);
+
+            float bestScore = float.MinValue;
+            NetworkInteractable best = null;
 
             for (int i = 0; i < hitCount; i++)
             {
@@ -75,15 +79,15 @@ namespace HueDoneIt.Gameplay.Interaction
                     continue;
                 }
 
-                Vector3 closest = hit.ClosestPoint(transform.position);
-                Vector3 toTarget = closest - transform.position;
+                Vector3 interactionPoint = interactable.GetInteractionPoint(rayOrigin);
+                Vector3 toTarget = interactionPoint - rayOrigin;
                 float distance = toTarget.magnitude;
-                if (distance > Mathf.Max(interactionRange, interactable.MaxUseDistance))
+                if (distance > Mathf.Max(interactionRange, interactable.MaxUseDistance) || distance <= 0.001f)
                 {
                     continue;
                 }
 
-                Vector3 direction = distance > 0.001f ? toTarget / distance : fallbackForward;
+                Vector3 direction = toTarget / distance;
                 float facing = Vector3.Dot(fallbackForward, direction);
                 float score = (facing * 4f) - distance;
                 if (score > bestScore)
@@ -122,7 +126,7 @@ namespace HueDoneIt.Gameplay.Interaction
                 return false;
             }
 
-            Vector3 targetPoint = interactable.transform.position + (Vector3.up * 0.6f);
+            Vector3 targetPoint = interactable.GetInteractionPoint(rayOrigin);
             Vector3 toTarget = targetPoint - rayOrigin;
             float distance = toTarget.magnitude;
             if (distance > Mathf.Max(interactionRange, interactable.MaxUseDistance) || distance <= 0.001f)
@@ -130,12 +134,55 @@ namespace HueDoneIt.Gameplay.Interaction
                 return false;
             }
 
-            if (!Physics.Raycast(rayOrigin, toTarget.normalized, out RaycastHit hit, distance + 0.05f, lineOfSightMask, QueryTriggerInteraction.Ignore))
+            return !HasBlockingLineOfSight(rayOrigin, targetPoint, interactable);
+        }
+
+        private bool HasBlockingLineOfSight(Vector3 rayOrigin, Vector3 targetPoint, NetworkInteractable interactable)
+        {
+            Vector3 toTarget = targetPoint - rayOrigin;
+            float distance = toTarget.magnitude;
+            if (distance <= 0.001f)
             {
-                return true;
+                return false;
             }
 
-            return hit.transform.IsChildOf(interactable.transform);
+            int hitCount = Physics.RaycastNonAlloc(
+                rayOrigin,
+                toTarget / distance,
+                _lineOfSightHits,
+                distance + 0.05f,
+                lineOfSightMask,
+                QueryTriggerInteraction.Ignore);
+
+            float nearestDistance = float.MaxValue;
+            Transform nearestTransform = null;
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                RaycastHit hit = _lineOfSightHits[i];
+                if (hit.collider == null || hit.transform == null)
+                {
+                    continue;
+                }
+
+                if (hit.transform.IsChildOf(transform))
+                {
+                    continue;
+                }
+
+                if (hit.distance < nearestDistance)
+                {
+                    nearestDistance = hit.distance;
+                    nearestTransform = hit.transform;
+                }
+            }
+
+            if (nearestTransform == null)
+            {
+                return false;
+            }
+
+            return !nearestTransform.IsChildOf(interactable.transform);
         }
 
         private Vector3 GetRayOrigin()

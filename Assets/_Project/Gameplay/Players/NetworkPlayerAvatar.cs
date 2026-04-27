@@ -119,6 +119,22 @@ namespace HueDoneIt.Gameplay.Players
             }
         }
 
+        // This method is called by LobbyHudController on the server after a player confirms customization.
+        // It updates the replicated visual state so all peers see the same placeholder body, hat, and outfit choices.
+        public void ServerApplyCustomization(Color32 bodyColor, int hatIndex, int outfitIndex)
+        {
+            if (!IsServer)
+            {
+                return;
+            }
+
+            _bodyColor.Value = bodyColor;
+            _hatIndex.Value = Mathf.Max(0, hatIndex);
+            _outfitIndex.Value = Mathf.Max(0, outfitIndex);
+
+            RefreshVisuals();
+        }
+
         private void HandleOpacityChanged(float previousValue, float currentValue)
         {
             RefreshVisuals();
@@ -150,7 +166,7 @@ namespace HueDoneIt.Gameplay.Players
                         continue;
                     }
 
-                    if (renderer.transform == _hatTransform)
+                    if (_hatTransform != null && renderer.transform == _hatTransform)
                     {
                         float hatDarken = (_hatIndex.Value % 6) * 0.08f;
                         renderer.material.color = Color.Lerp(opacityColor, Color.black, hatDarken);
@@ -163,8 +179,11 @@ namespace HueDoneIt.Gameplay.Players
                 }
             }
 
-            _hatTransform.gameObject.SetActive(_hatIndex.Value > 0);
-            _hatTransform.localScale = Vector3.one * (0.25f + (_hatIndex.Value * 0.05f));
+            if (_hatTransform != null)
+            {
+                _hatTransform.gameObject.SetActive(_hatIndex.Value > 0);
+                _hatTransform.localScale = Vector3.one * (0.25f + (_hatIndex.Value * 0.05f));
+            }
         }
 
         private void CacheRenderers()

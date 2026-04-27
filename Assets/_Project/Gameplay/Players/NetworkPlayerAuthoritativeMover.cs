@@ -44,6 +44,12 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0.01f)] private float coyoteTimeSeconds = 0.14f;
         [SerializeField, Min(0.01f)] private float jumpBufferSeconds = 0.15f;
 
+        [Header("Gravity Fields")]
+        [SerializeField] private LayerMask gravityFieldMask = ~0;
+        [SerializeField, Min(0.05f)] private float gravityFieldProbeRadius = 0.7f;
+        [SerializeField, Min(1)] private int gravityFieldOverlapBufferSize = 8;
+        [SerializeField, Range(0.01f, 0.25f)] private float zeroGravityWallPaintIntervalSeconds = 0.14f;
+
         [Header("Wall Play")]
         [SerializeField, Min(0.05f)] private float wallDetectionDistance = 0.65f;
         [SerializeField, Min(0f)] private float wallStickForce = 8f;
@@ -77,6 +83,11 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0.05f)] private float ragdollRecoveryLockSeconds = 0.45f;
         [SerializeField, Min(0f)] private float ragdollHorizontalDamping = 1.1f;
         [SerializeField, Min(0f)] private float ragdollGravityMultiplier = 1.2f;
+
+        [Header("Impact Paint")]
+        [SerializeField, Min(0f)] private float wallImpactPaintMinSpeed = 4.2f;
+        [SerializeField, Min(0f)] private float heavyWallImpactPaintSpeed = 11.5f;
+        [SerializeField, Min(0.01f)] private float wallImpactPaintCooldownSeconds = 0.18f;
 
         [Header("Grounding / Collision")]
         [SerializeField] private LayerMask groundMask = ~0;
@@ -129,6 +140,9 @@ namespace HueDoneIt.Gameplay.Players
         private readonly NetworkVariable<float> _wallCompression01 =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<float> _gravityMultiplier =
+            new(1f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<float> _punchCooldownEndServerTime =
             new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -168,6 +182,8 @@ namespace HueDoneIt.Gameplay.Players
 
         private float _nextMovementPaintTime;
         private float _nextWallPaintTime;
+        private float _nextImpactPaintTime;
+        private Collider[] _gravityFieldOverlaps;
 
         private Vector3 _blobBaseScale = Vector3.one;
         private Vector3 _blobCurrentScale = Vector3.one;
@@ -182,6 +198,8 @@ namespace HueDoneIt.Gameplay.Players
         public float JumpBufferRemaining => _jumpBufferTimeRemaining;
         public float LastLandingImpact => _lastLandingImpact.Value;
         public float WallCompression => _wallCompression01.Value;
+        public float CurrentGravityMultiplier => _gravityMultiplier.Value;
+        public bool IsInAlteredGravity => CurrentGravityMultiplier < 0.98f;
         public float Opacity01
         {
             get
@@ -214,6 +232,7 @@ namespace HueDoneIt.Gameplay.Players
             _staminaState = GetComponent<PlayerStaminaState>();
             _paintEmitter = GetComponent<NetworkPlayerPaintEmitter>();
             _capsuleCollider = GetComponent<CapsuleCollider>();
+            _gravityFieldOverlaps = new Collider[Mathf.Max(1, gravityFieldOverlapBufferSize)];
 
             if (blobVisualRoot == null)
             {
@@ -241,6 +260,7 @@ namespace HueDoneIt.Gameplay.Players
                 _supportNormal.Value = Vector3.up;
                 _lastLandingImpact.Value = 0f;
                 _wallCompression01.Value = 0f;
+                _gravityMultiplier.Value = 1f;
             }
         }
 
@@ -313,6 +333,7 @@ namespace HueDoneIt.Gameplay.Players
             _supportNormal.Value = Vector3.up;
             _lastLandingImpact.Value = 0f;
             _wallCompression01.Value = 0f;
+            _gravityMultiplier.Value = 1f;
         }
 
         public void ServerApplyKnockback(Vector3 impulse)
@@ -417,7 +438,9 @@ namespace HueDoneIt.Gameplay.Players
 
         private void SimulateServerMotion(float deltaTime)
         {
-            bool lowGravity = IsInLowGravityZone();
+            float gravityMultiplier = ResolveGravityMultiplier(transform.position);
+            bool lowGravity = gravityMultiplier < 0.98f;
+            _gravityMultiplier.Value = gravityMultiplier;
             bool grounded = IsGrounded(transform.position, out RaycastHit groundHit);
             bool hasWall = TryFindWall(transform.position, out RaycastHit wallHit);
 
@@ -449,13 +472,13 @@ namespace HueDoneIt.Gameplay.Players
 
             if (_ragdollTimeRemaining > 0f)
             {
-                SimulateRagdoll(deltaTime, lowGravity, hasWall, wallHit);
+                SimulateRagdoll(deltaTime, gravityMultiplier, hasWall, wallHit);
             }
             else if (_knockbackTimeRemaining > 0f)
             {
                 _knockbackTimeRemaining -= deltaTime;
                 _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, knockbackDamping * deltaTime);
-                _verticalVelocity += -GetGravity(lowGravity) * deltaTime;
+                _verticalVelocity += -GetGravity(gravityMultiplier) * deltaTime;
                 _supportNormal.Value = hasWall ? wallHit.normal : Vector3.up;
                 _locomotionState.Value = (byte)LocomotionState.Knockback;
             }
@@ -553,7 +576,7 @@ namespace HueDoneIt.Gameplay.Players
 
                                 if (Time.time >= _nextWallPaintTime)
                                 {
-                                    _nextWallPaintTime = Time.time + (lowGravity ? 0.18f : 0.25f);
+                                    _nextWallPaintTime = Time.time + (gravityMultiplier <= 0.05f ? zeroGravityWallPaintIntervalSeconds : (lowGravity ? 0.18f : 0.25f));
                                     EmitPaint(PaintEventKind.WallStick, wallHit.point, wallHit.normal, 0.22f, lowGravity ? 0.9f : 0.55f, _horizontalVelocity.magnitude, _horizontalVelocity.normalized);
                                 }
                             }
@@ -580,7 +603,7 @@ namespace HueDoneIt.Gameplay.Players
 
                     if (!consumedJump)
                     {
-                        _verticalVelocity += -GetGravity(lowGravity) * deltaTime;
+                        _verticalVelocity += -GetGravity(gravityMultiplier) * deltaTime;
                     }
                 }
             }
@@ -662,14 +685,9 @@ namespace HueDoneIt.Gameplay.Players
                 : Mathf.MoveTowards(_wallCompression01.Value, 0f, deltaTime * 5f);
 
             if ((_locomotionState.Value == (byte)LocomotionState.Grounded || _locomotionState.Value == (byte)LocomotionState.LowGravityFloat) &&
-                (_serverMoveWorldInput.sqrMagnitude > 0.2f) && Time.time >= _nextMovementPaintTime)
+                _serverMoveWorldInput.sqrMagnitude > 0.2f)
             {
-                _nextMovementPaintTime = Time.time + (lowGravity ? 0.12f : 0.2f);
-                Vector3 direction = (nextPosition - previousPosition).sqrMagnitude > 0.001f
-                    ? (nextPosition - previousPosition).normalized
-                    : transform.forward;
-                EmitPaint(PaintEventKind.Move, nextPosition + (Vector3.down * 0.48f), Vector3.up, lowGravity ? 0.2f : 0.14f, lowGravity ? 0.9f : 0.45f, _horizontalVelocity.magnitude, direction);
-                EmitPaint(PaintEventKind.Move, nextPosition + (direction * 0.25f) + (Vector3.down * 0.48f), Vector3.up, 0.11f, 0.4f, _horizontalVelocity.magnitude * 0.8f, direction);
+                EmitMovementPaint(previousPosition, nextPosition, lowGravity);
             }
 
             _wasGroundedLastFrame = groundedAfterMove;
@@ -683,11 +701,11 @@ namespace HueDoneIt.Gameplay.Players
             }
         }
 
-        private void SimulateRagdoll(float deltaTime, bool lowGravity, bool hasWall, RaycastHit wallHit)
+        private void SimulateRagdoll(float deltaTime, float gravityMultiplier, bool hasWall, RaycastHit wallHit)
         {
             _ragdollTimeRemaining = Mathf.Max(0f, _ragdollTimeRemaining - deltaTime);
             _horizontalVelocity = Vector3.MoveTowards(_horizontalVelocity, Vector3.zero, ragdollHorizontalDamping * deltaTime);
-            _verticalVelocity += -(GetGravity(lowGravity) * ragdollGravityMultiplier) * deltaTime;
+            _verticalVelocity += -(GetGravity(gravityMultiplier) * ragdollGravityMultiplier) * deltaTime;
             _locomotionState.Value = (byte)LocomotionState.Ragdoll;
             _supportNormal.Value = hasWall ? wallHit.normal : Vector3.up;
 
@@ -861,12 +879,49 @@ namespace HueDoneIt.Gameplay.Players
             return false;
         }
 
-        private float GetGravity(bool lowGravity)
+        private float GetGravity(float gravityMultiplier)
         {
-            return gravityMagnitude * (lowGravity ? lowGravityMultiplier : 1f);
+            return gravityMagnitude * Mathf.Clamp01(gravityMultiplier);
         }
 
-        private bool IsInLowGravityZone()
+        private float ResolveGravityMultiplier(Vector3 position)
+        {
+            float resolved = IsFloodLowGravityActive() ? lowGravityMultiplier : 1f;
+
+            int desiredBufferSize = Mathf.Max(1, gravityFieldOverlapBufferSize);
+            if (_gravityFieldOverlaps == null || _gravityFieldOverlaps.Length != desiredBufferSize)
+            {
+                _gravityFieldOverlaps = new Collider[desiredBufferSize];
+            }
+
+            int hitCount = Physics.OverlapSphereNonAlloc(
+                position,
+                gravityFieldProbeRadius,
+                _gravityFieldOverlaps,
+                gravityFieldMask,
+                QueryTriggerInteraction.Collide);
+
+            for (int i = 0; i < hitCount; i++)
+            {
+                Collider candidate = _gravityFieldOverlaps[i];
+                if (candidate == null)
+                {
+                    continue;
+                }
+
+                GravityFieldZone field = candidate.GetComponentInParent<GravityFieldZone>();
+                if (field == null || !field.IsActive)
+                {
+                    continue;
+                }
+
+                resolved = Mathf.Min(resolved, field.GravityMultiplier);
+            }
+
+            return Mathf.Clamp01(resolved);
+        }
+
+        private bool IsFloodLowGravityActive()
         {
             if (_floodTracker == null)
             {
@@ -875,6 +930,53 @@ namespace HueDoneIt.Gameplay.Players
 
             FloodZoneState state = _floodTracker.CurrentZoneState;
             return state is FloodZoneState.Flooding or FloodZoneState.Submerged;
+        }
+
+        private void EmitMovementPaint(Vector3 previousPosition, Vector3 nextPosition, bool lowGravity)
+        {
+            float horizontalSpeed = new Vector3(_horizontalVelocity.x, 0f, _horizontalVelocity.z).magnitude;
+            if (horizontalSpeed < 0.75f)
+            {
+                return;
+            }
+
+            float speed01 = Mathf.InverseLerp(0.75f, burstMoveSpeed + 3.25f, horizontalSpeed);
+            float interval = Mathf.Lerp(lowGravity ? 0.24f : 0.36f, lowGravity ? 0.14f : 0.18f, speed01);
+            if (Time.time < _nextMovementPaintTime)
+            {
+                return;
+            }
+
+            _nextMovementPaintTime = Time.time + interval;
+
+            Vector3 direction = (nextPosition - previousPosition).sqrMagnitude > 0.001f
+                ? (nextPosition - previousPosition).normalized
+                : transform.forward;
+
+            float radius = Mathf.Lerp(0.06f, lowGravity ? 0.22f : 0.18f, speed01);
+            float intensity = Mathf.Lerp(0.12f, lowGravity ? 0.95f : 0.72f, speed01);
+            PaintSplatPermanence permanence = horizontalSpeed >= (burstMoveSpeed + 1.2f)
+                ? PaintSplatPermanence.Permanent
+                : PaintSplatPermanence.Temporary;
+
+            EmitPaint(PaintEventKind.Move, nextPosition + (Vector3.down * 0.48f), Vector3.up, radius, intensity, horizontalSpeed, direction, permanence);
+
+            if (speed01 > 0.5f)
+            {
+                float trailingRadius = Mathf.Lerp(0.05f, 0.14f, speed01);
+                float trailingIntensity = Mathf.Lerp(0.1f, 0.48f, speed01);
+                EmitPaint(
+                    PaintEventKind.Move,
+                    nextPosition + (direction * Mathf.Lerp(0.14f, 0.32f, speed01)) + (Vector3.down * 0.48f),
+                    Vector3.up,
+                    trailingRadius,
+                    trailingIntensity,
+                    horizontalSpeed * 0.88f,
+                    direction,
+                    permanence == PaintSplatPermanence.Permanent && speed01 > 0.72f
+                        ? PaintSplatPermanence.Permanent
+                        : PaintSplatPermanence.Temporary);
+            }
         }
 
         private void EmitPaint(
@@ -933,6 +1035,78 @@ namespace HueDoneIt.Gameplay.Players
             _locomotionState.Value = (byte)LocomotionState.Ragdoll;
         }
 
+        private void EmitCollisionImpactPaint(RaycastHit hit, Vector3 collisionVelocity)
+        {
+            if (_paintEmitter == null || hit.collider == null || hit.collider.isTrigger || Time.time < _nextImpactPaintTime)
+            {
+                return;
+            }
+
+            Vector3 normal = hit.normal.sqrMagnitude > 0.0001f ? hit.normal.normalized : Vector3.up;
+            float impactSpeed = Mathf.Max(0f, Vector3.Dot(collisionVelocity, -normal));
+            if (impactSpeed < wallImpactPaintMinSpeed)
+            {
+                return;
+            }
+
+            _nextImpactPaintTime = Time.time + wallImpactPaintCooldownSeconds;
+
+            bool heavyImpact =
+                CurrentState == LocomotionState.Ragdoll ||
+                impactSpeed >= heavyWallImpactPaintSpeed ||
+                collisionVelocity.magnitude >= airborneRagdollSpeedThreshold;
+
+            float impact01 = Mathf.InverseLerp(wallImpactPaintMinSpeed, Mathf.Max(heavyWallImpactPaintSpeed, airborneRagdollSpeedThreshold + 2f), impactSpeed);
+            float radius = Mathf.Lerp(0.26f, heavyImpact ? 0.95f : 0.58f, impact01);
+            float intensity = Mathf.Lerp(0.45f, heavyImpact ? 1.55f : 1.05f, impact01);
+            PaintEventKind kind = heavyImpact ? PaintEventKind.RagdollImpact : PaintEventKind.WallStick;
+            PaintSplatPermanence permanence = heavyImpact ? PaintSplatPermanence.Permanent : PaintSplatPermanence.Temporary;
+            Vector3 direction = collisionVelocity.sqrMagnitude > 0.001f ? collisionVelocity.normalized : -normal;
+
+            EmitPaint(kind, hit.point, normal, radius, intensity, impactSpeed, direction, permanence);
+
+            if (heavyImpact)
+            {
+                EmitFlattenedImpactCompanionPaint(hit.point, normal, direction, impactSpeed, impact01);
+            }
+
+            if (heavyImpact && CurrentState != LocomotionState.Ragdoll)
+            {
+                EnterRagdoll(ragdollMinDurationSeconds);
+            }
+        }
+
+        private void EmitFlattenedImpactCompanionPaint(Vector3 impactPoint, Vector3 normal, Vector3 impactDirection, float impactSpeed, float impact01)
+        {
+            Vector3 tangent = Vector3.ProjectOnPlane(impactDirection, normal);
+            if (tangent.sqrMagnitude < 0.0001f)
+            {
+                tangent = Vector3.Cross(normal, Mathf.Abs(normal.y) > 0.7f ? Vector3.right : Vector3.up);
+            }
+
+            tangent.Normalize();
+            Vector3 bitangent = Vector3.Cross(normal, tangent).normalized;
+
+            float shoulderOffset = Mathf.Lerp(0.20f, 0.58f, impact01);
+            float lowerOffset = Mathf.Lerp(0.18f, 0.48f, impact01);
+            float lobeRadius = Mathf.Lerp(0.12f, 0.34f, impact01);
+            float lobeIntensity = Mathf.Lerp(0.35f, 0.95f, impact01);
+
+            EmitPaint(PaintEventKind.RagdollImpact, impactPoint + (bitangent * shoulderOffset), normal, lobeRadius, lobeIntensity, impactSpeed * 0.72f, tangent, PaintSplatPermanence.Permanent);
+            EmitPaint(PaintEventKind.RagdollImpact, impactPoint - (bitangent * shoulderOffset), normal, lobeRadius, lobeIntensity, impactSpeed * 0.70f, tangent, PaintSplatPermanence.Permanent);
+            EmitPaint(PaintEventKind.RagdollImpact, impactPoint - (tangent * lowerOffset), normal, lobeRadius * 0.9f, lobeIntensity * 0.82f, impactSpeed * 0.62f, tangent, PaintSplatPermanence.Permanent);
+
+            int dropletCount = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(2f, 5f, impact01)), 2, 5);
+            for (int i = 0; i < dropletCount; i++)
+            {
+                float step = i + 1f;
+                float side = ((i & 1) == 0 ? -1f : 1f);
+                Vector3 dropletOffset = (tangent * Mathf.Lerp(0.38f, 1.25f, impact01) * step * 0.34f) + (bitangent * side * Mathf.Lerp(0.12f, 0.42f, impact01 + (i * 0.06f)));
+                float dropletRadius = Mathf.Lerp(0.055f, 0.16f, impact01) * Mathf.Lerp(1f, 0.62f, i / Mathf.Max(1f, dropletCount - 1f));
+                EmitPaint(PaintEventKind.RagdollImpact, impactPoint + dropletOffset, normal, dropletRadius, lobeIntensity * 0.54f, impactSpeed * Mathf.Lerp(0.45f, 0.75f, impact01), tangent, PaintSplatPermanence.Temporary);
+            }
+        }
+
         private Vector3 MoveCharacter(Vector3 startPosition, Vector3 displacement, out bool hitGround, out Vector3 groundNormal)
         {
             hitGround = false;
@@ -966,6 +1140,10 @@ namespace HueDoneIt.Gameplay.Players
                 {
                     hitGround = true;
                     groundNormal = normal;
+                }
+                else
+                {
+                    EmitCollisionImpactPaint(hit, _horizontalVelocity + (Vector3.up * _verticalVelocity));
                 }
 
                 remaining = Vector3.ProjectOnPlane(remaining - (direction * allowedDistance), normal);

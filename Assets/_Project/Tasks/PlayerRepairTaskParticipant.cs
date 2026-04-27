@@ -1,5 +1,6 @@
 // File: Assets/_Project/Tasks/PlayerRepairTaskParticipant.cs
 using System;
+using System.Collections.Generic;
 using HueDoneIt.Gameplay.Interaction;
 using Unity.Netcode;
 using UnityEngine;
@@ -23,6 +24,10 @@ namespace HueDoneIt.Tasks
 
         private NetworkRepairTask _trackedTask;
         private bool _hasSentTerminalRequest;
+
+        private readonly List<float> _shipCheckpointFractions = new();
+        private int _shipCheckpointIndex;
+        private float _shipCheckpointWindow;
 
         public event Action<NetworkRepairTask, float, bool> TaskProgressUpdated;
 
@@ -48,12 +53,7 @@ namespace HueDoneIt.Tasks
 
         private void Update()
         {
-            if (!IsOwner || !IsClient || !IsSpawned)
-            {
-                return;
-            }
-
-            if (_trackedTask == null)
+            if (!IsOwner || !IsClient || !IsSpawned || _trackedTask == null)
             {
                 return;
             }
@@ -72,20 +72,9 @@ namespace HueDoneIt.Tasks
                 return;
             }
 
-            if (_trackedTask.CurrentState != RepairTaskState.InProgress)
+            if (_trackedTask.CurrentState != RepairTaskState.InProgress || _trackedTask.ActiveClientId != OwnerClientId)
             {
                 return;
-            }
-
-            if (_trackedTask.ActiveClientId != OwnerClientId)
-            {
-                return;
-            }
-
-            Keyboard keyboard = Keyboard.current;
-            if (keyboard != null && _trackedTask is PumpRepairTask && keyboard[puzzleConfirmKey].wasPressedThisFrame)
-            {
-                RequestPumpConfirmServerRpc(_trackedTask.NetworkObjectId);
             }
 
             float distance = Vector3.Distance(transform.position, _trackedTask.transform.position);
@@ -100,18 +89,123 @@ namespace HueDoneIt.Tasks
                 return;
             }
 
+            Keyboard keyboard = Keyboard.current;
+            if (_trackedTask is PumpRepairTask)
+            {
+                HandlePumpTask(keyboard, progress);
+                return;
+            }
+
+            if (_trackedTask is ShipRepairTask shipRepairTask)
+            {
+                HandleShipTask(shipRepairTask, keyboard, progress);
+                return;
+            }
+
             if (progress >= 1f && !_hasSentTerminalRequest)
             {
                 _hasSentTerminalRequest = true;
+                RequestCompleteRepairServerRpc(_trackedTask.NetworkObjectId);
+            }
+        }
 
-                if (_trackedTask is PumpRepairTask)
+        private void HandlePumpTask(Keyboard keyboard, float progress)
+        {
+            if (keyboard != null && keyboard[puzzleConfirmKey].wasPressedThisFrame)
+            {
+                RequestPumpConfirmServerRpc(_trackedTask.NetworkObjectId);
+            }
+
+            if (progress >= 1f && !_hasSentTerminalRequest)
+            {
+                _hasSentTerminalRequest = true;
+                RequestPumpTimeoutServerRpc(_trackedTask.NetworkObjectId);
+            }
+        }
+
+        private void HandleShipTask(ShipRepairTask shipRepairTask, Keyboard keyboard, float progress)
+        {
+            EnsureShipTaskSkillCheckConfig(shipRepairTask);
+            if (_shipCheckpointFractions.Count == 0)
+            {
+                if (progress >= 1f && !_hasSentTerminalRequest)
                 {
-                    RequestPumpTimeoutServerRpc(_trackedTask.NetworkObjectId);
+                    _hasSentTerminalRequest = true;
+                    RequestCompleteRepairServerRpc(_trackedTask.NetworkObjectId);
                 }
-                else
+
+                return;
+            }
+
+            if (_shipCheckpointIndex < _shipCheckpointFractions.Count)
+            {
+                float target = _shipCheckpointFractions[_shipCheckpointIndex];
+                float latestValidTime = target + _shipCheckpointWindow;
+                if (progress > latestValidTime && !_hasSentTerminalRequest)
+                {
+                    _hasSentTerminalRequest = true;
+                    RequestCancelRepairServerRpc(_trackedTask.NetworkObjectId, "Task timing failed");
+                    return;
+                }
+            }
+
+            if (keyboard != null && keyboard[puzzleConfirmKey].wasPressedThisFrame && _shipCheckpointIndex < _shipCheckpointFractions.Count)
+            {
+                float target = _shipCheckpointFractions[_shipCheckpointIndex];
+                bool insideWindow = progress >= (target - _shipCheckpointWindow) && progress <= (target + _shipCheckpointWindow);
+                if (insideWindow)
+                {
+                    _shipCheckpointIndex++;
+                }
+                else if (!_hasSentTerminalRequest)
+                {
+                    _hasSentTerminalRequest = true;
+                    RequestCancelRepairServerRpc(_trackedTask.NetworkObjectId, "Task mistimed");
+                    return;
+                }
+            }
+
+            if (progress >= 1f && !_hasSentTerminalRequest)
+            {
+                _hasSentTerminalRequest = true;
+                if (_shipCheckpointIndex >= _shipCheckpointFractions.Count)
                 {
                     RequestCompleteRepairServerRpc(_trackedTask.NetworkObjectId);
                 }
+                else
+                {
+                    RequestCancelRepairServerRpc(_trackedTask.NetworkObjectId, "Repair sequence incomplete");
+                }
+            }
+        }
+
+        private void EnsureShipTaskSkillCheckConfig(ShipRepairTask shipRepairTask)
+        {
+            if (_shipCheckpointFractions.Count > 0)
+            {
+                return;
+            }
+
+            _shipCheckpointFractions.Clear();
+            switch (shipRepairTask.Difficulty)
+            {
+                case ShipRepairTask.DifficultyTier.Easy:
+                    _shipCheckpointWindow = 0.15f;
+                    _shipCheckpointFractions.Add(0.55f);
+                    break;
+
+                case ShipRepairTask.DifficultyTier.Medium:
+                    _shipCheckpointWindow = 0.12f;
+                    _shipCheckpointFractions.Add(0.35f);
+                    _shipCheckpointFractions.Add(0.72f);
+                    break;
+
+                default:
+                    _shipCheckpointWindow = 0.10f;
+                    _shipCheckpointFractions.Add(0.22f);
+                    _shipCheckpointFractions.Add(0.48f);
+                    _shipCheckpointFractions.Add(0.78f);
+                    break;
             }
         }
 
@@ -202,12 +296,7 @@ namespace HueDoneIt.Tasks
 
         public void ServerRegisterTaskStart(NetworkRepairTask task, ulong clientId)
         {
-            if (!IsServer || task == null)
-            {
-                return;
-            }
-
-            if (!task.IsActiveParticipant(clientId))
+            if (!IsServer || task == null || !task.IsActiveParticipant(clientId))
             {
                 return;
             }
@@ -230,12 +319,7 @@ namespace HueDoneIt.Tasks
                 return;
             }
 
-            if (!taskObject.TryGetComponent(out NetworkRepairTask task))
-            {
-                return;
-            }
-
-            if (!task.IsActiveParticipant(senderId))
+            if (!taskObject.TryGetComponent(out NetworkRepairTask task) || !task.IsActiveParticipant(senderId))
             {
                 return;
             }
@@ -306,7 +390,7 @@ namespace HueDoneIt.Tasks
         private void ResolveTrackedTask(ulong networkObjectId)
         {
             UnbindTrackedTask();
-            _hasSentTerminalRequest = false;
+            ResetLocalTaskState();
 
             if (networkObjectId == ulong.MaxValue)
             {
@@ -340,7 +424,19 @@ namespace HueDoneIt.Tasks
             {
                 _hasSentTerminalRequest = false;
                 TaskProgressUpdated?.Invoke(_trackedTask, current == RepairTaskState.Completed ? 1f : 0f, current == RepairTaskState.Completed);
+                if (current != RepairTaskState.InProgress)
+                {
+                    ResetLocalTaskState();
+                }
             }
+        }
+
+        private void ResetLocalTaskState()
+        {
+            _hasSentTerminalRequest = false;
+            _shipCheckpointIndex = 0;
+            _shipCheckpointWindow = 0f;
+            _shipCheckpointFractions.Clear();
         }
     }
 }

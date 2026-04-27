@@ -12,8 +12,8 @@ namespace HueDoneIt.Gameplay.Players
     [RequireComponent(typeof(NetworkObject))]
     public sealed class NetworkPlayerInputReader : NetworkBehaviour
     {
-        // Input should only be read in Gameplay_Undertint.
-        // This prevents Boot-hosted lobbies from consuming gameplay movement input.
+        // Input is allowed only in Lobby and Gameplay scenes.
+        // Boot remains menu-only and must never consume live movement input.
         private static readonly string[] PlayableInputScenes = { "Lobby", "Gameplay_Undertint" };
 
         [SerializeField, Min(0.01f)] private float jumpPressBufferSeconds = 0.15f;
@@ -32,14 +32,14 @@ namespace HueDoneIt.Gameplay.Players
 
         private void Update()
         {
-            // Only owner client reads input.
-            if (!IsSpawned || !IsOwner || !IsClient)
+            // Only the local human owner reads input.
+            // CPU avatars can be server-owned on the host and must not consume keyboard/mouse input.
+            if (!IsSpawned || !IsOwner || !IsClient || TryGetComponent(out SimpleCpuOpponentAgent _))
             {
                 ClearInputState();
                 return;
             }
 
-            // Hard gate gameplay input while in Boot or any non-gameplay scene.
             if (!IsGameplaySceneActive())
             {
                 ClearInputState();
@@ -129,7 +129,6 @@ namespace HueDoneIt.Gameplay.Players
             float x = 0f;
             float y = 0f;
 
-            // RuntimeInputBindings keeps input profile configurable via frontend settings.
             if (keyboard.IsPressed(RuntimeInputBindings.Left) || keyboard.leftArrowKey.isPressed) x -= 1f;
             if (keyboard.IsPressed(RuntimeInputBindings.Right) || keyboard.rightArrowKey.isPressed) x += 1f;
             if (keyboard.IsPressed(RuntimeInputBindings.Back) || keyboard.downArrowKey.isPressed) y -= 1f;

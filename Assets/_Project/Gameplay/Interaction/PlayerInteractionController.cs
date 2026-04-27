@@ -81,18 +81,18 @@ namespace HueDoneIt.Gameplay.Interaction
                 return;
             }
 
-            Vector3 origin = client.PlayerObject.transform.position + (Vector3.up * 0.9f);
-            Vector3 target = interactable.transform.position + (Vector3.up * 0.6f);
+            Transform interactorTransform = client.PlayerObject.transform;
+            Vector3 origin = interactorTransform.position + (Vector3.up * 0.9f);
+            Vector3 target = interactable.GetInteractionPoint(origin);
             Vector3 toTarget = target - origin;
             float distance = toTarget.magnitude;
-            if (distance > interactable.MaxUseDistance)
+            if (distance > interactable.MaxUseDistance || distance <= 0.001f)
             {
                 Debug.LogWarning($"Interaction rejected: client {senderClientId} out of range.");
                 return;
             }
 
-            if (Physics.Raycast(origin, toTarget.normalized, out RaycastHit hit, distance + 0.05f, interactionLineOfSightMask, QueryTriggerInteraction.Ignore) &&
-                !hit.transform.IsChildOf(interactable.transform))
+            if (HasBlockingLineOfSight(origin, target, interactorTransform, interactable.transform))
             {
                 Debug.LogWarning($"Interaction rejected: client {senderClientId} line of sight blocked.");
                 return;
@@ -133,6 +133,53 @@ namespace HueDoneIt.Gameplay.Interaction
             {
                 participant.ServerRegisterTaskStart(repairTask, senderClientId);
             }
+        }
+
+        private bool HasBlockingLineOfSight(Vector3 origin, Vector3 target, Transform interactorRoot, Transform interactableRoot)
+        {
+            Vector3 toTarget = target - origin;
+            float distance = toTarget.magnitude;
+            if (distance <= 0.001f)
+            {
+                return false;
+            }
+
+            RaycastHit[] hits = Physics.RaycastAll(
+                origin,
+                toTarget / distance,
+                distance + 0.05f,
+                interactionLineOfSightMask,
+                QueryTriggerInteraction.Ignore);
+
+            float nearestDistance = float.MaxValue;
+            Transform nearestTransform = null;
+
+            for (int i = 0; i < hits.Length; i++)
+            {
+                RaycastHit hit = hits[i];
+                if (hit.collider == null || hit.transform == null)
+                {
+                    continue;
+                }
+
+                if (hit.transform.IsChildOf(interactorRoot))
+                {
+                    continue;
+                }
+
+                if (hit.distance < nearestDistance)
+                {
+                    nearestDistance = hit.distance;
+                    nearestTransform = hit.transform;
+                }
+            }
+
+            if (nearestTransform == null)
+            {
+                return false;
+            }
+
+            return !nearestTransform.IsChildOf(interactableRoot);
         }
     }
 }
