@@ -73,7 +73,7 @@ namespace HueDoneIt.Gameplay.Environment
 
             if (IsServer)
             {
-                _statusText.Value = new FixedString64Bytes(displayName + " active");
+                _statusText.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(displayName + " active");
             }
 
             ApplyColor(IsSuppressed ? suppressedColor : activeColor);
@@ -99,12 +99,12 @@ namespace HueDoneIt.Gameplay.Environment
 
             if (IsSuppressed)
             {
-                _statusText.Value = new FixedString64Bytes($"{displayName} suppressed {Mathf.CeilToInt(SuppressionRemaining)}s");
+                _statusText.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64($"{displayName} suppressed {Mathf.CeilToInt(SuppressionRemaining)}s");
                 ApplyColor(suppressedColor);
             }
             else
             {
-                _statusText.Value = new FixedString64Bytes(displayName + " active");
+                _statusText.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(displayName + " active");
                 ApplyColor(activeColor);
             }
         }
@@ -190,7 +190,7 @@ namespace HueDoneIt.Gameplay.Environment
             float duration = seconds > 0f ? seconds : defaultSuppressionSeconds;
             _suppressedUntilServerTime.Value = Mathf.Max(_suppressedUntilServerTime.Value, GetServerTime() + duration);
             _exposures.Clear();
-            _statusText.Value = new FixedString64Bytes(string.IsNullOrWhiteSpace(reason)
+            _statusText.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(string.IsNullOrWhiteSpace(reason)
                 ? displayName + " suppressed"
                 : reason);
             ApplyColor(suppressedColor);
@@ -205,7 +205,7 @@ namespace HueDoneIt.Gameplay.Environment
             }
 
             _suppressedUntilServerTime.Value = 0f;
-            _statusText.Value = new FixedString64Bytes(string.IsNullOrWhiteSpace(reason) ? displayName + " reactivated" : reason);
+            _statusText.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(string.IsNullOrWhiteSpace(reason) ? displayName + " reactivated" : reason);
             ApplyColor(activeColor);
             return true;
         }

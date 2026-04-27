@@ -132,25 +132,53 @@ namespace HueDoneIt.Gameplay.Elimination
 
         private void SpawnRemains(NetworkObject eliminatedPlayerObject, PlayerLifeState eliminatedPlayerLifeState)
         {
-            if (remainsPrefab == null)
+            Vector3 spawnPosition = eliminatedPlayerObject.transform.position;
+            Quaternion spawnRotation = eliminatedPlayerObject.transform.rotation;
+            PlayerRemains remainsInstance;
+
+            if (remainsPrefab != null)
             {
-                Debug.LogError("EliminationManager is missing remains prefab reference.");
+                remainsInstance = Instantiate(remainsPrefab, spawnPosition, spawnRotation);
+            }
+            else
+            {
+                remainsInstance = CreateRuntimeFallbackRemains(spawnPosition, spawnRotation);
+            }
+
+            if (remainsInstance == null)
+            {
+                Debug.LogError("EliminationManager could not create player remains.");
                 return;
             }
 
-            Vector3 spawnPosition = eliminatedPlayerObject.transform.position;
-            Quaternion spawnRotation = eliminatedPlayerObject.transform.rotation;
-            PlayerRemains remainsInstance = Instantiate(remainsPrefab, spawnPosition, spawnRotation);
-
             if (!remainsInstance.TryGetComponent(out NetworkObject remainsNetworkObject))
             {
-                Debug.LogError("Remains prefab does not contain a NetworkObject.");
-                Destroy(remainsInstance.gameObject);
-                return;
+                remainsNetworkObject = remainsInstance.gameObject.AddComponent<NetworkObject>();
             }
 
             remainsNetworkObject.Spawn(true);
             remainsInstance.ServerInitialize(eliminatedPlayerObject.OwnerClientId, eliminatedPlayerObject.NetworkObjectId, eliminatedPlayerObject.name);
+        }
+
+        private static PlayerRemains CreateRuntimeFallbackRemains(Vector3 position, Quaternion rotation)
+        {
+            GameObject remainsObject = GameObject.CreatePrimitive(PrimitiveType.Sphere);
+            remainsObject.name = "RuntimePlayerRemains";
+            remainsObject.transform.SetPositionAndRotation(position + Vector3.up * 0.18f, rotation);
+            remainsObject.transform.localScale = new Vector3(0.9f, 0.32f, 0.9f);
+
+            Collider colliderRef = remainsObject.GetComponent<Collider>();
+            if (colliderRef != null)
+            {
+                colliderRef.isTrigger = false;
+            }
+
+            if (remainsObject.GetComponent<NetworkObject>() == null)
+            {
+                remainsObject.AddComponent<NetworkObject>();
+            }
+
+            return remainsObject.AddComponent<PlayerRemains>();
         }
 
         private void SpawnEvidenceShard(NetworkObject killerObject, NetworkObject targetObject)

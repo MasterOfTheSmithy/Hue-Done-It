@@ -20,7 +20,7 @@ namespace HueDoneIt.Gameplay.Lobby
         private static readonly string[] SupportedMaps = { "Gameplay_Undertint", "Test_Flood", "Test_Tasks" };
 
         private readonly NetworkVariable<FixedString64Bytes> _selectedMapScene =
-            new NetworkVariable<FixedString64Bytes>(new FixedString64Bytes(DefaultGameplayScene), NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+            new NetworkVariable<FixedString64Bytes>(HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(DefaultGameplayScene), NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<int> _targetCpuCount =
             new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -54,7 +54,7 @@ namespace HueDoneIt.Gameplay.Lobby
             string initialMap = string.IsNullOrWhiteSpace(BootSessionConfig.SelectedMapScene)
                 ? DefaultGameplayScene
                 : BootSessionConfig.SelectedMapScene;
-            _selectedMapScene.Value = new FixedString64Bytes(initialMap);
+            _selectedMapScene.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(initialMap);
             _targetCpuCount.Value = Mathf.Clamp(BootSessionConfig.RequestedCpuCount, 0, 7);
             ReconcileVoteTallies();
             ReconcileCpuRoster();
@@ -175,7 +175,7 @@ namespace HueDoneIt.Gameplay.Lobby
                 selected = "Test_Tasks";
             }
 
-            _selectedMapScene.Value = new FixedString64Bytes(selected);
+            _selectedMapScene.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(selected);
             BootSessionConfig.SelectedMapScene = selected;
             BootSessionConfig.Save();
         }

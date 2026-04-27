@@ -46,9 +46,11 @@ namespace HueDoneIt.UI.Gameplay
         private Text _debugText;
         private Text _inventoryText;
         private Text _promptToastText;
+        private Text _spectatorText;
 
         private Image _opacityFill;
         private Image _stabilityFill;
+        private Image _diffusionFill;
         private Image _bannerPanel;
         private Text _bannerText;
         private Image _minimapBg;
@@ -145,9 +147,14 @@ namespace HueDoneIt.UI.Gameplay
 
         private void Awake()
         {
-            _font = Resources.GetBuiltinResource<Font>("Arial.ttf");
+            _font = Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf");
+            if (_font == null)
+            {
+                _font = Font.CreateDynamicFontFromOSFont("Arial", 16);
+            }
+
             BuildHud();
-            SetHudVisible(false);
+            SetHudVisible(SceneManager.GetActiveScene().name == TargetSceneName);
         }
 
         private void Update()
@@ -191,48 +198,185 @@ namespace HueDoneIt.UI.Gameplay
             rootRect.offsetMin = Vector2.zero;
             rootRect.offsetMax = Vector2.zero;
 
-            Image playerPanel = CreatePanel("PlayerPanel", _root.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(24f, -190f), new Vector2(390f, -24f), new Color(0.07f, 0.10f, 0.18f, 0.88f));
-            _playerNameText = CreateText("PlayerName", playerPanel.transform, 28, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(16f, -10f), new Vector2(360f, -44f));
-            _playerRoleText = CreateText("PlayerRole", playerPanel.transform, 16, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(16f, -48f), new Vector2(360f, -74f));
-            CreateText("OpacityLabel", playerPanel.transform, 16, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(16f, -88f), new Vector2(140f, -114f)).text = "OPACITY";
-            _opacityFill = CreateBar("OpacityBar", playerPanel.transform, new Vector2(16f, -116f), new Vector2(340f, -96f), new Color(0.50f, 0.95f, 0.42f, 0.95f));
-            CreateText("StabilityLabel", playerPanel.transform, 16, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(16f, -128f), new Vector2(140f, -154f)).text = "STABILITY";
-            _stabilityFill = CreateBar("StabilityBar", playerPanel.transform, new Vector2(16f, -156f), new Vector2(340f, -136f), new Color(0.24f, 0.75f, 1f, 0.95f));
+            Image vignette = CreatePanel("HudVignette", _root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero, new Color(0f, 0f, 0f, 0.08f));
+            vignette.raycastTarget = false;
 
-            Image roundPanel = CreatePanel("RoundPanel", _root.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-320f, -132f), new Vector2(320f, -22f), new Color(0.06f, 0.08f, 0.16f, 0.90f));
-            CreateText("GameTitle", roundPanel.transform, 24, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(20f, -8f), new Vector2(620f, -38f)).text = "HUE DONE IT // UNDERTINT";
-            _timerText = CreateText("Timer", roundPanel.transform, 42, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(20f, -40f), new Vector2(620f, -84f));
-            _shipText = CreateText("ShipText", roundPanel.transform, 16, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(20f, -84f), new Vector2(620f, -108f));
+            Image playerPanel = CreateSplashCard(
+                "PlayerPanel",
+                _root.transform,
+                new Vector2(0f, 1f),
+                new Vector2(0f, 1f),
+                new Vector2(26f, -486f),
+                new Vector2(432f, -24f),
+                new Color(0.05f, 0.03f, 0.12f, 0.92f),
+                new Color(0.16f, 0.92f, 1f, 0.96f),
+                "PLAYER STATUS",
+                new Color(1f, 1f, 1f, 0.98f));
 
-            _bannerPanel = CreatePanel("CenterBanner", _root.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-360f, -92f), new Vector2(360f, 92f), new Color(0.03f, 0.03f, 0.06f, 0.88f));
-            _bannerText = CreateText("CenterBannerText", _bannerPanel.transform, 26, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(24f, 24f), new Vector2(-24f, -24f));
+            Image avatarMedallion = CreatePanel("AvatarMedallion", playerPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(14f, -166f), new Vector2(118f, -62f), new Color(0.08f, 0.10f, 0.22f, 0.95f));
+            Outline avatarOutline = avatarMedallion.gameObject.GetComponent<Outline>();
+            if (avatarOutline != null)
+            {
+                avatarOutline.effectColor = new Color(0.15f, 0.92f, 1f, 0.65f);
+                avatarOutline.effectDistance = new Vector2(3f, -3f);
+            }
+            Text avatarText = CreateText("AvatarText", avatarMedallion.transform, 44, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(0f, 0f), new Vector2(0f, 0f));
+            avatarText.text = "?";
+            avatarText.color = new Color(0.55f, 0.95f, 1f, 1f);
+
+            _playerNameText = CreateText("PlayerName", playerPanel.transform, 28, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(132f, -58f), new Vector2(386f, -88f));
+            _playerNameText.color = new Color(1f, 1f, 1f, 0.98f);
+            _playerRoleText = CreateText("PlayerRole", playerPanel.transform, 14, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(132f, -96f), new Vector2(392f, -154f));
+            _playerRoleText.color = new Color(0.72f, 0.92f, 1f, 0.96f);
+
+            CreateText("OpacityLabel", playerPanel.transform, 14, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -176f), new Vector2(170f, -198f)).text = "OPACITY";
+            _opacityFill = CreateBar("OpacityBar", playerPanel.transform, new Vector2(18f, -226f), new Vector2(388f, -202f), new Color(0.48f, 0.96f, 0.22f, 0.98f));
+            CreateText("StabilityLabel", playerPanel.transform, 14, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -230f), new Vector2(170f, -252f)).text = "STABILITY";
+            _stabilityFill = CreateBar("StabilityBar", playerPanel.transform, new Vector2(18f, -280f), new Vector2(388f, -256f), new Color(0.12f, 0.76f, 1f, 0.98f));
+            CreateText("DiffusionLabel", playerPanel.transform, 14, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -284f), new Vector2(170f, -306f)).text = "DIFFUSION";
+            _diffusionFill = CreateBar("DiffusionBar", playerPanel.transform, new Vector2(18f, -334f), new Vector2(388f, -310f), new Color(1f, 0.24f, 0.42f, 0.98f));
+
+            CreateRosterCard(playerPanel.transform, "CrewCardA", new Vector2(18f, -454f), new Vector2(188f, -358f), new Color(0.12f, 0.88f, 1f, 0.96f), "CREW ALPHA");
+            CreateRosterCard(playerPanel.transform, "CrewCardB", new Vector2(200f, -454f), new Vector2(370f, -358f), new Color(1f, 0.22f, 0.62f, 0.96f), "CREW BETA");
+
+            Image roundPanel = CreateSplashCard(
+                "RoundPanel",
+                _root.transform,
+                new Vector2(0.5f, 1f),
+                new Vector2(0.5f, 1f),
+                new Vector2(-360f, -166f),
+                new Vector2(360f, -24f),
+                new Color(0.06f, 0.04f, 0.12f, 0.94f),
+                new Color(0.08f, 0.78f, 1f, 0.96f),
+                "HUE DONE IT",
+                new Color(1f, 1f, 1f, 1f));
+            CreateMiniHeader(roundPanel.transform, "ModeHeader", new Vector2(18f, -102f), new Vector2(188f, -58f), new Color(0.09f, 0.68f, 1f, 0.92f), "GAME MODE", 15);
+            CreateMiniHeader(roundPanel.transform, "RoundHeader", new Vector2(530f, -102f), new Vector2(702f, -58f), new Color(1f, 0.14f, 0.54f, 0.92f), "ROUND", 15);
+            _timerText = CreateText("Timer", roundPanel.transform, 46, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(198f, -112f), new Vector2(522f, -46f));
+            _timerText.color = Color.white;
+            _shipText = CreateText("ShipText", roundPanel.transform, 16, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(56f, -154f), new Vector2(664f, -112f));
+            _shipText.color = new Color(0.84f, 0.92f, 1f, 0.96f);
+
+            _bannerPanel = CreateSplashCard(
+                "CenterBanner",
+                _root.transform,
+                new Vector2(0.5f, 0.5f),
+                new Vector2(0.5f, 0.5f),
+                new Vector2(-340f, -88f),
+                new Vector2(340f, 88f),
+                new Color(0.03f, 0.03f, 0.08f, 0.92f),
+                new Color(1f, 0.84f, 0.14f, 0.96f),
+                "EVENT",
+                new Color(0.08f, 0.05f, 0f, 1f));
+            _bannerText = CreateText("CenterBannerText", _bannerPanel.transform, 24, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(22f, 20f), new Vector2(-22f, -22f));
+            _bannerText.color = new Color(1f, 1f, 1f, 0.98f);
             _bannerPanel.gameObject.SetActive(false);
 
-            Image objectivesPanel = CreatePanel("ObjectivesPanel", _root.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-430f, -360f), new Vector2(-24f, -24f), new Color(0.08f, 0.10f, 0.07f, 0.90f));
-            CreateText("ObjectivesHeader", objectivesPanel.transform, 22, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -10f), new Vector2(320f, -36f)).text = "OBJECTIVES";
-            _objectiveText = CreateText("ObjectiveText", objectivesPanel.transform, 15, FontStyle.Normal, TextAnchor.UpperLeft, new Vector2(18f, -42f), new Vector2(370f, -170f));
-            CreateText("MinimapHeader", objectivesPanel.transform, 20, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -188f), new Vector2(320f, -212f)).text = "MINIMAP";
-            _minimapBg = CreatePanel("Minimap", objectivesPanel.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(18f, -330f), new Vector2(190f, -220f), new Color(0.04f, 0.05f, 0.08f, 0.95f));
+            Image objectivesPanel = CreateSplashCard(
+                "ObjectivesPanel",
+                _root.transform,
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(-424f, -346f),
+                new Vector2(-24f, -24f),
+                new Color(0.05f, 0.06f, 0.08f, 0.94f),
+                new Color(1f, 0.86f, 0.12f, 0.96f),
+                "OBJECTIVES",
+                new Color(0.12f, 0.08f, 0f, 1f));
+            _objectiveText = CreateText("ObjectiveText", objectivesPanel.transform, 16, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -64f), new Vector2(370f, -226f));
+            _objectiveText.color = new Color(1f, 1f, 1f, 0.97f);
+
+            Image minimapPanel = CreateSplashCard(
+                "MinimapPanel",
+                _root.transform,
+                new Vector2(1f, 1f),
+                new Vector2(1f, 1f),
+                new Vector2(-424f, -642f),
+                new Vector2(-24f, -372f),
+                new Color(0.06f, 0.04f, 0.10f, 0.94f),
+                new Color(0.66f, 0.22f, 1f, 0.96f),
+                "MINIMAP",
+                new Color(1f, 1f, 1f, 1f));
+            _minimapBg = CreatePanel("Minimap", minimapPanel.transform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(20f, -240f), new Vector2(-20f, -64f), new Color(0.07f, 0.07f, 0.10f, 0.96f));
             _minimapMarkerRoot = _minimapBg.rectTransform;
-            _playerMarker = CreateMarker("PlayerMarker", _minimapMarkerRoot, new Color(1f, 1f, 1f, 1f), new Vector2(12f, 12f));
+            _playerMarker = CreateMarker("PlayerMarker", _minimapMarkerRoot, new Color(0.96f, 1f, 0.28f, 1f), new Vector2(14f, 14f));
 
-            Image inventoryPanel = CreatePanel("InventoryPanel", _root.transform, new Vector2(1f, 0f), new Vector2(1f, 0f), new Vector2(-430f, 24f), new Vector2(-24f, 220f), new Color(0.05f, 0.11f, 0.18f, 0.90f));
-            CreateText("InventoryHeader", inventoryPanel.transform, 22, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -10f), new Vector2(320f, -36f)).text = "INVENTORY";
-            _inventoryText = CreateText("InventoryText", inventoryPanel.transform, 16, FontStyle.Normal, TextAnchor.UpperLeft, new Vector2(18f, -44f), new Vector2(370f, -170f));
-
-            Image chatPanel = CreatePanel("ChatPanel", _root.transform, new Vector2(0f, 0f), new Vector2(0f, 0f), new Vector2(24f, 24f), new Vector2(430f, 250f), new Color(0.08f, 0.05f, 0.14f, 0.90f));
-            CreateText("ChatHeader", chatPanel.transform, 22, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -10f), new Vector2(320f, -36f)).text = "SYSTEM FEED";
-            _chatText = CreateText("ChatText", chatPanel.transform, 15, FontStyle.Normal, TextAnchor.UpperLeft, new Vector2(18f, -42f), new Vector2(390f, -200f));
-
-            Image bottomPanel = CreatePanel("BottomPanel", _root.transform, new Vector2(0.5f, 0f), new Vector2(0.5f, 0f), new Vector2(-390f, 22f), new Vector2(390f, 190f), new Color(0.10f, 0.05f, 0.14f, 0.92f));
-            _interactionText = CreateText("InteractionText", bottomPanel.transform, 24, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(18f, -14f), new Vector2(740f, -44f));
-            _taskText = CreateText("TaskText", bottomPanel.transform, 16, FontStyle.Normal, TextAnchor.UpperLeft, new Vector2(18f, -52f), new Vector2(740f, -154f));
-
-            _promptToastText = CreateText("PromptToast", _root.transform, 24, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0.5f, 0.72f), new Vector2(0.5f, 0.72f), new Vector2(-420f, -24f), new Vector2(420f, 24f));
-            _promptToastText.color = new Color(1f, 0.92f, 0.35f, 0.95f);
+            Image promptPanel = CreateSplashCard(
+                "PromptPanel",
+                _root.transform,
+                new Vector2(1f, 0.5f),
+                new Vector2(1f, 0.5f),
+                new Vector2(-404f, -52f),
+                new Vector2(-24f, 22f),
+                new Color(0.09f, 0.12f, 0.03f, 0.94f),
+                new Color(0.68f, 0.96f, 0.12f, 0.96f),
+                "NOTICE",
+                new Color(0.08f, 0.11f, 0f, 1f));
+            _promptToastText = CreateText("PromptToast", promptPanel.transform, 20, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(18f, -56f), new Vector2(360f, -16f));
+            _promptToastText.color = new Color(1f, 1f, 1f, 0.98f);
             _promptToastText.text = string.Empty;
 
-            _debugText = CreateText("DebugText", _root.transform, 14, FontStyle.Normal, TextAnchor.UpperRight, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-340f, -120f), new Vector2(-20f, -20f));
+            Image inventoryPanel = CreateSplashCard(
+                "InventoryPanel",
+                _root.transform,
+                new Vector2(1f, 0f),
+                new Vector2(1f, 0f),
+                new Vector2(-468f, 24f),
+                new Vector2(-24f, 248f),
+                new Color(0.04f, 0.08f, 0.16f, 0.94f),
+                new Color(0.10f, 0.72f, 1f, 0.96f),
+                "INVENTORY",
+                new Color(0f, 0f, 0f, 1f));
+            _inventoryText = CreateText("InventoryText", inventoryPanel.transform, 15, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(22f, -64f), new Vector2(420f, -150f));
+            _inventoryText.color = new Color(1f, 1f, 1f, 0.97f);
+            CreateQuickSlot(inventoryPanel.transform, "QuickSlot1", new Vector2(20f, 20f), new Vector2(96f, 92f), new Color(1f, 0.22f, 0.72f, 0.94f), "1");
+            CreateQuickSlot(inventoryPanel.transform, "QuickSlot2", new Vector2(108f, 20f), new Vector2(184f, 92f), new Color(1f, 0.78f, 0.10f, 0.94f), "2");
+            CreateQuickSlot(inventoryPanel.transform, "QuickSlot3", new Vector2(196f, 20f), new Vector2(272f, 92f), new Color(0.12f, 0.76f, 1f, 0.94f), "3");
+            CreateQuickSlot(inventoryPanel.transform, "QuickSlot4", new Vector2(284f, 20f), new Vector2(360f, 92f), new Color(0.62f, 0.94f, 0.12f, 0.94f), "4");
+
+            Image chatPanel = CreateSplashCard(
+                "ChatPanel",
+                _root.transform,
+                new Vector2(0f, 0f),
+                new Vector2(0f, 0f),
+                new Vector2(24f, 24f),
+                new Vector2(464f, 252f),
+                new Color(0.08f, 0.04f, 0.12f, 0.94f),
+                new Color(0.62f, 0.22f, 1f, 0.96f),
+                "CHAT / FEED",
+                new Color(1f, 1f, 1f, 1f));
+            _chatText = CreateText("ChatText", chatPanel.transform, 15, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(20f, -64f), new Vector2(416f, -24f));
+            _chatText.color = new Color(1f, 1f, 1f, 0.97f);
+
+            Image bottomPanel = CreateSplashCard(
+                "BottomPanel",
+                _root.transform,
+                new Vector2(0.5f, 0f),
+                new Vector2(0.5f, 0f),
+                new Vector2(-436f, 22f),
+                new Vector2(436f, 248f),
+                new Color(0.10f, 0.04f, 0.14f, 0.95f),
+                new Color(0.86f, 0.24f, 0.64f, 0.96f),
+                "INTERACT",
+                new Color(1f, 1f, 1f, 1f));
+            _interactionText = CreateText("InteractionText", bottomPanel.transform, 22, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(24f, -60f), new Vector2(848f, -92f));
+            _interactionText.color = new Color(0.92f, 1f, 0.22f, 0.98f);
+            _taskText = CreateText("TaskText", bottomPanel.transform, 15, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(24f, -104f), new Vector2(848f, -176f));
+            _taskText.color = new Color(1f, 1f, 1f, 0.97f);
+            CreateAbilityButton(bottomPanel.transform, "Ability1", new Vector2(24f, 22f), new Vector2(168f, 112f), new Color(0.10f, 0.78f, 1f, 0.96f), "ABILITY 1", "Q");
+            CreateAbilityButton(bottomPanel.transform, "Ability2", new Vector2(182f, 22f), new Vector2(326f, 112f), new Color(1f, 0.24f, 0.62f, 0.96f), "ABILITY 2", "E");
+            CreateAbilityButton(bottomPanel.transform, "Ability3", new Vector2(340f, 22f), new Vector2(484f, 112f), new Color(1f, 0.74f, 0.10f, 0.96f), "ABILITY 3", "R");
+            CreateAbilityButton(bottomPanel.transform, "Ability4", new Vector2(498f, 22f), new Vector2(642f, 112f), new Color(0.68f, 0.94f, 0.12f, 0.96f), "ABILITY 4", "F");
+            CreateAbilityButton(bottomPanel.transform, "Ability5", new Vector2(656f, 22f), new Vector2(800f, 112f), new Color(0.62f, 0.22f, 1f, 0.96f), "ITEM", "X");
+
+            CreateCrosshair(_root.transform);
+
+            _spectatorText = CreateText("SpectatorText", _root.transform, 18, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-320f, -188f), new Vector2(320f, -154f));
+            _spectatorText.color = new Color(1f, 0.86f, 0.22f, 0.98f);
+            _spectatorText.text = string.Empty;
+
+            _debugText = CreateText("DebugText", _root.transform, 13, FontStyle.Bold, TextAnchor.UpperRight, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-360f, -108f), new Vector2(-18f, -20f));
+            _debugText.color = new Color(1f, 1f, 1f, 0.92f);
             _debugText.text = string.Empty;
         }
 
@@ -439,10 +583,16 @@ namespace HueDoneIt.UI.Gameplay
 
         private void Refresh()
         {
-            bool visible = _localAvatar != null && _roundState != null;
-            SetHudVisible(visible);
-            if (!visible)
+            bool inGameplayScene = SceneManager.GetActiveScene().name == TargetSceneName;
+            SetHudVisible(inGameplayScene);
+            if (!inGameplayScene)
             {
+                return;
+            }
+
+            if (_localAvatar == null || _roundState == null)
+            {
+                RefreshBindingFallback();
                 return;
             }
 
@@ -451,14 +601,25 @@ namespace HueDoneIt.UI.Gameplay
 
             UpdateRoundFeed();
 
+            float diffusion01 = _localFlood != null ? _localFlood.Saturation01 : Mathf.Clamp01(1f - opacity01);
+
             _opacityFill.fillAmount = opacity01;
             _stabilityFill.fillAmount = stability01;
+            if (_diffusionFill != null)
+            {
+                _diffusionFill.fillAmount = diffusion01;
+                _diffusionFill.color = Color.Lerp(new Color(0.10f, 0.28f, 0.75f, 0.85f), new Color(1f, 0.12f, 0.06f, 0.98f), diffusion01);
+            }
+
             _opacityFill.color = Color.Lerp(new Color(1f, 0.18f, 0.18f, 0.95f), new Color(0.50f, 0.95f, 0.42f, 0.95f), opacity01);
             _stabilityFill.color = Color.Lerp(new Color(1f, 0.42f, 0.15f, 0.95f), new Color(0.24f, 0.75f, 1f, 0.95f), stability01);
 
             _playerNameText.text = string.IsNullOrWhiteSpace(_localAvatar.PlayerLabel) ? "PLAYER" : _localAvatar.PlayerLabel.ToUpperInvariant();
             _playerRoleText.text = BuildRoleLine(opacity01, stability01);
-            _timerText.text = FormatTime(_roundState.RoundTimeRemaining);
+            _spectatorText.text = _localLifeState != null && !_localLifeState.IsAlive
+                ? "SPECTATOR // Tab cycle players // F free camera"
+                : string.Empty;
+            _timerText.text = "SHIP EXPLODES IN " + FormatTime(_roundState.RoundTimeRemaining);
             _shipText.text = BuildShipLine();
             _objectiveText.text = BuildObjectives();
             _inventoryText.text = BuildInventory();
@@ -474,6 +635,30 @@ namespace HueDoneIt.UI.Gameplay
             }
 
             RefreshMinimap();
+        }
+
+        private void RefreshBindingFallback()
+        {
+            _opacityFill.fillAmount = 1f;
+            _stabilityFill.fillAmount = 1f;
+            if (_diffusionFill != null)
+            {
+                _diffusionFill.fillAmount = 0f;
+            }
+            _playerNameText.text = "PLAYER BINDING";
+            _playerRoleText.text = _localAvatar == null ? "Waiting for local player avatar" : "Waiting for round state";
+            _timerText.text = "--:--";
+            _shipText.text = "HUD ONLINE // BINDING GAMEPLAY SYSTEMS";
+            _objectiveText.text = "If this persists after spawning, the local player prefab or NetworkRoundState failed to spawn/bind.";
+            _inventoryText.text = "Slot 1: --\nSlot 2: --\nSlot 3: --";
+            _taskText.text = "No active task bound yet.";
+            _chatText.text = BuildFeed();
+            _interactionText.text = string.Empty;
+            _spectatorText.text = string.Empty;
+            _debugText.enabled = showDebugOverlay;
+            _debugText.text = showDebugOverlay ? "HUD fallback visible. LocalAvatar=" + (_localAvatar != null) + " RoundState=" + (_roundState != null) : string.Empty;
+            _bannerPanel.gameObject.SetActive(true);
+            _bannerText.text = "HUD ONLINE\nWaiting for gameplay bindings";
         }
 
         private void UpdateRoundFeed()
@@ -505,11 +690,11 @@ namespace HueDoneIt.UI.Gameplay
 
         private string BuildRoleLine(float opacity01, float stability01)
         {
-            string role = _killController != null ? _killController.CurrentRole.ToString() : "Color";
-            string flood = _localFlood != null ? _localFlood.CurrentZoneState.ToString() : "Dry";
+            string role = _killController != null ? _killController.CurrentRole.ToString().ToUpperInvariant() : "COLOR";
+            string flood = _localFlood != null ? _localFlood.CurrentZoneState.ToString().ToUpperInvariant() : "DRY";
             string gravity = _localMover != null ? BuildGravityLabel(_localMover.CurrentGravityMultiplier) : "1.00g";
-            string ability = _killController != null ? _killController.BuildAbilityStatusLine() : "Color kit: Report bodies / repair / survive";
-            return $"Role: {role}   Opacity {Mathf.RoundToInt(opacity01 * 100f)}%   Stability {Mathf.RoundToInt(stability01 * 100f)}%   Flood: {flood}   Gravity: {gravity}\n{ability}";
+            float diffusion01 = _localFlood != null ? _localFlood.Saturation01 : Mathf.Clamp01(1f - opacity01);
+            return $"ROLE: {role}   FLOOD: {flood}   GRAVITY: {gravity}\nOPACITY {Mathf.RoundToInt(opacity01 * 100f)}%   STABILITY {Mathf.RoundToInt(stability01 * 100f)}%   DIFFUSION {Mathf.RoundToInt(diffusion01 * 100f)}%";
         }
 
         private string BuildShipLine()
@@ -1737,6 +1922,116 @@ namespace HueDoneIt.UI.Gameplay
             return new Vector2(Mathf.Lerp(12f, size.x - 12f, x), Mathf.Lerp(12f, size.y - 12f, y));
         }
 
+        private Image CreateSplashCard(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax, Color bodyColor, Color accentColor, string title, Color titleColor)
+        {
+            Image body = CreatePanel(name, parent, anchorMin, anchorMax, offsetMin, offsetMax, bodyColor);
+            Outline outline = body.GetComponent<Outline>();
+            if (outline != null)
+            {
+                outline.effectColor = new Color(accentColor.r * 0.35f, accentColor.g * 0.35f, accentColor.b * 0.35f, 0.95f);
+                outline.effectDistance = new Vector2(3f, -3f);
+            }
+
+            Shadow shadow = body.gameObject.AddComponent<Shadow>();
+            shadow.effectColor = new Color(0f, 0f, 0f, 0.48f);
+            shadow.effectDistance = new Vector2(4f, -4f);
+
+            Image header = CreatePanel(name + "_Header", body.transform, new Vector2(0f, 1f), new Vector2(1f, 1f), new Vector2(16f, -54f), new Vector2(-16f, -14f), new Color(accentColor.r, accentColor.g, accentColor.b, 0.96f));
+            Outline headerOutline = header.GetComponent<Outline>();
+            if (headerOutline != null)
+            {
+                headerOutline.effectColor = new Color(0f, 0f, 0f, 0.28f);
+                headerOutline.effectDistance = new Vector2(2f, -2f);
+            }
+
+            Text headerText = CreateText(name + "_HeaderText", header.transform, 22, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(6f, 0f), new Vector2(-6f, 0f));
+            headerText.text = title;
+            headerText.color = titleColor;
+
+            CreatePanel(name + "_AccentDotA", body.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-24f, -26f), new Vector2(-12f, -14f), accentColor);
+            CreatePanel(name + "_AccentDotB", body.transform, new Vector2(1f, 1f), new Vector2(1f, 1f), new Vector2(-40f, -40f), new Vector2(-28f, -28f), new Color(accentColor.r, accentColor.g, accentColor.b, 0.82f));
+            return body;
+        }
+
+        private void CreateMiniHeader(Transform parent, string name, Vector2 offsetMin, Vector2 offsetMax, Color color, string title, int fontSize)
+        {
+            Image header = CreatePanel(name, parent, new Vector2(0f, 1f), new Vector2(0f, 1f), offsetMin, offsetMax, color);
+            Text headerText = CreateText(name + "Text", header.transform, fontSize, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
+            headerText.text = title;
+            headerText.color = Color.white;
+        }
+
+        private void CreateRosterCard(Transform parent, string name, Vector2 offsetMin, Vector2 offsetMax, Color color, string label)
+        {
+            Image card = CreatePanel(name, parent, new Vector2(0f, 1f), new Vector2(0f, 1f), offsetMin, offsetMax, new Color(0.05f, 0.07f, 0.14f, 0.92f));
+            Outline outline = card.GetComponent<Outline>();
+            if (outline != null)
+            {
+                outline.effectColor = new Color(color.r * 0.35f, color.g * 0.35f, color.b * 0.35f, 0.95f);
+            }
+            Image badge = CreatePanel(name + "Badge", card.transform, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(10f, -50f), new Vector2(50f, -10f), color);
+            Text badgeText = CreateText(name + "BadgeText", badge.transform, 22, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
+            badgeText.text = "●";
+            badgeText.color = new Color(0.05f, 0.05f, 0.09f, 1f);
+            Text title = CreateText(name + "Title", card.transform, 15, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(58f, -14f), new Vector2(160f, -34f));
+            title.text = label;
+            title.color = Color.white;
+            Text sub = CreateText(name + "Sub", card.transform, 13, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(58f, -38f), new Vector2(160f, -62f));
+            sub.text = "ROLE / STATUS";
+            sub.color = color;
+        }
+
+        private void CreateQuickSlot(Transform parent, string name, Vector2 offsetMin, Vector2 offsetMax, Color color, string slotKey)
+        {
+            Image slot = CreatePanel(name, parent, new Vector2(0f, 0f), new Vector2(0f, 0f), offsetMin, offsetMax, new Color(0.04f, 0.05f, 0.09f, 0.95f));
+            Outline outline = slot.GetComponent<Outline>();
+            if (outline != null)
+            {
+                outline.effectColor = new Color(color.r * 0.4f, color.g * 0.4f, color.b * 0.4f, 0.95f);
+            }
+
+            Text icon = CreateText(name + "Icon", slot.transform, 22, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(0f, 8f), new Vector2(0f, -10f));
+            icon.text = "●";
+            icon.color = color;
+
+            Text key = CreateText(name + "Key", slot.transform, 16, FontStyle.Bold, TextAnchor.LowerCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), new Vector2(0f, 4f), new Vector2(0f, 0f));
+            key.text = slotKey;
+            key.color = Color.white;
+        }
+
+        private void CreateAbilityButton(Transform parent, string name, Vector2 offsetMin, Vector2 offsetMax, Color color, string label, string key)
+        {
+            Image button = CreatePanel(name, parent, new Vector2(0f, 0f), new Vector2(0f, 0f), offsetMin, offsetMax, new Color(0.05f, 0.05f, 0.10f, 0.95f));
+            Outline outline = button.GetComponent<Outline>();
+            if (outline != null)
+            {
+                outline.effectColor = new Color(color.r * 0.45f, color.g * 0.45f, color.b * 0.45f, 0.95f);
+            }
+
+            Image iconBubble = CreatePanel(name + "Icon", button.transform, new Vector2(0.5f, 1f), new Vector2(0.5f, 1f), new Vector2(-26f, -50f), new Vector2(26f, -8f), color);
+            Text glyph = CreateText(name + "Glyph", iconBubble.transform, 24, FontStyle.Bold, TextAnchor.MiddleCenter, new Vector2(0f, 0f), new Vector2(1f, 1f), Vector2.zero, Vector2.zero);
+            glyph.text = "✦";
+            glyph.color = new Color(0.05f, 0.05f, 0.09f, 1f);
+
+            Text title = CreateText(name + "Label", button.transform, 15, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(8f, -58f), new Vector2(136f, -78f));
+            title.text = label;
+            title.color = Color.white;
+
+            Text keycap = CreateText(name + "Key", button.transform, 20, FontStyle.Bold, TextAnchor.UpperCenter, new Vector2(8f, -84f), new Vector2(136f, -106f));
+            keycap.text = key;
+            keycap.color = color;
+        }
+
+        private void CreateCrosshair(Transform parent)
+        {
+            Image dot = CreatePanel("CrosshairDot", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-4f, -4f), new Vector2(4f, 4f), new Color(1f, 1f, 1f, 0.96f));
+            dot.raycastTarget = false;
+            CreatePanel("CrosshairUp", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-1f, 18f), new Vector2(1f, 42f), new Color(1f, 1f, 1f, 0.96f));
+            CreatePanel("CrosshairDown", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-1f, -42f), new Vector2(1f, -18f), new Color(1f, 1f, 1f, 0.96f));
+            CreatePanel("CrosshairLeft", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(-42f, -1f), new Vector2(-18f, 1f), new Color(1f, 1f, 1f, 0.96f));
+            CreatePanel("CrosshairRight", parent, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(18f, -1f), new Vector2(42f, 1f), new Color(1f, 1f, 1f, 0.96f));
+        }
+
         private Image CreatePanel(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 offsetMin, Vector2 offsetMax, Color color)
         {
             GameObject go = new GameObject(name, typeof(RectTransform), typeof(Image), typeof(Outline));
@@ -1750,6 +2045,7 @@ namespace HueDoneIt.UI.Gameplay
 
             Image image = go.GetComponent<Image>();
             image.color = color;
+            image.raycastTarget = false;
 
             Outline outline = go.GetComponent<Outline>();
             outline.effectColor = new Color(0f, 0f, 0f, 0.7f);
@@ -1771,6 +2067,7 @@ namespace HueDoneIt.UI.Gameplay
 
             Image bg = root.GetComponent<Image>();
             bg.color = new Color(0f, 0f, 0f, 0.72f);
+            bg.raycastTarget = false;
 
             GameObject fillObject = new GameObject(name + "_Fill", typeof(RectTransform), typeof(Image));
             fillObject.transform.SetParent(root.transform, false);
@@ -1782,6 +2079,7 @@ namespace HueDoneIt.UI.Gameplay
             fillRect.offsetMax = new Vector2(-2f, -2f);
 
             Image fill = fillObject.GetComponent<Image>();
+            fill.raycastTarget = false;
             fill.type = Image.Type.Filled;
             fill.fillMethod = Image.FillMethod.Horizontal;
             fill.fillAmount = 1f;
@@ -1801,6 +2099,7 @@ namespace HueDoneIt.UI.Gameplay
 
             Image image = go.GetComponent<Image>();
             image.color = color;
+            image.raycastTarget = false;
             return rect;
         }
 
@@ -1828,6 +2127,7 @@ namespace HueDoneIt.UI.Gameplay
             text.horizontalOverflow = HorizontalWrapMode.Wrap;
             text.verticalOverflow = VerticalWrapMode.Overflow;
             text.color = Color.white;
+            text.raycastTarget = false;
 
             Outline outline = go.GetComponent<Outline>();
             outline.effectColor = new Color(0f, 0f, 0f, 0.82f);

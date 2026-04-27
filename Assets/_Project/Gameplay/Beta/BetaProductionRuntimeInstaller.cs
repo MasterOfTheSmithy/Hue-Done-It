@@ -1,0 +1,102 @@
+// File: Assets/_Project/Gameplay/Beta/BetaProductionRuntimeInstaller.cs
+using HueDoneIt.Flood;
+using HueDoneIt.Tasks;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+
+namespace HueDoneIt.Gameplay.Beta
+{
+    /// <summary>
+    /// Self-installs beta polish/safety systems into gameplay scenes without relying on fragile scene wiring.
+    /// This is intentionally additive: it does not replace authored systems, it patches over missing beta glue.
+    /// </summary>
+    public static class BetaProductionRuntimeInstaller
+    {
+        private const string RuntimeRootName = "__HueDoneIt_BetaProductionRuntime";
+
+        [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
+        private static void InstallAfterInitialSceneLoad()
+        {
+            SceneManager.sceneLoaded -= HandleSceneLoaded;
+            SceneManager.sceneLoaded += HandleSceneLoaded;
+            TryInstallForActiveScene();
+        }
+
+        private static void HandleSceneLoaded(Scene scene, LoadSceneMode mode)
+        {
+            TryInstallForScene(scene);
+        }
+
+        private static void TryInstallForActiveScene()
+        {
+            TryInstallForScene(SceneManager.GetActiveScene());
+        }
+
+        private static void TryInstallForScene(Scene scene)
+        {
+            if (!scene.IsValid() || !scene.isLoaded || !LooksLikeGameplayScene(scene))
+            {
+                return;
+            }
+
+            GameObject existing = GameObject.Find(RuntimeRootName);
+            if (existing != null)
+            {
+                EnsureComponents(existing);
+                return;
+            }
+
+            GameObject root = new GameObject(RuntimeRootName);
+            SceneManager.MoveGameObjectToScene(root, scene);
+            Object.DontDestroyOnLoad(root);
+            EnsureComponents(root);
+        }
+
+        private static bool LooksLikeGameplayScene(Scene scene)
+        {
+            string sceneName = scene.name == null ? string.Empty : scene.name.ToLowerInvariant();
+            if (sceneName.Contains("gameplay") || sceneName.Contains("undertint") || sceneName.Contains("flood"))
+            {
+                return true;
+            }
+
+            return Object.FindObjectOfType<NetworkRepairTask>() != null ||
+                   Object.FindObjectOfType<FloodSequenceController>() != null;
+        }
+
+        private static void EnsureComponents(GameObject root)
+        {
+            // Full beta playability stack. Keep one readable map/layout path active, then layer safety,
+            // task clarity, flood pacing, and lightweight physical task feedback on top.
+            Ensure<BetaPlayableMapDirector>(root);
+            Ensure<BetaTaskAndStationLayoutDirector>(root);
+            Ensure<BetaCollisionPlayabilityRepair>(root);
+            Ensure<BetaFloorCollisionRepair>(root);
+            Ensure<BetaSafeStartDirector>(root);
+            Ensure<BetaPlayerMovementStuckGuard>(root);
+            Ensure<BetaFloodPlayabilityDirector>(root);
+            Ensure<BetaTaskDifficultyTuner>(root);
+            Ensure<BetaTaskEndpointGuard>(root);
+            Ensure<BetaTaskWorldAffordancePresenter>(root);
+            Ensure<BetaTaskPhysicalPresenter>(root);
+            Ensure<BetaPointClickTaskOverlay>(root);
+            Ensure<BetaPlayabilityObjectiveBoard>(root);
+            Ensure<BetaWaterColorDiffusion>(root);
+            Ensure<BetaFloodWarningBeaconInstaller>(root);
+            Ensure<BetaRuntimePaintBudgetTuner>(root);
+            Ensure<BetaPlayerSafetyNet>(root);
+            Ensure<BetaMatchFlowSanityMonitor>(root);
+        }
+
+        private static T Ensure<T>(GameObject root) where T : Component
+        {
+            T component = root.GetComponent<T>();
+            if (component == null)
+            {
+                component = root.AddComponent<T>();
+            }
+
+            return component;
+        }
+    }
+}

@@ -167,10 +167,10 @@ namespace HueDoneIt.Gameplay.Environment
             int openVents = CountOpenVents();
 
             string bleachText = bleachNearby > 0
-                ? $"Bleach-like movement: {bleachNearby} trace(s), nearest {closestDirection}."
-                : "No bleach-like movement in camera radius.";
+                ? $"Bleach {bleachNearby} near {closestDirection}"
+                : "Bleach none";
 
-            return $"{bleachText} Ready sabotage consoles: {armedSabotage}. Fresh evidence: {freshEvidence}. Open vents: {openVents}.";
+            return $"{bleachText} | Sabotage {armedSabotage} | Evidence {freshEvidence} | Vents {openVents}";
         }
 
         private int CountNearbyBleach(out string closestDirection)

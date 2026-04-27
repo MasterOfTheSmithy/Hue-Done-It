@@ -1,5 +1,6 @@
 // File: Assets/_Project/Tasks/TaskObjectiveBase.cs
 using System;
+using HueDoneIt.Core.Netcode;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Interaction;
 using HueDoneIt.Gameplay.Round;
@@ -219,12 +220,12 @@ namespace HueDoneIt.Tasks
 
         protected void SetObjective(string text)
         {
-            _objectiveText.Value = new FixedString128Bytes(string.IsNullOrWhiteSpace(text) ? string.Empty : text);
+            _objectiveText.Value = FixedStringUtility.ToFixedString128(string.IsNullOrWhiteSpace(text) ? string.Empty : text);
         }
 
         protected void SetStatus(string text)
         {
-            _statusText.Value = new FixedString128Bytes(string.IsNullOrWhiteSpace(text) ? string.Empty : text);
+            _statusText.Value = FixedStringUtility.ToFixedString128(string.IsNullOrWhiteSpace(text) ? string.Empty : text);
         }
 
         protected void AdvanceToNextStep(string nextObjective, string status)

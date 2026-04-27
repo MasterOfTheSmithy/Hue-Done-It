@@ -263,7 +263,7 @@ namespace HueDoneIt.Gameplay.Inventory
                 return false;
             }
 
-            _slot0.Value = new FixedString64Bytes(itemId);
+            _slot0.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(itemId);
             reason = string.Empty;
             return true;
         }
@@ -275,7 +275,7 @@ namespace HueDoneIt.Gameplay.Inventory
                 return false;
             }
 
-            _slot1.Value = new FixedString64Bytes(itemId);
+            _slot1.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(itemId);
             reason = string.Empty;
             return true;
         }
@@ -287,7 +287,7 @@ namespace HueDoneIt.Gameplay.Inventory
                 return false;
             }
 
-            _slot2.Value = new FixedString64Bytes(itemId);
+            _slot2.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(itemId);
             reason = string.Empty;
             return true;
         }

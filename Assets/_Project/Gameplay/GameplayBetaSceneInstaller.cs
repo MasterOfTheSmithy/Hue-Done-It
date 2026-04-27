@@ -13,9 +13,12 @@ using HueDoneIt.Gameplay.Players;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Gameplay.Sabotage;
 using HueDoneIt.Tasks;
+using HueDoneIt.UI.Gameplay;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UI;
+using UnityEngine.EventSystems;
 
 namespace HueDoneIt.Gameplay
 {
@@ -84,6 +87,8 @@ namespace HueDoneIt.Gameplay
             EnsurePaintableSceneGeometry(runtimeRoot.transform);
             ConfigureSceneLighting();
             EnsureAtmosphereLights(runtimeRoot.transform);
+            EnsureFloodWarningLights(runtimeRoot.transform);
+            EnsureGameplayHudCanvas();
 
             Debug.Log("GameplayBetaSceneInstaller: primitive arena pass complete.");
 
@@ -125,6 +130,63 @@ namespace HueDoneIt.Gameplay
             LogMissingCriticalSystems();
 
             Debug.Log("GameplayBetaSceneInstaller: authoritative gameplay install complete.");
+        }
+
+        private static void EnsureGameplayHudCanvas()
+        {
+            EnsureGameplayEventSystem();
+
+            GameplayInvestorHud existingHud = FindFirstObjectByType<GameplayInvestorHud>();
+            if (existingHud != null)
+            {
+                existingHud.gameObject.SetActive(true);
+                Canvas existingCanvas = existingHud.GetComponentInParent<Canvas>(true);
+                if (existingCanvas != null)
+                {
+                    existingCanvas.gameObject.SetActive(true);
+                    existingCanvas.renderMode = RenderMode.ScreenSpaceOverlay;
+                    existingCanvas.sortingOrder = 5000;
+                }
+
+                EnsureEmergencyOverlay();
+                return;
+            }
+
+            GameObject canvasObject = new GameObject("GameplayRuntimeHudCanvas", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
+            Canvas canvas = canvasObject.GetComponent<Canvas>();
+            canvas.renderMode = RenderMode.ScreenSpaceOverlay;
+            canvas.sortingOrder = 5000;
+
+            CanvasScaler scaler = canvasObject.GetComponent<CanvasScaler>();
+            scaler.uiScaleMode = CanvasScaler.ScaleMode.ScaleWithScreenSize;
+            scaler.referenceResolution = new Vector2(1920f, 1080f);
+            scaler.screenMatchMode = CanvasScaler.ScreenMatchMode.MatchWidthOrHeight;
+            scaler.matchWidthOrHeight = 0.5f;
+
+            canvasObject.AddComponent<GameplayInvestorHud>();
+            EnsureEmergencyOverlay();
+        }
+
+        private static void EnsureGameplayEventSystem()
+        {
+            if (FindFirstObjectByType<EventSystem>() != null)
+            {
+                return;
+            }
+
+            GameObject eventSystemObject = new GameObject("GameplayRuntimeEventSystem", typeof(EventSystem), typeof(StandaloneInputModule));
+            DontDestroyOnLoad(eventSystemObject);
+        }
+
+        private static void EnsureEmergencyOverlay()
+        {
+            if (FindFirstObjectByType<BetaGameplayEmergencyOverlay>() != null)
+            {
+                return;
+            }
+
+            GameObject overlayObject = new GameObject(nameof(BetaGameplayEmergencyOverlay));
+            overlayObject.AddComponent<BetaGameplayEmergencyOverlay>();
         }
 
         private static bool IsServerRuntime()
@@ -224,6 +286,40 @@ namespace HueDoneIt.Gameplay
             EnsureBlock(root, "Hall_Center", new Vector3(0f, 0.1f, 0f), new Vector3(6f, 0.2f, 11f), new Color(0.16f, 0.19f, 0.23f));
             EnsureBlock(root, "Hall_WestConnector", new Vector3(-14f, 0.1f, 0f), new Vector3(6f, 0.2f, 11f), new Color(0.16f, 0.19f, 0.23f));
             EnsureBlock(root, "Hall_EastConnector", new Vector3(14f, 0.1f, 0f), new Vector3(6f, 0.2f, 11f), new Color(0.16f, 0.19f, 0.23f));
+
+            EnsureBetaRouteReadability(root);
+        }
+
+        private static void EnsureBetaRouteReadability(Transform root)
+        {
+            // Wide route slabs keep the generated beta map readable when authored scene pieces survive a merge.
+            EnsureGround(root, "Route_MainSpine_WestEast", new Vector3(0f, 0.18f, 0f), new Vector3(41f, 0.09f, 3.4f), new Color(0.12f, 0.15f, 0.20f));
+            EnsureGround(root, "Route_MainSpine_NorthSouth", new Vector3(0f, 0.19f, 0f), new Vector3(3.6f, 0.09f, 29f), new Color(0.12f, 0.15f, 0.20f));
+            EnsureGround(root, "Route_ForeMeetingApron", new Vector3(0f, 0.2f, 13.4f), new Vector3(18f, 0.08f, 3.2f), new Color(0.14f, 0.12f, 0.20f));
+            EnsureGround(root, "Route_AftEscapeApron", new Vector3(0f, 0.2f, -13.4f), new Vector3(18f, 0.08f, 3.2f), new Color(0.14f, 0.12f, 0.20f));
+            EnsureBlock(root, "Route_Landmark_MeetingRing", new Vector3(0f, 0.45f, 14f), new Vector3(5.2f, 0.16f, 0.22f), new Color(0.85f, 0.72f, 0.18f));
+            EnsureBlock(root, "Route_Landmark_PumpRing", new Vector3(0f, 0.45f, 0f), new Vector3(5.2f, 0.16f, 0.22f), new Color(0.18f, 0.75f, 0.95f));
+            EnsureBlock(root, "Route_Landmark_EscapeRing", new Vector3(0f, 0.45f, -14f), new Vector3(5.2f, 0.16f, 0.22f), new Color(0.95f, 0.24f, 0.18f));
+
+            EnsureGround(root, "Route_WestBypass_ClearLane", new Vector3(-14f, 0.22f, 0f), new Vector3(5.4f, 0.07f, 27f), new Color(0.10f, 0.16f, 0.17f));
+            EnsureGround(root, "Route_EastBypass_ClearLane", new Vector3(14f, 0.22f, 0f), new Vector3(5.4f, 0.07f, 27f), new Color(0.10f, 0.16f, 0.17f));
+            EnsureGround(root, "Route_NorthTaskLane", new Vector3(0f, 0.23f, 10.8f), new Vector3(39f, 0.07f, 2.4f), new Color(0.13f, 0.15f, 0.22f));
+            EnsureGround(root, "Route_SouthTaskLane", new Vector3(0f, 0.23f, -10.8f), new Vector3(39f, 0.07f, 2.4f), new Color(0.13f, 0.15f, 0.22f));
+
+            EnsureCapsule(root, "MapLandmark_Engine_Cyan", new Vector3(-20.5f, 1.3f, 10.8f), new Vector3(0.42f, 1.1f, 0.42f), new Color(0.1f, 0.9f, 1f));
+            EnsureCapsule(root, "MapLandmark_Lab_Magenta", new Vector3(20.5f, 1.3f, -10.8f), new Vector3(0.42f, 1.1f, 0.42f), new Color(1f, 0.18f, 0.95f));
+            EnsureCapsule(root, "MapLandmark_Meeting_Gold", new Vector3(0f, 1.3f, 14.4f), new Vector3(0.42f, 1.1f, 0.42f), new Color(1f, 0.75f, 0.18f));
+            EnsureCapsule(root, "MapLandmark_Aft_Red", new Vector3(0f, 1.3f, -14.4f), new Vector3(0.42f, 1.1f, 0.42f), new Color(1f, 0.12f, 0.10f));
+
+            // Intentional route language: broad clean lanes, visible room thresholds, and fewer random-feeling props.
+            EnsureGround(root, "Intentional_Central_Plaza", new Vector3(0f, 0.255f, 0f), new Vector3(8.8f, 0.08f, 8.8f), new Color(0.16f, 0.13f, 0.22f));
+            EnsureGround(root, "Intentional_Engine_TaskPocket", new Vector3(-18f, 0.26f, 10.8f), new Vector3(8f, 0.08f, 3.1f), new Color(0.10f, 0.20f, 0.22f));
+            EnsureGround(root, "Intentional_Lab_TaskPocket", new Vector3(18f, 0.26f, -10.8f), new Vector3(8f, 0.08f, 3.1f), new Color(0.21f, 0.14f, 0.23f));
+            EnsureBlock(root, "Intentional_RouteArrow_Fore", new Vector3(0f, 0.52f, 7.4f), new Vector3(0.28f, 0.16f, 5.5f), new Color(1f, 0.72f, 0.16f));
+            EnsureBlock(root, "Intentional_RouteArrow_Aft", new Vector3(0f, 0.52f, -7.4f), new Vector3(0.28f, 0.16f, 5.5f), new Color(1f, 0.18f, 0.14f));
+            EnsureBlock(root, "Intentional_RouteArrow_Port", new Vector3(-8.6f, 0.52f, 0f), new Vector3(5.5f, 0.16f, 0.28f), new Color(0.12f, 0.85f, 1f));
+            EnsureBlock(root, "Intentional_RouteArrow_Starboard", new Vector3(8.6f, 0.52f, 0f), new Vector3(5.5f, 0.16f, 0.28f), new Color(0.95f, 0.24f, 1f));
+            DisableGeneratedClutter();
         }
 
         private static void EnsureRoom(Transform root, string roomName, Vector3 center, Color roomColor)
@@ -297,7 +393,9 @@ namespace HueDoneIt.Gameplay
                 new(-20f, 0.75f, 0f),
                 new(20f, 0.75f, 0f),
                 new(0f, 0.75f, -15f),
-                new(0f, 0.75f, 15f)
+                new(0f, 0.75f, 15f),
+                new(-10f, 0.75f, 14.4f),
+                new(10f, 0.75f, -14.4f)
             };
 
             for (int i = 0; i < points.Length; i++)
@@ -334,7 +432,7 @@ namespace HueDoneIt.Gameplay
 
         private static void EnsureVisualFloodMarkers(Transform root)
         {
-            EnsureMarker(root, "FloodZone_Main", new Vector3(0f, 0.6f, 0f), new Vector3(16f, 1.2f, 10f), new Color(0.10f, 0.35f, 0.95f, 0.22f));
+            EnsureMarker(root, "FloodZone_Main", new Vector3(0f, 0.6f, 0f), new Vector3(8f, 1.2f, 5f), new Color(0.10f, 0.35f, 0.95f, 0.22f));
             EnsureMarker(root, "FloodZone_LowArea", new Vector3(0f, 0.6f, -12f), new Vector3(8f, 1.2f, 4f), new Color(0.95f, 0.10f, 0.12f, 0.22f));
         }
         private static void EnsureRoundEventDirector(Transform root)
@@ -1390,11 +1488,11 @@ namespace HueDoneIt.Gameplay
             SetPrivateField(typeof(CoolantRerouteTask), task, "completionTimeBonusSeconds", 8f);
             SetPrivateField(typeof(CoolantRerouteTask), task, "failureTimePenaltySeconds", 5f);
 
-            CreateOrUpdateTaskStep(root, "CoolantReroute_Intake", task, "intake", "Open Coolant Intake", new Vector3(-18f, 1f, 4.5f), new Color(0.2f, 0.85f, 1f));
-            CreateOrUpdateTaskStep(root, "CoolantReroute_Pump", task, "pump", "Prime Coolant Pump", new Vector3(-15f, 1f, 4.5f), new Color(0.45f, 1f, 0.82f));
-            CreateOrUpdateTaskStep(root, "CoolantReroute_Chiller", task, "chiller", "Open Chiller Coil", new Vector3(-12f, 1f, 4.5f), new Color(0.9f, 0.95f, 1f));
-            CreateOrUpdateTaskStep(root, "CoolantReroute_Return", task, "return", "Seat Return Line", new Vector3(-9f, 1f, 4.5f), new Color(0.55f, 0.72f, 1f));
-            task.transform.position = new Vector3(-13.5f, 1f, 4.5f);
+            CreateOrUpdateTaskStep(root, "CoolantReroute_Intake", task, "intake", "Open Coolant Intake", new Vector3(-20f, 1f, 10.8f), new Color(0.2f, 0.85f, 1f));
+            CreateOrUpdateTaskStep(root, "CoolantReroute_Pump", task, "pump", "Prime Coolant Pump", new Vector3(-17f, 1f, 10.8f), new Color(0.45f, 1f, 0.82f));
+            CreateOrUpdateTaskStep(root, "CoolantReroute_Chiller", task, "chiller", "Open Chiller Coil", new Vector3(-14f, 1f, 10.8f), new Color(0.9f, 0.95f, 1f));
+            CreateOrUpdateTaskStep(root, "CoolantReroute_Return", task, "return", "Seat Return Line", new Vector3(-11f, 1f, 10.8f), new Color(0.55f, 0.72f, 1f));
+            task.transform.position = new Vector3(-15.5f, 1f, 10.8f);
             TrySpawnNetworkObject(task.gameObject);
         }
 
@@ -1493,7 +1591,7 @@ namespace HueDoneIt.Gameplay
 
             if (mainZone == null)
             {
-                GameObject zoneObject = CreateAuthoritativePrimitive(root, "FloodZone_Main", PrimitiveType.Cube, new Vector3(0f, 0.6f, 0f), new Vector3(16f, 1.2f, 10f));
+                GameObject zoneObject = CreateAuthoritativePrimitive(root, "FloodZone_Main", PrimitiveType.Cube, new Vector3(0f, 0.6f, 0f), new Vector3(8f, 1.2f, 5f));
                 mainZone = GetOrAddComponent<FloodZone>(zoneObject);
                 SetPrivateField(typeof(FloodZone), mainZone, "zoneId", "Flood_Main");
                 SetPrivateField(typeof(FloodZone), mainZone, "initialState", FloodZoneState.Dry);
@@ -1509,8 +1607,9 @@ namespace HueDoneIt.Gameplay
                 TrySpawnNetworkObject(zoneObject);
             }
 
-            ConfigureFloodZone(mainZone, "FloodZone_Main", new Vector3(0f, 0.6f, 0f), new Vector3(16f, 1.2f, 10f), new Color(0.10f, 0.35f, 0.95f, 0.22f));
+            ConfigureFloodZone(mainZone, "FloodZone_Main", new Vector3(0f, 0.6f, 0f), new Vector3(8f, 1.2f, 5f), new Color(0.10f, 0.35f, 0.95f, 0.22f));
             ConfigureFloodZone(lowZone, "FloodZone_LowArea", new Vector3(0f, 0.6f, -12f), new Vector3(8f, 1.2f, 4f), new Color(0.95f, 0.10f, 0.12f, 0.22f));
+            EnsureFloodWarningLights(root);
             SetPrivateField(typeof(FloodZone), mainZone, "initialState", FloodZoneState.Dry);
             SetPrivateField(typeof(FloodZone), lowZone, "initialState", FloodZoneState.Dry);
         }
@@ -1538,6 +1637,76 @@ namespace HueDoneIt.Gameplay
             colliderRef.size = Vector3.one;
 
             ApplyMaterial(zone.gameObject, color, true);
+        }
+
+
+        private static void EnsureFloodWarningLights(Transform root)
+        {
+            GameObject warningRoot = GameObject.Find("FloodWarningLights_Runtime");
+            if (warningRoot == null)
+            {
+                warningRoot = new GameObject("FloodWarningLights_Runtime");
+            }
+
+            warningRoot.transform.SetParent(root, true);
+            Vector3[] positions =
+            {
+                new(-20f, 3.1f, 13.2f), new(-8f, 3.1f, 13.2f), new(8f, 3.1f, 13.2f), new(20f, 3.1f, 13.2f),
+                new(-20f, 3.1f, -13.2f), new(-8f, 3.1f, -13.2f), new(8f, 3.1f, -13.2f), new(20f, 3.1f, -13.2f),
+                new(-20f, 3.1f, 0f), new(20f, 3.1f, 0f)
+            };
+
+            for (int i = 0; i < positions.Length; i++)
+            {
+                string name = $"FloodWarningBeacon_{i:00}";
+                GameObject beacon = FindOrCreate(name, PrimitiveType.Cylinder, warningRoot.transform);
+                beacon.transform.position = positions[i];
+                beacon.transform.rotation = Quaternion.Euler(90f, 0f, 0f);
+                beacon.transform.localScale = new Vector3(0.38f, 0.11f, 0.38f);
+                ApplyMaterial(beacon, new Color(0.4f, 0.08f, 0.04f, 1f), false);
+
+                Light lightRef = beacon.GetComponentInChildren<Light>();
+                if (lightRef == null)
+                {
+                    GameObject lightObject = new GameObject("WarningLight");
+                    lightObject.transform.SetParent(beacon.transform, false);
+                    lightObject.transform.localPosition = Vector3.zero;
+                    lightRef = lightObject.AddComponent<Light>();
+                    lightRef.type = LightType.Point;
+                }
+
+                lightRef.range = 6f;
+                lightRef.intensity = 0.1f;
+            }
+
+            BetaFloodWarningLights presenter = GetOrAddComponent<BetaFloodWarningLights>(warningRoot);
+            SetPrivateField(typeof(BetaFloodWarningLights), presenter, "controller", FindFirstObjectByType<FloodSequenceController>());
+            SetPrivateField(typeof(BetaFloodWarningLights), presenter, "observedZones", FindObjectsByType<FloodZone>(FindObjectsSortMode.None));
+            SetPrivateField(typeof(BetaFloodWarningLights), presenter, "warningLights", warningRoot.GetComponentsInChildren<Light>(true));
+            SetPrivateField(typeof(BetaFloodWarningLights), presenter, "warningRenderers", warningRoot.GetComponentsInChildren<Renderer>(true));
+        }
+
+        private static void DisableGeneratedClutter()
+        {
+            string[] noisyPrefixes = { "Crate_", "Barrel_", "LooseProp_", "DebugObstacle_" };
+            GameObject[] objects = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
+            for (int objectIndex = 0; objectIndex < objects.Length; objectIndex++)
+            {
+                GameObject candidate = objects[objectIndex];
+                if (candidate == null)
+                {
+                    continue;
+                }
+
+                for (int i = 0; i < noisyPrefixes.Length; i++)
+                {
+                    if (candidate.name.StartsWith(noisyPrefixes[i], StringComparison.OrdinalIgnoreCase))
+                    {
+                        candidate.SetActive(false);
+                        break;
+                    }
+                }
+            }
         }
 
         private static void EnsureGravityPlayZones(Transform root)
@@ -1625,8 +1794,8 @@ namespace HueDoneIt.Gameplay
             FieldInfo lockedFloodingDelayField = controllerType.GetField("lockedFloodingDelaySeconds", BindingFlags.Instance | BindingFlags.NonPublic);
             FieldInfo lockedSubmergeDelayField = controllerType.GetField("lockedSubmergeDelaySeconds", BindingFlags.Instance | BindingFlags.NonPublic);
 
-            lockedFloodingDelayField?.SetValue(controller, 4f);
-            lockedSubmergeDelayField?.SetValue(controller, 6f);
+            lockedFloodingDelayField?.SetValue(controller, 26f);
+            lockedSubmergeDelayField?.SetValue(controller, 34f);
 
             if (sequencesField == null)
             {
@@ -1638,24 +1807,24 @@ namespace HueDoneIt.Gameplay
                 new FloodSequenceController.ZoneSequence
                 {
                     zone = mainZone,
-                    initialDelaySeconds = 10f,
+                    initialDelaySeconds = 100f,
                     loop = false,
                     states = new List<FloodSequenceController.StateDuration>
                     {
-                        new FloodSequenceController.StateDuration { state = FloodZoneState.Wet, durationSeconds = 14f },
-                        new FloodSequenceController.StateDuration { state = FloodZoneState.Flooding, durationSeconds = 18f },
+                        new FloodSequenceController.StateDuration { state = FloodZoneState.Wet, durationSeconds = 54f },
+                        new FloodSequenceController.StateDuration { state = FloodZoneState.Flooding, durationSeconds = 48f },
                         new FloodSequenceController.StateDuration { state = FloodZoneState.Submerged, durationSeconds = 999f }
                     }
                 },
                 new FloodSequenceController.ZoneSequence
                 {
                     zone = lowZone,
-                    initialDelaySeconds = 28f,
+                    initialDelaySeconds = 165f,
                     loop = false,
                     states = new List<FloodSequenceController.StateDuration>
                     {
-                        new FloodSequenceController.StateDuration { state = FloodZoneState.Wet, durationSeconds = 12f },
-                        new FloodSequenceController.StateDuration { state = FloodZoneState.Flooding, durationSeconds = 18f },
+                        new FloodSequenceController.StateDuration { state = FloodZoneState.Wet, durationSeconds = 52f },
+                        new FloodSequenceController.StateDuration { state = FloodZoneState.Flooding, durationSeconds = 48f },
                         new FloodSequenceController.StateDuration { state = FloodZoneState.Submerged, durationSeconds = 999f }
                     }
                 }

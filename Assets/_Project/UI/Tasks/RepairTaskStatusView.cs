@@ -14,7 +14,57 @@ namespace HueDoneIt.UI.Tasks
 
         private void Awake()
         {
+            StyleExistingView();
             SetView(false, string.Empty, 0f);
+        }
+
+
+        private void StyleExistingView()
+        {
+            if (root != null)
+            {
+                Image rootImage = root.GetComponent<Image>();
+                if (rootImage != null)
+                {
+                    rootImage.color = new Color(0.08f, 0.05f, 0.14f, 0.94f);
+                    rootImage.raycastTarget = false;
+
+                    Outline outline = root.GetComponent<Outline>();
+                    if (outline == null)
+                    {
+                        outline = root.AddComponent<Outline>();
+                    }
+
+                    outline.effectColor = new Color(0.68f, 0.22f, 1f, 0.65f);
+                    outline.effectDistance = new Vector2(2f, -2f);
+                }
+            }
+
+            if (statusText != null)
+            {
+                statusText.fontStyle = FontStyle.Bold;
+                statusText.fontSize = Mathf.Max(statusText.fontSize, 17);
+                statusText.color = new Color(1f, 1f, 1f, 0.98f);
+                statusText.raycastTarget = false;
+            }
+
+            if (progressFill != null)
+            {
+                progressFill.color = new Color(0.68f, 0.96f, 0.14f, 0.96f);
+                progressFill.type = Image.Type.Filled;
+                progressFill.fillMethod = Image.FillMethod.Horizontal;
+                progressFill.raycastTarget = false;
+
+                if (progressFill.transform.parent != null)
+                {
+                    Image bg = progressFill.transform.parent.GetComponent<Image>();
+                    if (bg != null)
+                    {
+                        bg.color = new Color(0f, 0f, 0f, 0.70f);
+                        bg.raycastTarget = false;
+                    }
+                }
+            }
         }
 
         private void OnEnable()
@@ -35,6 +85,11 @@ namespace HueDoneIt.UI.Tasks
             if (participant == null)
             {
                 BindParticipant();
+            }
+
+            if (participant != null && participant.HasActiveTask && !participant.IsWithinActiveTaskRange)
+            {
+                SetView(false, string.Empty, 0f);
             }
         }
 
@@ -62,7 +117,7 @@ namespace HueDoneIt.UI.Tasks
 
         private void HandleTaskProgressUpdated(NetworkRepairTask task, float progress01, bool isCompleted)
         {
-            if (task == null)
+            if (task == null || participant == null || !participant.IsWithinActiveTaskRange)
             {
                 SetView(false, string.Empty, 0f);
                 return;
@@ -89,7 +144,8 @@ namespace HueDoneIt.UI.Tasks
             }
             else
             {
-                status = $"{task.DisplayName}: {Mathf.RoundToInt(progress01 * 100f)}%";
+                string checkpoint = participant.ShipCheckpointIndex > 0 ? $"\nCheckpoint {participant.ShipCheckpointIndex} reached" : string.Empty;
+                status = $"{task.DisplayName}: {Mathf.RoundToInt(progress01 * 100f)}%{checkpoint}\nStay in radius. Press E again to close/reset.";
             }
 
             SetView(true, status, progress01);

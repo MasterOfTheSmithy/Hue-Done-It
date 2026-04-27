@@ -43,10 +43,10 @@ namespace HueDoneIt.Flood
         [SerializeField, Min(0.1f)] private float earlySpeedMultiplier = 0.8f;
         [SerializeField, Min(0.1f)] private float midSpeedMultiplier = 1f;
         [SerializeField, Min(0.1f)] private float lateSpeedMultiplier = 1.35f;
-        [SerializeField, Min(2f)] private float earlyPulseCadenceSeconds = 28f;
-        [SerializeField, Min(2f)] private float midPulseCadenceSeconds = 18f;
-        [SerializeField, Min(2f)] private float latePulseCadenceSeconds = 11f;
-        [SerializeField, Min(0.5f)] private float pulseTelegraphSeconds = 4f;
+        [SerializeField, Min(2f)] private float earlyPulseCadenceSeconds = 36f;
+        [SerializeField, Min(2f)] private float midPulseCadenceSeconds = 26f;
+        [SerializeField, Min(2f)] private float latePulseCadenceSeconds = 16f;
+        [SerializeField, Min(0.5f)] private float pulseTelegraphSeconds = 8f;
         [SerializeField, Min(0.5f)] private float pulseFloodDurationSeconds = 5.5f;
         [SerializeField, Min(0.5f)] private float pulseSubmergeDurationSeconds = 3.5f;
         [SerializeField, Min(0f)] private float reportAftershockDelaySeconds = 2f;
@@ -201,7 +201,7 @@ namespace HueDoneIt.Flood
 
             if (IsPulseTelegraphActive)
             {
-                return $"Surge incoming: {PulseZoneId} in {Mathf.CeilToInt(SecondsUntilPulse)}s";
+                return $"WARNING LIGHTS: flood surge in {PulseZoneId} in {Mathf.CeilToInt(SecondsUntilPulse)}s";
             }
 
             return CurrentPressureStage switch
@@ -378,7 +378,7 @@ namespace HueDoneIt.Flood
                     continue;
                 }
 
-                _pulseZoneId.Value = new FixedString64Bytes(string.IsNullOrWhiteSpace(pulseZone.ZoneId) ? pulseZone.gameObject.name : pulseZone.ZoneId);
+                _pulseZoneId.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(string.IsNullOrWhiteSpace(pulseZone.ZoneId) ? pulseZone.gameObject.name : pulseZone.ZoneId);
                 _nextPulseServerTime.Value = GetServerTime() + pulseTelegraphSeconds;
                 _activePulseEndServerTime.Value = 0f;
 

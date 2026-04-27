@@ -18,6 +18,8 @@ namespace HueDoneIt.Tasks
         [SerializeField] private string displayName = "Repair Task";
         [SerializeField] private string interactPrompt = "Repair";
         [SerializeField, Min(0f)] private float taskDurationSeconds = 2f;
+        [SerializeField, Min(2f)] private float minimumInProgressTimeoutSeconds = 12f;
+        [SerializeField, Min(1f)] private float inProgressTimeoutMultiplier = 2.75f;
 
         [Header("Task Safety")]
         [SerializeField] private FloodZone floodZone;
@@ -28,6 +30,9 @@ namespace HueDoneIt.Tasks
 
         private readonly NetworkVariable<ulong> _activeClientId =
             new(ulong.MaxValue, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<float> _taskStartServerTime =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private IRepairTaskFloodSafetyProvider _floodSafetyProvider;
         private NetworkRoundState _roundState;
@@ -40,6 +45,7 @@ namespace HueDoneIt.Tasks
         public float TaskDurationSeconds => taskDurationSeconds;
         public RepairTaskState CurrentState => (RepairTaskState)_state.Value;
         public ulong ActiveClientId => _activeClientId.Value;
+        public float TaskStartServerTime => _taskStartServerTime.Value;
         public bool IsCompleted => CurrentState == RepairTaskState.Completed;
 
         public override void OnNetworkSpawn()
@@ -61,6 +67,27 @@ namespace HueDoneIt.Tasks
             base.OnNetworkDespawn();
         }
 
+        private void Update()
+        {
+            if (!IsServer || CurrentState != RepairTaskState.InProgress)
+            {
+                return;
+            }
+
+            float startedAt = _taskStartServerTime.Value;
+            if (startedAt <= 0f)
+            {
+                _taskStartServerTime.Value = GetServerTime();
+                return;
+            }
+
+            float timeout = Mathf.Max(minimumInProgressTimeoutSeconds, taskDurationSeconds * inProgressTimeoutMultiplier);
+            if ((GetServerTime() - startedAt) >= timeout)
+            {
+                TryCancelTask("Repair timed out");
+            }
+        }
+
         public void ServerResetTask()
         {
             if (!IsServer)
@@ -70,6 +97,7 @@ namespace HueDoneIt.Tasks
 
             SetState(RepairTaskState.Idle);
             SetActiveClientId(ulong.MaxValue);
+            _taskStartServerTime.Value = 0f;
             OnServerResetTask();
         }
 
@@ -120,6 +148,12 @@ namespace HueDoneIt.Tasks
 
         public bool TryBeginTask(in InteractionContext context)
         {
+            // Pressing E again while operating this station deliberately closes/cancels it.
+            if (CurrentState == RepairTaskState.InProgress && ActiveClientId == context.InteractorClientId)
+            {
+                return TryCancelTask("Repair cancelled by operator");
+            }
+
             if (!CanStart(context))
             {
                 return false;
@@ -127,6 +161,7 @@ namespace HueDoneIt.Tasks
 
             SetState(RepairTaskState.InProgress);
             SetActiveClientId(context.InteractorClientId);
+            _taskStartServerTime.Value = GetServerTime();
             OnTaskStarted(context);
             return true;
         }
@@ -140,6 +175,7 @@ namespace HueDoneIt.Tasks
 
             SetState(RepairTaskState.Cancelled);
             SetActiveClientId(ulong.MaxValue);
+            _taskStartServerTime.Value = 0f;
             OnTaskCancelled(reason);
             return true;
         }
@@ -153,6 +189,7 @@ namespace HueDoneIt.Tasks
 
             SetState(RepairTaskState.Completed);
             SetActiveClientId(ulong.MaxValue);
+            _taskStartServerTime.Value = 0f;
             OnTaskCompleted();
             return true;
         }
@@ -301,6 +338,11 @@ namespace HueDoneIt.Tasks
         {
             ResolveRoundState();
             return _roundState == null || _roundState.CurrentPhase == RoundPhase.FreeRoam;
+        }
+
+        private float GetServerTime()
+        {
+            return NetworkManager == null ? 0f : (float)NetworkManager.ServerTime.Time;
         }
 
         private void ResolveRoundState()

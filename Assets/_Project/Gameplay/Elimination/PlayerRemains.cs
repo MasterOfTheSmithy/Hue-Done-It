@@ -81,8 +81,8 @@ namespace HueDoneIt.Gameplay.Elimination
             _victimClientId.Value = victimClientId;
             _victimPlayerObjectId.Value = victimPlayerObjectId;
             _victimName.Value = string.IsNullOrWhiteSpace(victimName)
-                ? new FixedString64Bytes($"Player {victimClientId}")
-                : new FixedString64Bytes(victimName);
+                ? HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64($"Player {victimClientId}")
+                : HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(victimName);
             _isInitialized.Value = true;
         }
 

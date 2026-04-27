@@ -80,7 +80,7 @@ namespace HueDoneIt.Evidence
 
                 if (_clueText.Value.Length == 0)
                 {
-                    _clueText.Value = new FixedString128Bytes(string.IsNullOrWhiteSpace(initialClueText) ? "Bleach residue found near the body." : initialClueText);
+                    _clueText.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString128(string.IsNullOrWhiteSpace(initialClueText) ? "Bleach residue found near the body." : initialClueText);
                 }
 
                 if (_suspectedClientId.Value == ulong.MaxValue)
@@ -123,7 +123,7 @@ namespace HueDoneIt.Evidence
 
             if (IsServer && IsSpawned)
             {
-                _clueText.Value = new FixedString128Bytes(initialClueText);
+                _clueText.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString128(initialClueText);
                 _suspectedClientId.Value = initialSuspectedClientId;
                 _expireAtServerTime.Value = GetServerTime() + autoExpireSeconds;
             }
