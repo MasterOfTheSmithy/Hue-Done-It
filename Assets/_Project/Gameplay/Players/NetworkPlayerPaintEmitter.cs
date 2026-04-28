@@ -20,9 +20,9 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0.01f)] private float forceToIntensityMultiplier = 0.08f;
         [SerializeField, Min(0f)] private float stretchMultiplier = 0.085f;
         [SerializeField] private Vector2 forceClamp = new(0f, 24f);
-        [SerializeField] private Vector2 radiusClamp = new(0.06f, 2.8f);
-        [SerializeField] private Vector2 intensityClamp = new(0.08f, 1.65f);
-        [SerializeField] private Vector2 stretchClamp = new(1f, 4.25f);
+        [SerializeField] private Vector2 radiusClamp = new(0.05f, 1.65f);
+        [SerializeField] private Vector2 intensityClamp = new(0.06f, 1.15f);
+        [SerializeField] private Vector2 stretchClamp = new(1f, 3.25f);
         [SerializeField, Min(0f)] private float permanentForceThreshold = 9.5f;
 
         [Header("Air/Fallback Splat")]
@@ -30,7 +30,7 @@ namespace HueDoneIt.Gameplay.Players
         [SerializeField, Min(0.1f)] private float fallbackLifetimeSeconds = 3.5f;
 
         [Header("Budget")]
-        [SerializeField, Min(1)] private int maxReplicatedPaintEventsPerSecond = 24;
+        [SerializeField, Min(1)] private int maxReplicatedPaintEventsPerSecond = 8;
 
         private PlayerColorProfile _colorProfile;
         private PlayerFloodZoneTracker _floodTracker;
@@ -205,7 +205,7 @@ namespace HueDoneIt.Gameplay.Players
                     permanence = PaintSplatPermanence.Temporary;
                     radius *= 0.78f;
                     intensity *= 0.88f;
-                    stretchAmount *= 2.35f;
+                    stretchAmount *= 1.65f;
                     tangentDirection = BuildSurfaceTangent(normal, Vector3.down);
                     rotationDegrees = 90f;
                     break;
@@ -214,7 +214,7 @@ namespace HueDoneIt.Gameplay.Players
                     splatType = PaintSplatType.WallLaunchBurst;
                     radius *= 1.05f;
                     intensity *= 1.18f;
-                    stretchAmount *= 1.85f;
+                    stretchAmount *= 1.35f;
                     tangentDirection = BuildSurfaceTangent(normal, velocityDirection);
                     break;
 
@@ -222,16 +222,16 @@ namespace HueDoneIt.Gameplay.Players
                     splatType = PaintSplatType.Punch;
                     radius *= 0.9f;
                     intensity *= 1.22f;
-                    stretchAmount *= 1.95f;
+                    stretchAmount *= 1.40f;
                     tangentDirection = BuildSurfaceTangent(normal, velocityDirection);
                     break;
 
                 case PaintEventKind.RagdollImpact:
                     splatType = PaintSplatType.HeavyImpact;
                     permanence = PaintSplatPermanence.Permanent;
-                    radius *= 1.5f;
-                    intensity *= 1.26f;
-                    stretchAmount *= 2.15f;
+                    radius *= 1.15f;
+                    intensity *= 1.10f;
+                    stretchAmount *= 1.55f;
                     tangentDirection = BuildSurfaceTangent(normal, velocityDirection);
                     break;
 
@@ -432,6 +432,30 @@ namespace HueDoneIt.Gameplay.Players
             return best;
         }
 
+
+        private static bool ShouldSubmitTexturePaint(PaintSplatData splatData)
+        {
+            if (splatData.Permanence == PaintSplatPermanence.Permanent)
+            {
+                return true;
+            }
+
+            if (splatData.ForceMagnitude >= 7f)
+            {
+                return true;
+            }
+
+            switch (splatData.EventKind)
+            {
+                case PaintEventKind.Move:
+                case PaintEventKind.WallStick:
+                case PaintEventKind.FloodDrip:
+                    return false;
+                default:
+                    return true;
+            }
+        }
+
         [ClientRpc]
         private void ReceivePaintClientRpc(
             byte eventKind,
@@ -483,12 +507,13 @@ namespace HueDoneIt.Gameplay.Players
                     hit.collider.GetComponentInParent<PaintSurfaceOverlayRenderer>() != null ||
                     hit.collider.GetComponentInParent<WaterPaintReceiver>() != null;
 
-                // Texture paint is useful for accumulated/drying surface history, but it should
-                // never be the only visible path. Primitive cube UVs are shared across faces, so a
-                // texture-only fallback can look like the whole mesh changed color. A projected
-                // receiver decal anchored at the raycast point is the authoritative player-facing
-                // splat and keeps impact marks local to the contact patch.
-                applied = PaintWorldManager.SubmitLegacy(splatData, color);
+                // Texture painting is intentionally reserved for meaningful impacts. Movement smears can
+                // fire many times per second, and applying both texture stamps and projected decals for every
+                // movement event is the main paint-lag failure mode.
+                if (ShouldSubmitTexturePaint(splatData))
+                {
+                    applied = PaintWorldManager.SubmitLegacy(splatData, color);
+                }
 
                 StainReceiver receiver = ResolveReceiver(hit);
                 if (receiver != null)

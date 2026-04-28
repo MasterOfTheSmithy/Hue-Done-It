@@ -1,4 +1,5 @@
 // File: Assets/_Project/Gameplay/Beta/BetaRuntimePaintBudgetTuner.cs
+using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Players;
 using UnityEngine;
 
@@ -11,7 +12,7 @@ namespace HueDoneIt.Gameplay.Beta
     [DisallowMultipleComponent]
     public sealed class BetaRuntimePaintBudgetTuner : MonoBehaviour
     {
-        [SerializeField, Min(1)] private int maxEventsPerSecond = 16;
+        [SerializeField, Min(1)] private int maxEventsPerSecond = 8;
         [SerializeField, Min(0.1f)] private float refreshIntervalSeconds = 2f;
 
         private float _nextRefreshTime;
@@ -29,7 +30,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void ApplyBudgets()
         {
-            NetworkPlayerPaintEmitter[] emitters = FindObjectsOfType<NetworkPlayerPaintEmitter>();
+            NetworkPlayerPaintEmitter[] emitters = FindObjectsByType<NetworkPlayerPaintEmitter>(FindObjectsSortMode.None);
             for (int i = 0; i < emitters.Length; i++)
             {
                 NetworkPlayerPaintEmitter emitter = emitters[i];
@@ -39,9 +40,37 @@ namespace HueDoneIt.Gameplay.Beta
                 }
 
                 SetPrivateField(emitter, "maxReplicatedPaintEventsPerSecond", maxEventsPerSecond);
-                SetPrivateField(emitter, "radiusClamp", new Vector2(0.05f, 2.15f));
-                SetPrivateField(emitter, "intensityClamp", new Vector2(0.06f, 1.35f));
-                SetPrivateField(emitter, "stretchClamp", new Vector2(1f, 5.6f));
+                SetPrivateField(emitter, "radiusClamp", new Vector2(0.05f, 1.65f));
+                SetPrivateField(emitter, "intensityClamp", new Vector2(0.06f, 1.15f));
+                SetPrivateField(emitter, "stretchClamp", new Vector2(1f, 3.25f));
+                SetPrivateField(emitter, "fallbackLifetimeSeconds", 1.75f);
+            }
+
+            StainReceiver[] receivers = FindObjectsByType<StainReceiver>(FindObjectsSortMode.None);
+            for (int i = 0; i < receivers.Length; i++)
+            {
+                StainReceiver receiver = receivers[i];
+                if (receiver == null)
+                {
+                    continue;
+                }
+
+                SetPrivateField(receiver, "maxSplatDecals", 32);
+                SetPrivateField(receiver, "maxPermanentEvidenceMarks", 12);
+                SetPrivateField(receiver, "prewarmSplatDecals", 0);
+                SetPrivateField(receiver, "enableWholeSurfaceTint", false);
+                SetPrivateField(receiver, "generatedPatternCount", 8);
+                SetPrivateField(receiver, "temporaryLifetimeSeconds", 3.5f);
+                SetPrivateField(receiver, "heavyTemporaryLifetimeSeconds", 6f);
+                SetPrivateField(receiver, "forceToDensityMultiplier", 0.045f);
+                SetPrivateField(receiver, "activityToDensityMultiplier", 0.035f);
+                SetPrivateField(receiver, "movementWearThreshold", 10f);
+                SetPrivateField(receiver, "alphaRange", new Vector2(0.22f, 0.72f));
+                SetPrivateField(receiver, "stretchClamp", new Vector2(1f, 3.1f));
+                SetPrivateField(receiver, "maxLocalizedDecalMajorAxis", 2.8f);
+                SetPrivateField(receiver, "maxLocalizedDecalMinorAxis", 1.45f);
+                SetPrivateField(receiver, "maxHeavyImpactMajorAxis", 3.6f);
+                SetPrivateField(receiver, "maxHeavyImpactMinorAxis", 1.75f);
             }
         }
 

@@ -66,13 +66,15 @@ namespace HueDoneIt.Gameplay.Beta
 
         private static void EnsureComponents(GameObject root)
         {
-            // Full beta playability stack. Keep one readable map/layout path active, then layer traversal cleanup,
-            // glowing local objectives, task clarity, flood pacing, physical feedback, and procedural audio.
+            // Full beta production polish stack. Keep existing playability/floor recovery systems, then layer
+            // contextual slime presentation, movement feel tuning, task/flood feedback, HUD pulses, and audio.
             Ensure<BetaPlayableMapDirector>(root);
             Ensure<BetaRoomDeclutterDirector>(root);
             Ensure<BetaTaskAndStationLayoutDirector>(root);
             Ensure<BetaCollisionPlayabilityRepair>(root);
             Ensure<BetaFloorCollisionRepair>(root);
+            Ensure<BetaAboveMapRecoveryDirector>(root);
+            Ensure<BetaMapVariantDirector>(root);
             Ensure<BetaSafeStartDirector>(root);
             Ensure<BetaPlayerMovementStuckGuard>(root);
             Ensure<BetaFloodPlayabilityDirector>(root);
@@ -80,12 +82,20 @@ namespace HueDoneIt.Gameplay.Beta
             Ensure<BetaTaskEndpointGuard>(root);
             Ensure<BetaTaskWorldAffordancePresenter>(root);
             Ensure<BetaObjectiveGlowDirector>(root);
+            Ensure<BetaSlimeMovementFeelTuner>(root);
+            Ensure<BetaSlimePlayerPolishDirector>(root);
+            Ensure<BetaPlayerModelOutfitDirector>(root);
+            Ensure<BetaContextualTaskFeedbackDirector>(root);
+            Ensure<BetaContextualHudFeedbackOverlay>(root);
             Ensure<BetaTaskPhysicalPresenter>(root);
             Ensure<BetaPointClickTaskOverlay>(root);
+            Ensure<BetaTaskSequencePolishDirector>(root);
+            Ensure<BetaHudDeclutterDirector>(root);
             Ensure<BetaPlayabilityObjectiveBoard>(root);
             Ensure<BetaWaterColorDiffusion>(root);
             Ensure<BetaFloodWarningBeaconInstaller>(root);
             Ensure<BetaFeedbackAudioDirector>(root);
+            Ensure<BetaSlimeAudioFeedbackDirector>(root);
             Ensure<BetaRuntimePaintBudgetTuner>(root);
             Ensure<BetaPlayerSafetyNet>(root);
             Ensure<BetaMatchFlowSanityMonitor>(root);

@@ -1,4 +1,5 @@
 // File: Assets/_Project/UI/Gameplay/BetaGameplayEmergencyOverlay.cs
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Inventory;
 using HueDoneIt.Gameplay.Players;
@@ -15,7 +16,7 @@ namespace HueDoneIt.UI.Gameplay
     // Last-resort HUD that uses IMGUI so beta testers are never blind if the authored/UGUI HUD fails to bind.
     public sealed class BetaGameplayEmergencyOverlay : MonoBehaviour
     {
-        private const string GameplaySceneName = "Gameplay_Undertint";
+        private const string GameplaySceneName = BetaGameplaySceneCatalog.MainMap;
 
         [SerializeField] private bool visible = true;
         [SerializeField] private Rect panelRect = new Rect(16f, 108f, 560f, 220f);
@@ -43,7 +44,7 @@ namespace HueDoneIt.UI.Gameplay
 
         private static void TryAttach(Scene scene)
         {
-            if (!scene.IsValid() || scene.name != GameplaySceneName)
+            if (!scene.IsValid() || !BetaGameplaySceneCatalog.IsProductionGameplayScene(scene.name))
             {
                 return;
             }

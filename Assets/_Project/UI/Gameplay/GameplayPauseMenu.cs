@@ -3,6 +3,7 @@ using HueDoneIt.Core.Bootstrap;
 using Unity.Netcode;
 using UnityEngine;
 using UnityEngine.InputSystem;
+using HueDoneIt.Gameplay.Beta;
 using UnityEngine.SceneManagement;
 
 namespace HueDoneIt.UI.Gameplay
@@ -16,7 +17,7 @@ namespace HueDoneIt.UI.Gameplay
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Install()
         {
-            if (SceneManager.GetActiveScene().name != "Gameplay_Undertint")
+            if (!BetaGameplaySceneCatalog.IsProductionGameplayScene(SceneManager.GetActiveScene().name))
             {
                 return;
             }
@@ -46,7 +47,7 @@ namespace HueDoneIt.UI.Gameplay
 
         private void OnGUI()
         {
-            if (!_isOpen || SceneManager.GetActiveScene().name != "Gameplay_Undertint")
+            if (!_isOpen || !BetaGameplaySceneCatalog.IsProductionGameplayScene(SceneManager.GetActiveScene().name))
             {
                 return;
             }

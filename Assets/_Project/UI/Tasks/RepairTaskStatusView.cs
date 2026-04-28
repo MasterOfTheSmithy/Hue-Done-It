@@ -1,4 +1,5 @@
 // File: Assets/_Project/UI/Tasks/RepairTaskStatusView.cs
+using System.Text;
 using HueDoneIt.Tasks;
 using UnityEngine;
 using UnityEngine.UI;
@@ -18,7 +19,6 @@ namespace HueDoneIt.UI.Tasks
             SetView(false, string.Empty, 0f);
         }
 
-
         private void StyleExistingView()
         {
             if (root != null)
@@ -26,7 +26,7 @@ namespace HueDoneIt.UI.Tasks
                 Image rootImage = root.GetComponent<Image>();
                 if (rootImage != null)
                 {
-                    rootImage.color = new Color(0.08f, 0.05f, 0.14f, 0.94f);
+                    rootImage.color = new Color(0.08f, 0.05f, 0.14f, 0.90f);
                     rootImage.raycastTarget = false;
 
                     Outline outline = root.GetComponent<Outline>();
@@ -35,7 +35,7 @@ namespace HueDoneIt.UI.Tasks
                         outline = root.AddComponent<Outline>();
                     }
 
-                    outline.effectColor = new Color(0.68f, 0.22f, 1f, 0.65f);
+                    outline.effectColor = new Color(0.68f, 0.22f, 1f, 0.50f);
                     outline.effectDistance = new Vector2(2f, -2f);
                 }
             }
@@ -43,14 +43,14 @@ namespace HueDoneIt.UI.Tasks
             if (statusText != null)
             {
                 statusText.fontStyle = FontStyle.Bold;
-                statusText.fontSize = Mathf.Max(statusText.fontSize, 17);
-                statusText.color = new Color(1f, 1f, 1f, 0.98f);
+                statusText.fontSize = Mathf.Max(statusText.fontSize, 16);
+                statusText.color = new Color(1f, 1f, 1f, 0.96f);
                 statusText.raycastTarget = false;
             }
 
             if (progressFill != null)
             {
-                progressFill.color = new Color(0.68f, 0.96f, 0.14f, 0.96f);
+                progressFill.color = new Color(0.68f, 0.96f, 0.14f, 0.92f);
                 progressFill.type = Image.Type.Filled;
                 progressFill.fillMethod = Image.FillMethod.Horizontal;
                 progressFill.raycastTarget = false;
@@ -60,7 +60,7 @@ namespace HueDoneIt.UI.Tasks
                     Image bg = progressFill.transform.parent.GetComponent<Image>();
                     if (bg != null)
                     {
-                        bg.color = new Color(0f, 0f, 0f, 0.70f);
+                        bg.color = new Color(0f, 0f, 0f, 0.60f);
                         bg.raycastTarget = false;
                     }
                 }
@@ -123,32 +123,74 @@ namespace HueDoneIt.UI.Tasks
                 return;
             }
 
-            string status;
-            if (task is PumpRepairTask pumpTask && task.CurrentState == RepairTaskState.InProgress)
+            SetView(true, BuildStatus(task, progress01, isCompleted), progress01);
+        }
+
+        private string BuildStatus(NetworkRepairTask task, float progress01, bool isCompleted)
+        {
+            StringBuilder sb = new StringBuilder();
+            sb.Append(task.DisplayName.ToUpperInvariant());
+
+            if (task.CurrentState == RepairTaskState.Locked)
+            {
+                sb.Append("\nLOCKED // Too many failed attempts.");
+                sb.Append("\nMove to another station or wait for the next round reset.");
+                return sb.ToString();
+            }
+
+            if (isCompleted)
+            {
+                sb.Append("\nCOMPLETED // System stable.");
+                return sb.ToString();
+            }
+
+            if (task is PumpRepairTask pumpTask)
             {
                 int startPercent = Mathf.RoundToInt(pumpTask.ConfirmationWindowStartNormalized * 100f);
                 int endPercent = Mathf.RoundToInt(pumpTask.ConfirmationWindowEndNormalized * 100f);
-                status = $"{task.DisplayName}: {Mathf.RoundToInt(progress01 * 100f)}% | Attempts {pumpTask.AttemptsRemaining}\n[E] in ~{startPercent}-{endPercent}% window\nLeaving after commit can fail";
-            }
-            else if (task is PumpRepairTask failedPump && task.CurrentState == RepairTaskState.FailedAttempt)
-            {
-                status = $"{task.DisplayName}: FAILED\nAttempts remaining: {failedPump.AttemptsRemaining}";
-            }
-            else if (task.CurrentState == RepairTaskState.Locked)
-            {
-                status = $"{task.DisplayName}: LOCKED";
-            }
-            else if (isCompleted)
-            {
-                status = $"{task.DisplayName}: Completed";
-            }
-            else
-            {
-                string checkpoint = participant.ShipCheckpointIndex > 0 ? $"\nCheckpoint {participant.ShipCheckpointIndex} reached" : string.Empty;
-                status = $"{task.DisplayName}: {Mathf.RoundToInt(progress01 * 100f)}%{checkpoint}\nStay in radius. Press E again to close/reset.";
+
+                if (task.CurrentState == RepairTaskState.FailedAttempt)
+                {
+                    sb.Append("\nFAILED ATTEMPT");
+                    sb.Append("\n1. Re-enter the station.");
+                    sb.Append("\n2. Wait for the blue confirm band.");
+                    sb.Append("\n3. Press [E] once inside the window.");
+                    sb.Append($"\nAttempts left: {pumpTask.AttemptsRemaining}");
+                    return sb.ToString();
+                }
+
+                sb.Append($"\nProgress: {Mathf.RoundToInt(progress01 * 100f)}% // Attempts left: {pumpTask.AttemptsRemaining}");
+                sb.Append("\n1. Stay in the repair zone.");
+                sb.Append($"\n2. Press [E] between {startPercent}% and {endPercent}%.");
+                sb.Append("\n3. Do not leave after committing or the repair can fail.");
+                return sb.ToString();
             }
 
-            SetView(true, status, progress01);
+            if (task is ShipRepairTask)
+            {
+                sb.Append($"\nProgress: {Mathf.RoundToInt(progress01 * 100f)}%");
+                sb.Append("\n1. Stay inside the active repair path.");
+                sb.Append("\n2. Advance checkpoint by checkpoint.");
+                sb.Append("\n3. Keep moving until the final checkpoint closes the task.");
+                if (participant.ShipCheckpointIndex > 0)
+                {
+                    sb.Append($"\nCurrent checkpoint: {participant.ShipCheckpointIndex}");
+                }
+                return sb.ToString();
+            }
+
+            if (task.CurrentState == RepairTaskState.FailedAttempt)
+            {
+                sb.Append("\nFAILED ATTEMPT");
+                sb.Append("\nRe-enter the station and repeat the steps cleanly.");
+                return sb.ToString();
+            }
+
+            sb.Append($"\nProgress: {Mathf.RoundToInt(progress01 * 100f)}%");
+            sb.Append("\n1. Stay within the task radius.");
+            sb.Append("\n2. Watch the prompt for the next interaction.");
+            sb.Append("\n3. Press [E] again when the station asks for a commit or finish.");
+            return sb.ToString();
         }
 
         private void SetView(bool visible, string text, float progress01)

@@ -12,6 +12,12 @@ EditorBuildSettings:
     path: Assets/Scenes/Gameplay_Undertint.unity
     guid: 99c9720ab356a0642a771bea13969a05
   - enabled: 1
+    path: Assets/Scenes/Gameplay_Undertint_Annex.unity
+    guid: d35bb6b5b84449d3bbd149800e317898
+  - enabled: 1
+    path: Assets/Scenes/Gameplay_Undertint_Overflow.unity
+    guid: 383c67c5313947c9b9e61a9c61bdf2f0
+  - enabled: 1
     path: Assets/Scenes/Frontend.unity
     guid: 2723db7279050ea499abab9ff527367d
   - enabled: 1

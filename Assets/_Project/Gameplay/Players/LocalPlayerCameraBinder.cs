@@ -1,5 +1,6 @@
 // File: Assets/_Project/Gameplay/Players/LocalPlayerCameraBinder.cs
 using HueDoneIt.Core.Bootstrap;
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.UI.Lobby;
@@ -15,7 +16,7 @@ namespace HueDoneIt.Gameplay.Players
     public sealed class LocalPlayerCameraBinder : NetworkBehaviour
     {
         // Camera bind and cursor lock are allowed in Lobby and Gameplay scenes only.
-        private static readonly string[] CameraPlayableScenes = { "Lobby", "Gameplay_Undertint" };
+        private static readonly string[] CameraPlayableScenes = { "Lobby", BetaGameplaySceneCatalog.MainMap, BetaGameplaySceneCatalog.AnnexMap, BetaGameplaySceneCatalog.OverflowMap };
 
         [Header("Base Camera")]
         [SerializeField] private Transform cameraAnchor;

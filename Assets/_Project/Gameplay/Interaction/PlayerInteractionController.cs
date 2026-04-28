@@ -1,6 +1,7 @@
 // File: Assets/_Project/Gameplay/Interaction/PlayerInteractionController.cs
 using System;
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Inventory;
 using HueDoneIt.Gameplay.Paint;
 using HueDoneIt.Gameplay.Players;
 using HueDoneIt.Tasks;
@@ -16,6 +17,7 @@ namespace HueDoneIt.Gameplay.Interaction
     public sealed class PlayerInteractionController : NetworkBehaviour
     {
         [SerializeField] private Key interactKey = Key.E;
+        [SerializeField] private Key dropItemKey = Key.G;
         [SerializeField] private LayerMask interactionLineOfSightMask = ~0;
 
         private PlayerInteractionDetector _detector;
@@ -40,7 +42,18 @@ namespace HueDoneIt.Gameplay.Interaction
             }
 
             Keyboard keyboard = Keyboard.current;
-            if (keyboard == null || !keyboard[interactKey].wasPressedThisFrame)
+            if (keyboard == null)
+            {
+                return;
+            }
+
+            if (keyboard[dropItemKey].wasPressedThisFrame)
+            {
+                RequestDropFirstInventoryItemServerRpc();
+                return;
+            }
+
+            if (!keyboard[interactKey].wasPressedThisFrame)
             {
                 return;
             }
@@ -52,6 +65,36 @@ namespace HueDoneIt.Gameplay.Interaction
             }
 
             RequestInteractServerRpc(interactable.NetworkObjectId);
+        }
+
+        [ServerRpc]
+        private void RequestDropFirstInventoryItemServerRpc(ServerRpcParams rpcParams = default)
+        {
+            ulong senderClientId = rpcParams.Receive.SenderClientId;
+            if (!NetworkManager.ConnectedClients.TryGetValue(senderClientId, out NetworkClient client) || client.PlayerObject == null)
+            {
+                return;
+            }
+
+            if (client.PlayerObject.TryGetComponent(out PlayerLifeState interactorLifeState) && !interactorLifeState.IsAlive)
+            {
+                return;
+            }
+
+            if (!client.PlayerObject.TryGetComponent(out PlayerInventoryState inventory))
+            {
+                return;
+            }
+
+            Transform playerTransform = client.PlayerObject.transform;
+            Vector3 dropPosition = playerTransform.position + playerTransform.forward * 1.15f;
+            for (int slot = 0; slot < PlayerInventoryState.MaxSlots; slot++)
+            {
+                if (inventory.ServerTryDropSlot(slot, dropPosition, out _))
+                {
+                    return;
+                }
+            }
         }
 
         [ServerRpc]

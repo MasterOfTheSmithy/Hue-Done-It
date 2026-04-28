@@ -6,6 +6,7 @@ using HueDoneIt.Core.Bootstrap;
 using HueDoneIt.Flood;
 using HueDoneIt.Gameplay.Elimination;
 using HueDoneIt.Gameplay.Director;
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Gameplay.Environment;
 using HueDoneIt.Gameplay.Inventory;
 using HueDoneIt.Gameplay.Paint;
@@ -26,7 +27,7 @@ namespace HueDoneIt.Gameplay
     public sealed class GameplayBetaSceneInstaller : MonoBehaviour
     {
         private const string RuntimeRootName = "_BetaArenaRuntime";
-        private const string GameplaySceneName = "Gameplay_Undertint";
+        private const string GameplaySceneName = BetaGameplaySceneCatalog.MainMap;
 
         [SerializeField] private bool verboseLogging = true;
         [SerializeField] private bool preserveSceneAuthoredLayout = true;
@@ -34,7 +35,7 @@ namespace HueDoneIt.Gameplay
         private void Awake()
         {
             Scene activeScene = SceneManager.GetActiveScene();
-            if (!string.Equals(activeScene.name, GameplaySceneName, StringComparison.Ordinal))
+            if (!BetaGameplaySceneCatalog.IsProductionGameplayScene(activeScene.name))
             {
                 // If this component is accidentally present in another scene, do nothing there.
                 // Scene setup must keep this installer gameplay-only.
@@ -57,7 +58,7 @@ namespace HueDoneIt.Gameplay
                 return;
             }
 
-            if (!string.Equals(activeScene.name, GameplaySceneName, StringComparison.Ordinal))
+            if (!BetaGameplaySceneCatalog.IsProductionGameplayScene(activeScene.name))
             {
                 return;
             }

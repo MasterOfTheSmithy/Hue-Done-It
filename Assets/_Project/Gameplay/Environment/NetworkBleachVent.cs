@@ -167,6 +167,11 @@ namespace HueDoneIt.Gameplay.Environment
 
             Vector3 exitPosition = linkedVent.transform.position + (linkedVent.transform.forward * exitForwardOffset) + (Vector3.up * 0.2f);
             float yaw = linkedVent.transform.eulerAngles.y;
+            if (userObject.TryGetComponent(out PlayerKillInputController ventUserRole))
+            {
+                ventUserRole.ServerExposeBleach(15f, "Vent trace");
+            }
+
             if (userObject.TryGetComponent(out NetworkPlayerAuthoritativeMover mover))
             {
                 mover.ServerTeleportTo(exitPosition, yaw);

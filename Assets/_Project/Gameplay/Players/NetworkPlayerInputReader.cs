@@ -1,6 +1,7 @@
 // File: Assets/_Project/Gameplay/Players/NetworkPlayerInputReader.cs
 using HueDoneIt.Core.Bootstrap;
 using Unity.Netcode;
+using HueDoneIt.Gameplay.Beta;
 using UnityEngine;
 using UnityEngine.InputSystem;
 
@@ -14,7 +15,7 @@ namespace HueDoneIt.Gameplay.Players
     {
         // Input is allowed only in Lobby and Gameplay scenes.
         // Boot remains menu-only and must never consume live movement input.
-        private static readonly string[] PlayableInputScenes = { "Lobby", "Gameplay_Undertint" };
+        private static readonly string[] PlayableInputScenes = { "Lobby", BetaGameplaySceneCatalog.MainMap, BetaGameplaySceneCatalog.AnnexMap, BetaGameplaySceneCatalog.OverflowMap };
 
         [SerializeField, Min(0.01f)] private float jumpPressBufferSeconds = 0.15f;
         [SerializeField, Min(0.01f)] private float punchPressBufferSeconds = 0.12f;
