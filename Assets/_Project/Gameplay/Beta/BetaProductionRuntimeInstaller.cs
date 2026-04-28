@@ -63,20 +63,15 @@ namespace HueDoneIt.Gameplay.Beta
 
         private static bool LooksLikeGameplayScene(Scene scene)
         {
-            string sceneName = scene.name == null ? string.Empty : scene.name.ToLowerInvariant();
-            if (sceneName.Contains("gameplay") || sceneName.Contains("undertint") || sceneName.Contains("flood"))
-            {
-                return true;
-            }
-
-            return Object.FindFirstObjectByType<NetworkRepairTask>() != null ||
-                   Object.FindFirstObjectByType<FloodSequenceController>() != null;
+            return BetaGameplaySceneCatalog.IsProductionGameplayScene(scene.name);
         }
 
         private static void EnsureComponents(GameObject root)
         {
-            // Full beta production polish stack. Keep existing playability/floor recovery systems, then layer
-            // contextual slime presentation, movement feel tuning, task/flood feedback, HUD pulses, and audio.
+            DisableNormalPlayDuplicates();
+
+            // Normal beta production profile. GameplayBetaSceneInstaller owns authoritative map/state objects;
+            // this root owns a single presentation/safety layer so helper systems do not fight each other.
             Ensure<BetaPlayableMapDirector>(root);
             Ensure<BetaRoomDeclutterDirector>(root);
             Ensure<BetaTaskAndStationLayoutDirector>(root);
@@ -100,14 +95,36 @@ namespace HueDoneIt.Gameplay.Beta
             Ensure<BetaPointClickTaskOverlay>(root);
             Ensure<BetaTaskSequencePolishDirector>(root);
             Ensure<BetaHudDeclutterDirector>(root);
-            Ensure<BetaPlayabilityObjectiveBoard>(root);
             Ensure<BetaWaterColorDiffusion>(root);
             Ensure<BetaFloodWarningBeaconInstaller>(root);
             Ensure<BetaFeedbackAudioDirector>(root);
-            Ensure<BetaSlimeAudioFeedbackDirector>(root);
             Ensure<BetaRuntimePaintBudgetTuner>(root);
             Ensure<BetaPlayerSafetyNet>(root);
             Ensure<BetaMatchFlowSanityMonitor>(root);
+        }
+
+        private static void DisableNormalPlayDuplicates()
+        {
+            DisableIfPresent<BetaAlwaysOnHudOverlay>();
+            DisableIfPresent<BetaObjectiveRouteCompass>();
+            DisableIfPresent<BetaPlayabilityObjectiveBoard>();
+            DisableIfPresent<BetaSlimeAudioFeedbackDirector>();
+            DisableIfPresent<BetaColliderMutationDebugger>();
+            DisableIfPresent<BetaPlayerFloorProbeDebugger>();
+            DisableIfPresent<BetaPlaytestDiagnostics>();
+        }
+
+        private static void DisableIfPresent<T>() where T : Behaviour
+        {
+            T[] components = Object.FindObjectsByType<T>(FindObjectsSortMode.None);
+            for (int i = 0; i < components.Length; i++)
+            {
+                T component = components[i];
+                if (component != null)
+                {
+                    component.enabled = false;
+                }
+            }
         }
 
         private static T Ensure<T>(GameObject root) where T : Component

@@ -28,7 +28,7 @@ namespace HueDoneIt.UI.Gameplay
         private const float MapWorldMaxX = 28f;
         private const float MapWorldMinZ = -22f;
         private const float MapWorldMaxZ = 22f;
-        private const int FeedCapacity = 10;
+        private const int FeedCapacity = 5;
 
         [SerializeField] private bool showDebugOverlay;
 
@@ -105,6 +105,8 @@ namespace HueDoneIt.UI.Gameplay
         private RoundPhase _lastFeedPhase = (RoundPhase)255;
         private string _lastFeedRoundMessage = string.Empty;
         private NetworkRoundState.PressureStage _lastFeedPressureStage = (NetworkRoundState.PressureStage)255;
+        private string _lastFeedLine = string.Empty;
+        private float _lastFeedLineTime;
 
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void InstallRuntimeHud()
@@ -339,13 +341,13 @@ namespace HueDoneIt.UI.Gameplay
                 new Vector2(0f, 0f),
                 new Vector2(0f, 0f),
                 new Vector2(24f, 24f),
-                new Vector2(406f, 196f),
-                new Color(0.08f, 0.04f, 0.12f, 0.50f),
-                new Color(0.62f, 0.22f, 1f, 0.62f),
+                new Vector2(348f, 152f),
+                new Color(0.06f, 0.04f, 0.10f, 0.30f),
+                new Color(0.62f, 0.22f, 1f, 0.38f),
                 "FEED",
                 new Color(1f, 1f, 1f, 1f));
-            _chatText = CreateText("ChatText", chatPanel.transform, 13, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(20f, -60f), new Vector2(368f, -20f));
-            _chatText.color = new Color(1f, 1f, 1f, 0.62f);
+            _chatText = CreateText("ChatText", chatPanel.transform, 12, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(18f, -58f), new Vector2(318f, -18f));
+            _chatText.color = new Color(1f, 1f, 1f, 0.44f);
 
             Image bottomPanel = CreateSplashCard(
                 "BottomPanel",
@@ -449,7 +451,6 @@ namespace HueDoneIt.UI.Gameplay
                 _lastPromptText = prompt;
                 _lastPromptToastTime = Time.time;
                 _promptToastText.text = prompt;
-                AddFeedLine("SYSTEM: " + prompt);
             }
         }
 
@@ -566,7 +567,7 @@ namespace HueDoneIt.UI.Gameplay
 
         private void HandleInventoryChanged()
         {
-            AddFeedLine("SYSTEM: Inventory updated.");
+            AddFeedLine("ITEM: Inventory updated.");
         }
 
         private void HandleObjectiveSummaryChanged(string summary)
@@ -1248,7 +1249,7 @@ namespace HueDoneIt.UI.Gameplay
         {
             if (_feedLines.Count == 0)
             {
-                return "[SYSTEM] Waiting for activity...";
+                return "[SYSTEM] quiet";
             }
 
             StringBuilder sb = new StringBuilder();
@@ -1526,6 +1527,14 @@ namespace HueDoneIt.UI.Gameplay
             {
                 return;
             }
+
+            if (line == _lastFeedLine && Time.unscaledTime - _lastFeedLineTime < 2.5f)
+            {
+                return;
+            }
+
+            _lastFeedLine = line;
+            _lastFeedLineTime = Time.unscaledTime;
 
             if (_feedLines.Count >= FeedCapacity)
             {

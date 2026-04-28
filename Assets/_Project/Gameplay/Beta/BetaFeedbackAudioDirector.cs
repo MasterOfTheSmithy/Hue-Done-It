@@ -1,7 +1,9 @@
 // File: Assets/_Project/Gameplay/Beta/BetaFeedbackAudioDirector.cs
 using System.Collections.Generic;
 using HueDoneIt.Flood;
+using HueDoneIt.Flood.Integration;
 using HueDoneIt.Gameplay.Elimination;
+using HueDoneIt.Gameplay.Players;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Tasks;
 using Unity.Netcode;
@@ -39,6 +41,10 @@ namespace HueDoneIt.Gameplay.Beta
         private AudioClip _floodSurgeClip;
         private AudioClip _lowTimeClip;
         private AudioClip _deathClip;
+        private AudioClip _slimeLandingClip;
+        private AudioClip _slimeWallClip;
+        private AudioClip _lowGravityClip;
+        private AudioClip _wetCriticalClip;
 
         private readonly Dictionary<NetworkRepairTask, RepairTaskState> _repairTaskStates = new();
         private readonly Dictionary<TaskObjectiveBase, RepairTaskState> _advancedTaskStates = new();
@@ -46,15 +52,23 @@ namespace HueDoneIt.Gameplay.Beta
         private NetworkRoundState _roundState;
         private FloodSequenceController _floodController;
         private PlayerLifeState _localLifeState;
+        private NetworkPlayerAuthoritativeMover _localMover;
+        private PlayerFloodZoneTracker _localFloodTracker;
         private string _lastObjective = string.Empty;
         private RoundPhase _lastPhase;
         private NetworkRoundState.PressureStage _lastPressure;
         private bool _initializedRoundState;
         private bool _initializedLifeState;
+        private bool _initializedMoveState;
         private bool _localWasAlive;
+        private bool _wasLowGravity;
+        private bool _wasWetCritical;
         private bool _wasFloodTelegraphActive;
         private bool _wasFloodPulseActive;
+        private NetworkPlayerAuthoritativeMover.LocomotionState _lastMoveState;
+        private float _lastLandingImpact;
         private float _nextScanTime;
+        private float _lastSquishTime = -999f;
         private float _lastFloodWarningTime = -999f;
         private float _lastLowTimeWarningTime = -999f;
 
@@ -105,6 +119,7 @@ namespace HueDoneIt.Gameplay.Beta
             ResolveReferences();
             ScanRoundFeedback();
             ScanLocalLifeFeedback();
+            ScanSlimeMovementFeedback();
             ScanFloodFeedback();
             ScanTaskFeedback();
         }
@@ -130,6 +145,8 @@ namespace HueDoneIt.Gameplay.Beta
                 if (playerObject != null)
                 {
                     _localLifeState = playerObject.GetComponent<PlayerLifeState>();
+                    _localMover = playerObject.GetComponent<NetworkPlayerAuthoritativeMover>();
+                    _localFloodTracker = playerObject.GetComponent<PlayerFloodZoneTracker>();
                 }
             }
         }
@@ -156,6 +173,63 @@ namespace HueDoneIt.Gameplay.Beta
             }
 
             _localWasAlive = alive;
+        }
+
+        private void ScanSlimeMovementFeedback()
+        {
+            if (_localMover != null)
+            {
+                NetworkPlayerAuthoritativeMover.LocomotionState state = _localMover.CurrentState;
+                if (!_initializedMoveState)
+                {
+                    _initializedMoveState = true;
+                    _lastMoveState = state;
+                    _lastLandingImpact = _localMover.LastLandingImpact;
+                }
+
+                bool landed = _lastMoveState != NetworkPlayerAuthoritativeMover.LocomotionState.Grounded &&
+                              state == NetworkPlayerAuthoritativeMover.LocomotionState.Grounded;
+
+                float landingImpact = _localMover.LastLandingImpact;
+                if ((landed || landingImpact > _lastLandingImpact + 0.25f) && Time.unscaledTime - _lastSquishTime >= 0.42f)
+                {
+                    _lastSquishTime = Time.unscaledTime;
+                    Play(_slimeLandingClip, Mathf.Clamp01(0.45f + landingImpact / 16f));
+                }
+
+                if ((_lastMoveState != NetworkPlayerAuthoritativeMover.LocomotionState.WallStick &&
+                     state == NetworkPlayerAuthoritativeMover.LocomotionState.WallStick) ||
+                    (_lastMoveState != NetworkPlayerAuthoritativeMover.LocomotionState.WallSlide &&
+                     state == NetworkPlayerAuthoritativeMover.LocomotionState.WallSlide))
+                {
+                    Play(_slimeWallClip, 0.75f);
+                }
+
+                bool lowGravity = _localMover.IsInAlteredGravity;
+                if (lowGravity && !_wasLowGravity)
+                {
+                    Play(_lowGravityClip, 0.85f);
+                }
+
+                _wasLowGravity = lowGravity;
+                _lastLandingImpact = landingImpact;
+                _lastMoveState = state;
+            }
+            else
+            {
+                _initializedMoveState = false;
+            }
+
+            if (_localFloodTracker != null)
+            {
+                bool wetCritical = _localFloodTracker.IsCritical;
+                if (wetCritical && !_wasWetCritical)
+                {
+                    Play(_wetCriticalClip, 0.85f);
+                }
+
+                _wasWetCritical = wetCritical;
+            }
         }
 
         private void ScanRoundFeedback()
@@ -300,12 +374,17 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void Play(AudioClip clip)
         {
+            Play(clip, 1f);
+        }
+
+        private void Play(AudioClip clip, float gain)
+        {
             if (clip == null || _sfxSource == null)
             {
                 return;
             }
 
-            _sfxSource.PlayOneShot(clip, sfxVolume);
+            _sfxSource.PlayOneShot(clip, Mathf.Clamp01(gain) * sfxVolume);
         }
 
         private void CreateClips()
@@ -319,6 +398,10 @@ namespace HueDoneIt.Gameplay.Beta
             _floodSurgeClip = CreateToneSweep("HDI Flood Surge", 130f, 85f, 0.72f, 0.70f);
             _lowTimeClip = CreateToneSweep("HDI Low Time", 880f, 880f, 0.12f, 0.44f);
             _deathClip = CreateToneSweep("HDI Spectator Transition", 180f, 92f, 0.58f, 0.62f);
+            _slimeLandingClip = CreateToneSweep("HDI Slime Landing", 180f, 82f, 0.22f, 0.54f);
+            _slimeWallClip = CreateToneSweep("HDI Slime Wall Stick", 260f, 380f, 0.15f, 0.34f);
+            _lowGravityClip = CreateToneSweep("HDI Low Gravity Bloom", 420f, 720f, 0.32f, 0.30f);
+            _wetCriticalClip = CreateToneSweep("HDI Wet Critical", 330f, 160f, 0.44f, 0.42f);
         }
 
         private static AudioClip CreateToneSweep(string name, float startHz, float endHz, float durationSeconds, float gain)

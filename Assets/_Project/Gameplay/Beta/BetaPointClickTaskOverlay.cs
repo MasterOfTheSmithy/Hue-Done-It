@@ -2,6 +2,7 @@
 using HueDoneIt.Tasks;
 using Unity.Netcode;
 using UnityEngine;
+using UnityEngine.InputSystem;
 
 namespace HueDoneIt.Gameplay.Beta
 {
@@ -26,6 +27,7 @@ namespace HueDoneIt.Gameplay.Beta
         private int _selectedConnector = -1;
         private float _dragProgress;
         private bool _draggingPatch;
+        private bool _puzzleSolved;
         private bool _completedFromUi;
         private bool _cursorCaptured;
         private bool _previousCursorVisible;
@@ -48,6 +50,13 @@ namespace HueDoneIt.Gameplay.Beta
             if (IsOverlayActive())
             {
                 EnsureCursorForTask();
+                if (Keyboard.current != null && Keyboard.current.escapeKey.wasPressedThisFrame)
+                {
+                    CancelTask("Task UI cancelled");
+                    return;
+                }
+
+                TrySubmitSolvedTask();
             }
             else
             {
@@ -263,6 +272,7 @@ namespace HueDoneIt.Gameplay.Beta
             _selectedConnector = -1;
             _dragProgress = 0f;
             _draggingPatch = false;
+            _puzzleSolved = false;
             _completedFromUi = false;
             _status = string.Empty;
             _taskHash = activeTask != null ? activeTask.GetInstanceID() : 0;
@@ -354,8 +364,30 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void CompleteTask()
         {
-            if (_completedFromUi || _localParticipant == null)
+            if (_completedFromUi)
             {
+                return;
+            }
+
+            _puzzleSolved = true;
+            TrySubmitSolvedTask();
+        }
+
+        private void TrySubmitSolvedTask()
+        {
+            if (!_puzzleSolved || _completedFromUi || _localParticipant == null || _currentTask == null)
+            {
+                return;
+            }
+
+            float duration = Mathf.Max(0.01f, _currentTask.TaskDurationSeconds);
+            float elapsed = NetworkManager.Singleton != null
+                ? Mathf.Max(0f, (float)NetworkManager.Singleton.ServerTime.Time - _currentTask.TaskStartServerTime)
+                : duration;
+
+            if (elapsed < duration)
+            {
+                _status = $"Pattern solved. Stabilizing link {Mathf.CeilToInt(duration - elapsed)}s...";
                 return;
             }
 
