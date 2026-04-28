@@ -10,6 +10,7 @@ using HueDoneIt.Gameplay.Interaction;
 using HueDoneIt.Gameplay.Inventory;
 using HueDoneIt.Gameplay.Objectives;
 using HueDoneIt.Gameplay.Players;
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Gameplay.Sabotage;
 using HueDoneIt.Roles;
@@ -22,7 +23,7 @@ namespace HueDoneIt.UI.Gameplay
 {
     public sealed class GameplayInvestorHud : MonoBehaviour
     {
-        private const string TargetSceneName = "Gameplay_Undertint";
+        private const string TargetSceneName = BetaGameplaySceneCatalog.MainMap;
         private const int CanvasSortingOrder = 5000;
         private const float MapWorldMinX = -28f;
         private const float MapWorldMaxX = 28f;
@@ -121,7 +122,7 @@ namespace HueDoneIt.UI.Gameplay
 
         private static void TryAttach(Scene scene)
         {
-            if (!scene.IsValid() || scene.name != TargetSceneName)
+            if (!scene.IsValid() || !BetaGameplaySceneCatalog.IsProductionGameplayScene(scene.name))
             {
                 return;
             }
@@ -332,7 +333,6 @@ namespace HueDoneIt.UI.Gameplay
             CreateQuickSlot(inventoryPanel.transform, "QuickSlot1", new Vector2(20f, 20f), new Vector2(96f, 92f), new Color(1f, 0.22f, 0.72f, 0.94f), "1");
             CreateQuickSlot(inventoryPanel.transform, "QuickSlot2", new Vector2(108f, 20f), new Vector2(184f, 92f), new Color(1f, 0.78f, 0.10f, 0.94f), "2");
             CreateQuickSlot(inventoryPanel.transform, "QuickSlot3", new Vector2(196f, 20f), new Vector2(272f, 92f), new Color(0.12f, 0.76f, 1f, 0.94f), "3");
-            CreateQuickSlot(inventoryPanel.transform, "QuickSlot4", new Vector2(284f, 20f), new Vector2(360f, 92f), new Color(0.62f, 0.94f, 0.12f, 0.94f), "4");
 
             Image chatPanel = CreateSplashCard(
                 "ChatPanel",
@@ -340,13 +340,13 @@ namespace HueDoneIt.UI.Gameplay
                 new Vector2(0f, 0f),
                 new Vector2(0f, 0f),
                 new Vector2(24f, 24f),
-                new Vector2(464f, 252f),
-                new Color(0.08f, 0.04f, 0.12f, 0.94f),
-                new Color(0.62f, 0.22f, 1f, 0.96f),
-                "CHAT / FEED",
+                new Vector2(406f, 196f),
+                new Color(0.08f, 0.04f, 0.12f, 0.50f),
+                new Color(0.62f, 0.22f, 1f, 0.62f),
+                "FEED",
                 new Color(1f, 1f, 1f, 1f));
-            _chatText = CreateText("ChatText", chatPanel.transform, 15, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(20f, -64f), new Vector2(416f, -24f));
-            _chatText.color = new Color(1f, 1f, 1f, 0.97f);
+            _chatText = CreateText("ChatText", chatPanel.transform, 13, FontStyle.Bold, TextAnchor.UpperLeft, new Vector2(20f, -60f), new Vector2(368f, -20f));
+            _chatText.color = new Color(1f, 1f, 1f, 0.62f);
 
             Image bottomPanel = CreateSplashCard(
                 "BottomPanel",
@@ -747,7 +747,8 @@ namespace HueDoneIt.UI.Gameplay
 
             PlayerRole role = _killController != null ? _killController.CurrentRole : PlayerRole.Color;
             sb.AppendLine();
-            sb.AppendLine(role == PlayerRole.Bleach ? "Quick Use: Bleach / Sabotage" : "Quick Use: Install / Report / Burst");
+            sb.AppendLine(role == PlayerRole.Bleach ? "Bleach kit ready near targets/sabotage." : "Use items at matching task stations.");
+            sb.AppendLine("G: drop first held item");
             return sb.ToString().TrimEnd();
         }
 
@@ -785,8 +786,8 @@ namespace HueDoneIt.UI.Gameplay
             }
 
             string nearestHint = BuildNearestObjectiveHint();
-            return "INTERACTABLES\n- Press E on task terminals\n- Pick up required parts from dispensers\n- Install parts at matching receivers\n- Use decontamination scrubbers when saturation/stability gets dangerous\n- Use emergency seal stations to suppress bleach leaks\n- Use floodgate stations to vent wet or submerged routes\n- Use safe room beacons during critical saturation or low stability\n- Use paint scanners to find bleach residue, evidence shards, and sabotage consoles\n- Use vitals monitors to check bodies and critical saturation\n- Run security camera sweeps to locate bleach motion and open vent routes\n- Arm paint alarm tripwires across suspected killer paths\n- Reconstitute at ink wells when unstable or washed out\n- Seal bleach vents when you suspect fast killer traversal\n- Inspect fresh evidence before Bleach smears it\n- Use the emergency meeting console when suspicion is high\n- During meetings, use accusation pods near suspects or the skip pod if evidence is weak\n- Rally beacons recover nearby crew and create public group moments\n- Bulkhead locks seal dangerous flood routes; Bleach can jam them\n- Callout beacons broadcast suspicion/location pings; Bleach can fake them\n- Slime launch pads are fast traversal tools for risky routes\n- Bleach can use sabotage consoles, vents, fake callouts, and false residue smear kits\n- Follow valve / stabilizer / signal order to avoid lockouts" +
-                   (string.IsNullOrWhiteSpace(nearestHint) ? string.Empty : "\n\n" + nearestHint);
+            return "READY\nE: use highlighted task or item\nG: drop first held item\nR: report when available" +
+                   (string.IsNullOrWhiteSpace(nearestHint) ? string.Empty : "\n" + nearestHint);
         }
 
         private string BuildNearestObjectiveHint()

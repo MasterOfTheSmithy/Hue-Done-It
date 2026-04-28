@@ -1,5 +1,6 @@
 // File: Assets/_Project/UI/Lobby/LobbyHudController.cs
 using HueDoneIt.Core.Bootstrap;
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Flood.Integration;
 using HueDoneIt.Gameplay.Lobby;
 using HueDoneIt.Gameplay.Players;
@@ -248,17 +249,33 @@ namespace HueDoneIt.UI.Lobby
             string selectedMap = state != null ? state.SelectedMapScene : BootSessionConfig.SelectedMapScene;
             int cpuCount = state != null ? state.TargetCpuCount : BootSessionConfig.RequestedCpuCount;
             int undertintVotes = state != null ? state.UndertintVotes : 0;
+            int undertintAnnexVotes = state != null ? state.UndertintAnnexVotes : 0;
+            int undertintOverflowVotes = state != null ? state.UndertintOverflowVotes : 0;
             int testFloodVotes = state != null ? state.TestFloodVotes : 0;
             int testTasksVotes = state != null ? state.TestTasksVotes : 0;
 
             GUILayout.Label("Map Vote");
             GUILayout.Label($"Selected Map: {selectedMap}");
 
-            if (GUILayout.Button($"Gameplay_Undertint ({undertintVotes})", GUILayout.Height(36f)))
+            if (GUILayout.Button($"Undertint Core ({undertintVotes})", GUILayout.Height(36f)))
             {
-                BootSessionConfig.SelectedMapScene = "Gameplay_Undertint";
+                BootSessionConfig.SelectedMapScene = BetaGameplaySceneCatalog.MainMap;
                 BootSessionConfig.Save();
-                RequestVoteMapServerRpc("Gameplay_Undertint");
+                RequestVoteMapServerRpc(BetaGameplaySceneCatalog.MainMap);
+            }
+
+            if (GUILayout.Button($"Undertint Annex ({undertintAnnexVotes})", GUILayout.Height(32f)))
+            {
+                BootSessionConfig.SelectedMapScene = BetaGameplaySceneCatalog.AnnexMap;
+                BootSessionConfig.Save();
+                RequestVoteMapServerRpc(BetaGameplaySceneCatalog.AnnexMap);
+            }
+
+            if (GUILayout.Button($"Undertint Overflow ({undertintOverflowVotes})", GUILayout.Height(32f)))
+            {
+                BootSessionConfig.SelectedMapScene = BetaGameplaySceneCatalog.OverflowMap;
+                BootSessionConfig.Save();
+                RequestVoteMapServerRpc(BetaGameplaySceneCatalog.OverflowMap);
             }
 
             if (GUILayout.Button($"Test_Flood ({testFloodVotes})", GUILayout.Height(30f)))

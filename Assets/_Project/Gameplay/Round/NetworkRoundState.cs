@@ -1364,6 +1364,12 @@ namespace HueDoneIt.Gameplay.Round
 
             int requiredCriticalTasks = CalculateRequiredCriticalSystems(totalCriticalTasks);
             int remainingAvailableCritical = Mathf.Max(0, totalCriticalTasks - lockedCriticalTasks);
+            if (totalMaintenanceTasks <= 0 && totalCriticalTasks <= 0)
+            {
+                ResolveRound(RoundWinner.None, "No repair objectives spawned. Resetting to protect the beta loop.");
+                return;
+            }
+
             if (requiredCriticalTasks > 0 && remainingAvailableCritical < requiredCriticalTasks && totalCriticalTasks > 0)
             {
                 ResolveRound(RoundWinner.None, "Too many critical systems locked out. Ship stabilization is no longer reachable.");
@@ -1381,21 +1387,19 @@ namespace HueDoneIt.Gameplay.Round
             bool maintenanceComplete = requiredMaintenanceTasks == 0 || completedMaintenanceTasks >= requiredMaintenanceTasks;
             if (criticalComplete && maintenanceComplete)
             {
-                if (aliveBleach == 0)
-                {
-                    ResolveRound(RoundWinner.Color, "Critical systems stabilized and bleach creatures eliminated. Innocents win.");
-                }
-                else
-                {
-                    ResolveRound(RoundWinner.Bleach, "Ship stabilized, but bleach creatures survived hidden. Bleach victory by deception.");
-                }
-
+                ResolveRound(RoundWinner.Color, "Critical systems stabilized. Color crew wins by completing the objective.");
                 return;
             }
 
             if (aliveColors == 0 && totalPlayers > 0)
             {
                 ResolveRound(RoundWinner.Bleach, "All color players were diffused.");
+                return;
+            }
+
+            if (aliveBleach > 0 && aliveColors > 0 && aliveBleach >= aliveColors)
+            {
+                ResolveRound(RoundWinner.Bleach, "Bleach reached parity with the remaining color crew.");
                 return;
             }
 

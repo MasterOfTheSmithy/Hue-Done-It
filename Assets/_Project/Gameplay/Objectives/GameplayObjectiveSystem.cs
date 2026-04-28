@@ -1,6 +1,7 @@
 // File: Assets/_Project/Gameplay/Objectives/GameplayObjectiveSystem.cs
 using System.Text;
 using HueDoneIt.Evidence;
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Gameplay.Round;
 using HueDoneIt.Gameplay.Environment;
 using HueDoneIt.Tasks;
@@ -11,7 +12,7 @@ namespace HueDoneIt.Gameplay.Objectives
 {
     public sealed class GameplayObjectiveSystem : MonoBehaviour
     {
-        private const string TargetSceneName = "Gameplay_Undertint";
+        private const string TargetSceneName = BetaGameplaySceneCatalog.MainMap;
 
         [SerializeField] private NetworkRoundState roundState;
 
@@ -31,7 +32,7 @@ namespace HueDoneIt.Gameplay.Objectives
         private static void InstallRuntime()
         {
             Scene scene = SceneManager.GetActiveScene();
-            if (!scene.IsValid() || scene.name != TargetSceneName)
+            if (!scene.IsValid() || !BetaGameplaySceneCatalog.IsProductionGameplayScene(scene.name))
             {
                 return;
             }

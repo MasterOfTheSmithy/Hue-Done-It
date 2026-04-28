@@ -1,6 +1,7 @@
 // File: Assets/_Project/Gameplay/Lobby/NetworkLobbyState.cs
 using System.Collections.Generic;
 using HueDoneIt.Core.Bootstrap;
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Gameplay.Players;
 using Unity.Collections;
 using Unity.Netcode;
@@ -16,8 +17,8 @@ namespace HueDoneIt.Gameplay.Lobby
     public sealed class NetworkLobbyState : NetworkBehaviour
     {
         private const string LobbySceneName = "Lobby";
-        private const string DefaultGameplayScene = "Gameplay_Undertint";
-        private static readonly string[] SupportedMaps = { "Gameplay_Undertint", "Test_Flood", "Test_Tasks" };
+        private const string DefaultGameplayScene = BetaGameplaySceneCatalog.MainMap;
+        private static readonly string[] SupportedMaps = BetaGameplaySceneCatalog.LobbySelectableMaps;
 
         private readonly NetworkVariable<FixedString64Bytes> _selectedMapScene =
             new NetworkVariable<FixedString64Bytes>(HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(DefaultGameplayScene), NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
@@ -26,6 +27,12 @@ namespace HueDoneIt.Gameplay.Lobby
             new NetworkVariable<int>(1, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<int> _undertintVotes =
+            new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _undertintAnnexVotes =
+            new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
+        private readonly NetworkVariable<int> _undertintOverflowVotes =
             new NetworkVariable<int>(0, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
         private readonly NetworkVariable<int> _testFloodVotes =
@@ -40,6 +47,8 @@ namespace HueDoneIt.Gameplay.Lobby
         public string SelectedMapScene => _selectedMapScene.Value.ToString();
         public int TargetCpuCount => _targetCpuCount.Value;
         public int UndertintVotes => _undertintVotes.Value;
+        public int UndertintAnnexVotes => _undertintAnnexVotes.Value;
+        public int UndertintOverflowVotes => _undertintOverflowVotes.Value;
         public int TestFloodVotes => _testFloodVotes.Value;
         public int TestTasksVotes => _testTasksVotes.Value;
 
@@ -142,13 +151,17 @@ namespace HueDoneIt.Gameplay.Lobby
         private void ReconcileVoteTallies()
         {
             int undertintVotes = 0;
+            int undertintAnnexVotes = 0;
+            int undertintOverflowVotes = 0;
             int testFloodVotes = 0;
             int testTasksVotes = 0;
 
             foreach (KeyValuePair<ulong, string> pair in _playerVotes)
             {
                 string vote = ValidateMap(pair.Value);
-                if (vote == "Gameplay_Undertint") undertintVotes++;
+                if (vote == BetaGameplaySceneCatalog.MainMap) undertintVotes++;
+                else if (vote == BetaGameplaySceneCatalog.AnnexMap) undertintAnnexVotes++;
+                else if (vote == BetaGameplaySceneCatalog.OverflowMap) undertintOverflowVotes++;
                 else if (vote == "Test_Flood") testFloodVotes++;
                 else if (vote == "Test_Tasks") testTasksVotes++;
             }
@@ -159,11 +172,25 @@ namespace HueDoneIt.Gameplay.Lobby
             }
 
             _undertintVotes.Value = undertintVotes;
+            _undertintAnnexVotes.Value = undertintAnnexVotes;
+            _undertintOverflowVotes.Value = undertintOverflowVotes;
             _testFloodVotes.Value = testFloodVotes;
             _testTasksVotes.Value = testTasksVotes;
 
-            string selected = "Gameplay_Undertint";
+            string selected = BetaGameplaySceneCatalog.MainMap;
             int bestVotes = undertintVotes;
+            if (undertintAnnexVotes > bestVotes)
+            {
+                selected = BetaGameplaySceneCatalog.AnnexMap;
+                bestVotes = undertintAnnexVotes;
+            }
+
+            if (undertintOverflowVotes > bestVotes)
+            {
+                selected = BetaGameplaySceneCatalog.OverflowMap;
+                bestVotes = undertintOverflowVotes;
+            }
+
             if (testFloodVotes > bestVotes)
             {
                 selected = "Test_Flood";

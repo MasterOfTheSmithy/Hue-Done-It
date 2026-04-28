@@ -1,5 +1,6 @@
 // File: Assets/_Project/Gameplay/Players/DeadPlayerSpectatorCamera.cs
 using System.Collections.Generic;
+using HueDoneIt.Gameplay.Beta;
 using HueDoneIt.Gameplay.Elimination;
 using Unity.Netcode;
 using UnityEngine;
@@ -11,7 +12,7 @@ namespace HueDoneIt.Gameplay.Players
     [DefaultExecutionOrder(750)]
     public sealed class DeadPlayerSpectatorCamera : MonoBehaviour
     {
-        private const string GameplaySceneName = "Gameplay_Undertint";
+        private const string GameplaySceneName = BetaGameplaySceneCatalog.MainMap;
         private const float FollowEyeHeight = 0.92f;
 
         [SerializeField, Min(0.1f)] private float freeMoveSpeed = 7f;
@@ -46,7 +47,7 @@ namespace HueDoneIt.Gameplay.Players
 
         private static void TryAttach(Scene scene)
         {
-            if (!scene.IsValid() || scene.name != GameplaySceneName)
+            if (!scene.IsValid() || !BetaGameplaySceneCatalog.IsProductionGameplayScene(scene.name))
             {
                 return;
             }

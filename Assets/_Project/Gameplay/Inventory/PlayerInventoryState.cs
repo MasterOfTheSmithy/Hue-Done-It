@@ -193,6 +193,46 @@ namespace HueDoneIt.Gameplay.Inventory
             return false;
         }
 
+        public bool ServerTryDropSlot(int slotIndex, Vector3 dropPosition, out string reason)
+        {
+            reason = string.Empty;
+            if (!IsServer)
+            {
+                reason = "Inventory drop must happen on server.";
+                return false;
+            }
+
+            if (slotIndex < 0 || slotIndex >= MaxSlots)
+            {
+                reason = "Invalid inventory slot.";
+                return false;
+            }
+
+            string itemId = GetRawItemIdInSlot(slotIndex);
+            if (string.IsNullOrWhiteSpace(itemId))
+            {
+                reason = "Inventory slot is empty.";
+                return false;
+            }
+
+            InventoryItemDefinition definition = ResolveDefinition(itemId);
+            if (definition == null)
+            {
+                reason = "Dropped item definition is missing.";
+                return false;
+            }
+
+            if (!TryClearSlot(slotIndex, itemId))
+            {
+                reason = "Inventory slot changed before drop.";
+                return false;
+            }
+
+            SpawnDroppedPickup(definition, dropPosition);
+            InventoryChanged?.Invoke();
+            return true;
+        }
+
         public string BuildInventorySummary()
         {
             string slot0 = BuildSlotLine(0);
@@ -323,6 +363,46 @@ namespace HueDoneIt.Gameplay.Inventory
 
             _slot2.Value = default;
             return true;
+        }
+
+        private bool TryClearSlot(int slotIndex, string itemId)
+        {
+            return slotIndex switch
+            {
+                0 => TryClearSlot0(itemId),
+                1 => TryClearSlot1(itemId),
+                2 => TryClearSlot2(itemId),
+                _ => false
+            };
+        }
+
+        private void SpawnDroppedPickup(InventoryItemDefinition definition, Vector3 dropPosition)
+        {
+            GameObject pickupObject = GameObject.CreatePrimitive(PrimitiveType.Cube);
+            pickupObject.name = "Dropped_" + definition.ItemId;
+            pickupObject.transform.position = dropPosition + Vector3.up * 0.35f;
+            pickupObject.transform.localScale = definition.Size == InventoryItemSize.Medium
+                ? new Vector3(0.7f, 0.55f, 0.7f)
+                : new Vector3(0.52f, 0.42f, 0.52f);
+
+            NetworkObject networkObject = pickupObject.GetComponent<NetworkObject>();
+            if (networkObject == null)
+            {
+                networkObject = pickupObject.AddComponent<NetworkObject>();
+            }
+
+            NetworkInventoryPickup pickup = pickupObject.AddComponent<NetworkInventoryPickup>();
+            pickup.ConfigureRuntime(definition, "Pick Up", pickupObject.GetComponentInChildren<Renderer>());
+
+            BoxCollider collider = pickupObject.GetComponent<BoxCollider>() ?? pickupObject.AddComponent<BoxCollider>();
+            collider.isTrigger = false;
+            collider.center = Vector3.zero;
+            collider.size = Vector3.one;
+
+            if (NetworkManager.Singleton != null && NetworkManager.Singleton.IsServer && !networkObject.IsSpawned)
+            {
+                networkObject.Spawn(destroyWithScene: true);
+            }
         }
 
         private InventoryItemDefinition ResolveDefinition(string itemId)

@@ -70,6 +70,9 @@ namespace HueDoneIt.Gameplay.Elimination
         private readonly NetworkVariable<ulong> _mimicTargetNetworkObjectId =
             new(InvalidNetworkObjectId, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
+        private readonly NetworkVariable<float> _exposedUntilServerTime =
+            new(0f, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
+
         private readonly NetworkVariable<bool> _overloadConsumed =
             new(false, NetworkVariableReadPermission.Everyone, NetworkVariableWritePermission.Server);
 
@@ -87,6 +90,8 @@ namespace HueDoneIt.Gameplay.Elimination
         public bool IsBleachRole => CurrentRole == PlayerRole.Bleach;
         public bool IsPrimaryWindupActive => _primaryWindupActive.Value;
         public bool IsMimicking => IsBleachRole && GetServerTime() < _mimicEndServerTime.Value;
+        public bool IsBleachExposed => IsBleachRole && GetServerTime() < _exposedUntilServerTime.Value;
+        public float BleachExposedRemaining => Mathf.Max(0f, _exposedUntilServerTime.Value - GetServerTime());
         public bool HasUsedOverload => _overloadConsumed.Value;
         public Color DisplayColor => _currentDisplayColor;
 
@@ -156,6 +161,7 @@ namespace HueDoneIt.Gameplay.Elimination
             _primaryTargetNetworkObjectId.Value = InvalidNetworkObjectId;
             _mimicTargetNetworkObjectId.Value = InvalidNetworkObjectId;
             _mimicEndServerTime.Value = 0f;
+            _exposedUntilServerTime.Value = 0f;
             _overloadConsumed.Value = false;
             isTestKillerEnabled = role == PlayerRole.Bleach;
             ApplyVisualState(force: true);
@@ -213,6 +219,7 @@ namespace HueDoneIt.Gameplay.Elimination
                 _primaryWindupActive.OnValueChanged += HandleVisualStateChanged;
                 _mimicTargetNetworkObjectId.OnValueChanged += HandleVisualStateChanged;
                 _mimicEndServerTime.OnValueChanged += HandleVisualStateChanged;
+                _exposedUntilServerTime.OnValueChanged += HandleVisualStateChanged;
                 _subscribedToNetworkVariables = true;
             }
 
@@ -232,6 +239,7 @@ namespace HueDoneIt.Gameplay.Elimination
                 _primaryWindupActive.OnValueChanged -= HandleVisualStateChanged;
                 _mimicTargetNetworkObjectId.OnValueChanged -= HandleVisualStateChanged;
                 _mimicEndServerTime.OnValueChanged -= HandleVisualStateChanged;
+                _exposedUntilServerTime.OnValueChanged -= HandleVisualStateChanged;
                 _subscribedToNetworkVariables = false;
             }
 
@@ -276,6 +284,11 @@ namespace HueDoneIt.Gameplay.Elimination
             {
                 _mimicEndServerTime.Value = 0f;
                 _mimicTargetNetworkObjectId.Value = InvalidNetworkObjectId;
+            }
+
+            if (_exposedUntilServerTime.Value > 0f && serverTime >= _exposedUntilServerTime.Value)
+            {
+                _exposedUntilServerTime.Value = 0f;
             }
         }
 
@@ -330,6 +343,7 @@ namespace HueDoneIt.Gameplay.Elimination
             _primaryWindupActive.Value = true;
             _primaryWindupEndServerTime.Value = GetServerTime() + primaryWindupSeconds;
             _primaryTargetNetworkObjectId.Value = targetObject.NetworkObjectId;
+            ServerExposeBleach(15f, "Bleach attack witnessed");
         }
 
         [ServerRpc]
@@ -357,6 +371,18 @@ namespace HueDoneIt.Gameplay.Elimination
                     TryActivateOverload();
                     break;
             }
+        }
+
+        public void ServerExposeBleach(float durationSeconds, string reason = "Bleach exposed")
+        {
+            if (!IsServer || !IsSpawned || CurrentRole != PlayerRole.Bleach)
+            {
+                return;
+            }
+
+            float until = GetServerTime() + Mathf.Max(0.1f, durationSeconds);
+            _exposedUntilServerTime.Value = Mathf.Max(_exposedUntilServerTime.Value, until);
+            ApplyVisualState(force: true);
         }
 
         private bool CanUseBleachPrimary(bool ignorePrimaryWindupState = false)
@@ -638,7 +664,7 @@ namespace HueDoneIt.Gameplay.Elimination
                 return deadTint;
             }
 
-            if (CurrentRole == PlayerRole.Bleach && IsPrimaryWindupActive)
+            if (CurrentRole == PlayerRole.Bleach && (IsPrimaryWindupActive || IsBleachExposed))
             {
                 return bleachExposedTint;
             }

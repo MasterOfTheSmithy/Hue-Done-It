@@ -22,6 +22,7 @@ namespace HueDoneIt.Gameplay.Beta
         private Material _taskPocketMaterial;
         private Material _floodMaterial;
         private Material _wallMaterial;
+        private Material _ceilingMaterial;
         private Material _trimBlue;
         private Material _trimPink;
         private Material _trimYellow;
@@ -101,6 +102,7 @@ namespace HueDoneIt.Gameplay.Beta
             _taskPocketMaterial = CreateMaterial("HDI Beta Task Pocket", new Color(0.065f, 0.072f, 0.095f, 1f));
             _floodMaterial = CreateMaterial("HDI Beta Flood Floor", new Color(0.20f, 0.085f, 0.035f, 1f));
             _wallMaterial = CreateMaterial("HDI Beta Low Wall", new Color(0.030f, 0.034f, 0.045f, 1f));
+            _ceilingMaterial = CreateMaterial("HDI Beta Glass Ceiling", new Color(0.10f, 0.20f, 0.26f, 0.42f));
             _trimBlue = CreateMaterial("HDI Beta Cyan Trim", new Color(0.05f, 0.70f, 1f, 1f));
             _trimPink = CreateMaterial("HDI Beta Pink Trim", new Color(1f, 0.15f, 0.58f, 1f));
             _trimYellow = CreateMaterial("HDI Beta Yellow Trim", new Color(1f, 0.82f, 0.10f, 1f));
@@ -129,6 +131,7 @@ namespace HueDoneIt.Gameplay.Beta
             CreateRail(parent, "AFT OUTER RAIL", new Vector3(0f, 0.55f, -36.4f), new Vector3(24f, 0.80f, 0.45f));
             CreateRail(parent, "PORT OUTER RAIL", new Vector3(-36.4f, 0.55f, 0f), new Vector3(0.45f, 0.80f, 24f));
             CreateRail(parent, "STARBOARD OUTER RAIL", new Vector3(36.4f, 0.55f, 0f), new Vector3(0.45f, 0.80f, 24f));
+            CreateContainment(parent);
 
             CreateTrim(parent, "FORE CYAN ROUTE", new Vector3(0f, 0.105f, 14f), new Vector3(1.15f, 0.018f, 26f), _trimBlue);
             CreateTrim(parent, "AFT YELLOW FLOOD ROUTE", new Vector3(0f, 0.11f, -14f), new Vector3(1.15f, 0.018f, 26f), _trimYellow);
@@ -140,6 +143,20 @@ namespace HueDoneIt.Gameplay.Beta
             CreateLabel(parent, "AFT: FLOOD RELEASE", new Vector3(0f, 2.35f, -32f), _trimYellow);
             CreateLabel(parent, "PORT TASK LOOP", new Vector3(-32f, 2.35f, 0f), _trimPink);
             CreateLabel(parent, "STARBOARD TASK LOOP", new Vector3(32f, 2.35f, 0f), _trimGreen);
+        }
+
+        private void CreateContainment(Transform parent)
+        {
+            CreateWalkable(parent, "FORE OUTER WALL", new Vector3(0f, 2.05f, 37.1f), new Vector3(26f, 4.1f, 0.65f), _wallMaterial);
+            CreateWalkable(parent, "AFT OUTER WALL", new Vector3(0f, 2.05f, -37.1f), new Vector3(26f, 4.1f, 0.65f), _wallMaterial);
+            CreateWalkable(parent, "PORT OUTER WALL", new Vector3(-37.1f, 2.05f, 0f), new Vector3(0.65f, 4.1f, 26f), _wallMaterial);
+            CreateWalkable(parent, "STARBOARD OUTER WALL", new Vector3(37.1f, 2.05f, 0f), new Vector3(0.65f, 4.1f, 26f), _wallMaterial);
+
+            CreateCeiling(parent, "HUB GLASS CEILING", new Vector3(0f, 4.85f, 0f), new Vector3(18f, 0.16f, 18f));
+            CreateCeiling(parent, "FORE LANE CEILING", new Vector3(0f, 4.65f, 18f), new Vector3(10f, 0.14f, 32f));
+            CreateCeiling(parent, "AFT LANE CEILING", new Vector3(0f, 4.65f, -18f), new Vector3(10f, 0.14f, 32f));
+            CreateCeiling(parent, "PORT LANE CEILING", new Vector3(-18f, 4.65f, 0f), new Vector3(32f, 0.14f, 10f));
+            CreateCeiling(parent, "STARBOARD LANE CEILING", new Vector3(18f, 4.65f, 0f), new Vector3(32f, 0.14f, 10f));
         }
 
         private void CreateTaskSupportPads(Transform parent)
@@ -209,6 +226,24 @@ namespace HueDoneIt.Gameplay.Beta
             if (collider != null)
             {
                 Destroy(collider);
+            }
+        }
+
+        private void CreateCeiling(Transform parent, string name, Vector3 position, Vector3 scale)
+        {
+            GameObject ceiling = CreateWalkable(parent, name, position, scale, _ceilingMaterial);
+            Renderer rendererRef = ceiling.GetComponent<Renderer>();
+            if (rendererRef != null && rendererRef.sharedMaterial != null)
+            {
+                Material material = rendererRef.sharedMaterial;
+                material.SetFloat("_Mode", 3f);
+                material.SetInt("_SrcBlend", (int)UnityEngine.Rendering.BlendMode.SrcAlpha);
+                material.SetInt("_DstBlend", (int)UnityEngine.Rendering.BlendMode.OneMinusSrcAlpha);
+                material.SetInt("_ZWrite", 0);
+                material.DisableKeyword("_ALPHATEST_ON");
+                material.EnableKeyword("_ALPHABLEND_ON");
+                material.DisableKeyword("_ALPHAPREMULTIPLY_ON");
+                material.renderQueue = (int)UnityEngine.Rendering.RenderQueue.Transparent;
             }
         }
 

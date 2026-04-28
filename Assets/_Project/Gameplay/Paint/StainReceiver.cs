@@ -17,10 +17,10 @@ namespace HueDoneIt.Gameplay.Paint
         [Header("Area Story Accumulation")]
         [SerializeField, Min(1f)] private float maxActivityScore = 40f;
         [SerializeField, Min(0f)] private float activityDecayPerSecond = 0.45f;
-        [SerializeField, Min(0f)] private float activityToDensityMultiplier = 0.18f;
+        [SerializeField, Min(0f)] private float activityToDensityMultiplier = 0.035f;
         [SerializeField, Min(0f)] private float activityToTintBlend = 0.08f;
-        [SerializeField, Min(1)] private int maxPermanentEvidenceMarks = 32;
-        [SerializeField, Min(0f)] private float movementWearThreshold = 4f;
+        [SerializeField, Min(1)] private int maxPermanentEvidenceMarks = 12;
+        [SerializeField, Min(0f)] private float movementWearThreshold = 10f;
 
         [Header("Flood Interaction")]
         [SerializeField, Min(0f)] private float floodWashoutStrength = 0.62f;
@@ -28,24 +28,24 @@ namespace HueDoneIt.Gameplay.Paint
         [SerializeField] private Color wetRoomTint = new(0.72f, 0.8f, 0.9f, 1f);
 
         [Header("Splat Rendering")]
-        [SerializeField, Min(8)] private int maxSplatDecals = 96;
-        [SerializeField, Min(0)] private int prewarmSplatDecals = 12;
-        [SerializeField, Min(0.5f)] private float temporaryLifetimeSeconds = 7f;
-        [SerializeField, Min(0.5f)] private float heavyTemporaryLifetimeSeconds = 12f;
+        [SerializeField, Min(8)] private int maxSplatDecals = 32;
+        [SerializeField, Min(0)] private int prewarmSplatDecals = 0;
+        [SerializeField, Min(0.5f)] private float temporaryLifetimeSeconds = 3.5f;
+        [SerializeField, Min(0.5f)] private float heavyTemporaryLifetimeSeconds = 6f;
         [SerializeField, Min(0f)] private float zOffset = 0.015f;
         [SerializeField] private List<Texture2D> splatPatterns = new();
-        [SerializeField, Min(1)] private int generatedPatternCount = 6;
+        [SerializeField, Min(1)] private int generatedPatternCount = 8;
         [SerializeField] private Shader splatShader;
         [SerializeField] private bool randomizeRotation = true;
         [SerializeField] private bool randomizeFlip = true;
-        [SerializeField, Min(0f)] private float forceToDensityMultiplier = 0.22f;
-        [SerializeField] private Vector2 alphaRange = new(0.26f, 0.9f);
+        [SerializeField, Min(0f)] private float forceToDensityMultiplier = 0.045f;
+        [SerializeField] private Vector2 alphaRange = new(0.22f, 0.72f);
         [SerializeField, Min(0f)] private float stretchMultiplier = 0.65f;
-        [SerializeField] private Vector2 stretchClamp = new(1f, 4.5f);
-        [SerializeField, Min(0.1f)] private float maxLocalizedDecalMajorAxis = 4.8f;
-        [SerializeField, Min(0.1f)] private float maxLocalizedDecalMinorAxis = 2.15f;
-        [SerializeField, Min(0.1f)] private float maxHeavyImpactMajorAxis = 6.2f;
-        [SerializeField, Min(0.1f)] private float maxHeavyImpactMinorAxis = 2.75f;
+        [SerializeField] private Vector2 stretchClamp = new(1f, 3.1f);
+        [SerializeField, Min(0.1f)] private float maxLocalizedDecalMajorAxis = 2.8f;
+        [SerializeField, Min(0.1f)] private float maxLocalizedDecalMinorAxis = 1.45f;
+        [SerializeField, Min(0.1f)] private float maxHeavyImpactMajorAxis = 3.6f;
+        [SerializeField, Min(0.1f)] private float maxHeavyImpactMinorAxis = 1.75f;
 
         [Header("Type Lifetime Thresholds")]
         [SerializeField, Min(0f)] private float landingPermanentForceThreshold = 13f;
@@ -487,15 +487,15 @@ namespace HueDoneIt.Gameplay.Paint
 
         private Texture2D GeneratePattern(int seed)
         {
-            const int size = 64;
+            const int size = 48;
             Texture2D texture = new Texture2D(size, size, TextureFormat.RGBA32, false, true);
-            texture.name = "GeneratedSplat_" + seed;
+            texture.name = "BudgetSplat_" + seed;
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
 
             Color32[] pixels = new Color32[size * size];
             float baseRotation = Hash01((uint)(seed * 193 + 17)) * Mathf.PI * 2f;
-            int lobeCount = 4 + Mathf.FloorToInt(Hash01((uint)(seed * 313 + 29)) * 5f);
+            int lobeCount = 4 + Mathf.FloorToInt(Hash01((uint)(seed * 313 + 29)) * 4f);
 
             for (int y = 0; y < size; y++)
             {
@@ -505,13 +505,24 @@ namespace HueDoneIt.Gameplay.Paint
                     float v = ((y + 0.5f) / size) * 2f - 1f;
                     float radius = Mathf.Sqrt((u * u) + (v * v));
                     float angle = Mathf.Atan2(v, u) + baseRotation;
+                    float lobe = Mathf.Sin(angle * lobeCount) * 0.14f;
+                    float noise = (Hash21((uint)(seed + 1), x, y) - 0.5f) * 0.11f;
 
-                    float lobe = Mathf.Sin(angle * lobeCount) * 0.18f;
-                    float noise = (Hash21((uint)(seed + 1), x, y) - 0.5f) * 0.12f;
-                    float edge = 0.78f + lobe + noise;
+                    // Cheap drip/streak illusion: deterministic vertical streaks with no nested droplet loops.
+                    float streak = 0f;
+                    if (v > -0.05f)
+                    {
+                        float column = Mathf.Floor((u + 1f) * 8f);
+                        float center = (column / 8f) * 2f - 1f;
+                        float width = Mathf.Lerp(0.025f, 0.085f, Hash01((uint)(seed * 97 + (int)column * 31)));
+                        float length = Mathf.Lerp(0.12f, 0.82f, Hash01((uint)(seed * 131 + (int)column * 43)));
+                        streak = (1f - Mathf.InverseLerp(width, width + 0.08f, Mathf.Abs(u - center))) *
+                                 (1f - Mathf.InverseLerp(-0.05f, length, v));
+                    }
+
+                    float edge = 0.58f + lobe + noise + (Mathf.Clamp01(streak) * 0.14f);
                     float alpha = Mathf.Clamp01(1f - Mathf.InverseLerp(edge, edge + 0.18f, radius));
-                    alpha *= alpha;
-
+                    alpha = Mathf.Clamp01((alpha * alpha) + (Mathf.Clamp01(streak) * 0.42f));
                     pixels[(y * size) + x] = new Color32(255, 255, 255, (byte)Mathf.RoundToInt(alpha * 255f));
                 }
             }
@@ -752,11 +763,7 @@ namespace HueDoneIt.Gameplay.Paint
         private void SpawnDensityAdjustedSplats(Color color, PaintSplatData splatData, bool wet)
         {
             SplatVisualProfile profile = BuildVisualProfile(splatData, wet);
-            float activityBoost = ActivityScore01 * activityToDensityMultiplier;
-            int kineticSplats = splatData.EventKind == PaintEventKind.RagdollImpact
-                ? Mathf.Clamp(Mathf.FloorToInt(splatData.ForceMagnitude * (forceToDensityMultiplier + 0.16f)), 1, 8)
-                : Mathf.Clamp(Mathf.FloorToInt(splatData.ForceMagnitude * forceToDensityMultiplier), 0, 5);
-            int splatCount = 1 + profile.AdditionalSplats + kineticSplats + Mathf.Clamp(Mathf.FloorToInt(activityBoost * 3f), 0, 2);
+            int splatCount = ResolveBudgetedSplatCount(splatData, profile);
 
             Vector3 normal = splatData.Normal.sqrMagnitude > 0.001f ? splatData.Normal.normalized : Vector3.up;
             Vector3 dragDirection = ResolveDragDirection(splatData, normal);
@@ -766,25 +773,40 @@ namespace HueDoneIt.Gameplay.Paint
             {
                 float t = i / Mathf.Max(1f, splatCount - 1f);
                 Vector3 offset = ComputeSplatOffset(splatData, normal, dragDirection, bitangent, i, splatCount);
+                float localStretch = Mathf.Lerp(profile.StretchMultiplier, profile.StretchMultiplier * 0.68f, t);
+                float localRadius = Mathf.Lerp(profile.RadiusMultiplier, profile.RadiusMultiplier * 0.72f, t);
 
-                float localStretch = Mathf.Lerp(profile.StretchMultiplier, profile.StretchMultiplier * 0.65f, t);
-                float localRadius = Mathf.Lerp(profile.RadiusMultiplier, profile.RadiusMultiplier * 0.78f, t);
-
-                if (i > 0 && (splatData.EventKind == PaintEventKind.RagdollImpact || splatData.SplatType == PaintSplatType.HeavyImpact || splatData.SplatType == PaintSplatType.RagdollImpact))
+                if (i > 0)
                 {
                     uint localSeed = unchecked((uint)(splatData.PatternSeed + (i * 251)));
-                    localRadius *= Mathf.Lerp(0.24f, 0.52f, Hash01(localSeed + 17u));
-                    localStretch *= Mathf.Lerp(0.42f, 0.9f, Hash01(localSeed + 29u));
-                }
-                else if (i > 0 && (splatData.EventKind == PaintEventKind.Land || splatData.EventKind == PaintEventKind.WallLaunch))
-                {
-                    uint localSeed = unchecked((uint)(splatData.PatternSeed + (i * 173)));
-                    localRadius *= Mathf.Lerp(0.32f, 0.66f, Hash01(localSeed + 11u));
-                    localStretch *= Mathf.Lerp(0.55f, 0.95f, Hash01(localSeed + 19u));
+                    localRadius *= Mathf.Lerp(0.25f, 0.58f, Hash01(localSeed + 17u));
+                    localStretch *= Mathf.Lerp(0.48f, 0.92f, Hash01(localSeed + 29u));
                 }
 
                 SpawnDecal(color, splatData, profile, offset, i, localRadius, localStretch, dragDirection);
             }
+        }
+
+        private static int ResolveBudgetedSplatCount(PaintSplatData splatData, SplatVisualProfile profile)
+        {
+            int kineticSplats = Mathf.Clamp(Mathf.FloorToInt(splatData.ForceMagnitude * 0.08f), 0, 2);
+            int requested = 1 + Mathf.Clamp(profile.AdditionalSplats, 0, 2) + kineticSplats;
+
+            int maxForEvent = splatData.EventKind switch
+            {
+                PaintEventKind.Move => 1,
+                PaintEventKind.FloodDrip => 1,
+                PaintEventKind.WallStick => 2,
+                PaintEventKind.WallLaunch => 2,
+                PaintEventKind.Land => 3,
+                PaintEventKind.Punch => 3,
+                PaintEventKind.ThrownObjectImpact => 3,
+                PaintEventKind.FloodBurst => 2,
+                PaintEventKind.RagdollImpact => 4,
+                _ => 2
+            };
+
+            return Mathf.Clamp(requested, 1, maxForEvent);
         }
 
         private Vector3 ComputeSplatOffset(PaintSplatData splatData, Vector3 normal, Vector3 dragDirection, Vector3 bitangent, int localIndex, int splatCount)
@@ -857,7 +879,7 @@ namespace HueDoneIt.Gameplay.Paint
                     profile.RadiusMultiplier = Mathf.Lerp(1.05f, 1.55f, Mathf.InverseLerp(4f, 18f, splatData.ForceMagnitude));
                     profile.AlphaMultiplier *= 1.05f;
                     profile.StretchMultiplier *= Mathf.Lerp(1.1f, 1.65f, Mathf.InverseLerp(4f, 18f, splatData.ForceMagnitude));
-                    profile.AdditionalSplats = Mathf.Clamp(Mathf.RoundToInt(Mathf.InverseLerp(4f, 18f, splatData.ForceMagnitude) * 3f), 1, 3);
+                    profile.AdditionalSplats = Mathf.Clamp(Mathf.RoundToInt(Mathf.InverseLerp(4f, 18f, splatData.ForceMagnitude) * 1.5f), 1, 2);
                     profile.Lifetime = heavyTemporaryLifetimeSeconds;
                     if (splatData.ForceMagnitude >= landingPermanentForceThreshold)
                     {
@@ -868,7 +890,7 @@ namespace HueDoneIt.Gameplay.Paint
                     profile.RadiusMultiplier = 0.9f;
                     profile.AlphaMultiplier *= 0.8f;
                     profile.StretchMultiplier *= 2.2f;
-                    profile.AdditionalSplats = 2;
+                    profile.AdditionalSplats = 1;
                     profile.ForceTemporary = true;
                     profile.PreferDirectionalMask = true;
                     break;
@@ -876,7 +898,7 @@ namespace HueDoneIt.Gameplay.Paint
                     profile.RadiusMultiplier = 1.05f;
                     profile.AlphaMultiplier *= 1.1f;
                     profile.StretchMultiplier *= 1.8f;
-                    profile.AdditionalSplats = 2;
+                    profile.AdditionalSplats = 1;
                     profile.PreferDirectionalMask = true;
                     break;
                 case PaintEventKind.Punch:
@@ -887,10 +909,10 @@ namespace HueDoneIt.Gameplay.Paint
                     profile.PreferDirectionalMask = true;
                     break;
                 case PaintEventKind.RagdollImpact:
-                    profile.RadiusMultiplier = Mathf.Lerp(1.45f, 2.25f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude));
+                    profile.RadiusMultiplier = Mathf.Lerp(1.15f, 1.65f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude));
                     profile.AlphaMultiplier *= 1.25f;
-                    profile.StretchMultiplier *= Mathf.Lerp(1.55f, 3.2f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude));
-                    profile.AdditionalSplats = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(3f, 7f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude))), 3, 7);
+                    profile.StretchMultiplier *= Mathf.Lerp(1.25f, 2.0f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude));
+                    profile.AdditionalSplats = Mathf.Clamp(Mathf.RoundToInt(Mathf.Lerp(1f, 3f, Mathf.InverseLerp(6f, 24f, splatData.ForceMagnitude))), 1, 3);
                     profile.ForcePermanent = true;
                     profile.PreferDirectionalMask = true;
                     break;
@@ -905,7 +927,7 @@ namespace HueDoneIt.Gameplay.Paint
                     profile.RadiusMultiplier = 1.12f;
                     profile.AlphaMultiplier *= 1.08f;
                     profile.StretchMultiplier *= 1.55f;
-                    profile.AdditionalSplats = 2;
+                    profile.AdditionalSplats = 1;
                     profile.PreferDirectionalMask = true;
                     if (splatData.ForceMagnitude >= thrownPermanentForceThreshold)
                     {
