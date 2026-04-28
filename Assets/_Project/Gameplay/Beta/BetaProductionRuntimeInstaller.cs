@@ -34,12 +34,22 @@ namespace HueDoneIt.Gameplay.Beta
 
         private static void TryInstallForScene(Scene scene)
         {
-            if (!scene.IsValid() || !scene.isLoaded || !LooksLikeGameplayScene(scene))
+            if (!scene.IsValid() || !scene.isLoaded)
             {
                 return;
             }
 
             GameObject existing = GameObject.Find(RuntimeRootName);
+            if (!LooksLikeGameplayScene(scene))
+            {
+                if (existing != null)
+                {
+                    Object.Destroy(existing);
+                }
+
+                return;
+            }
+
             if (existing != null)
             {
                 EnsureComponents(existing);
@@ -48,7 +58,6 @@ namespace HueDoneIt.Gameplay.Beta
 
             GameObject root = new GameObject(RuntimeRootName);
             SceneManager.MoveGameObjectToScene(root, scene);
-            Object.DontDestroyOnLoad(root);
             EnsureComponents(root);
         }
 

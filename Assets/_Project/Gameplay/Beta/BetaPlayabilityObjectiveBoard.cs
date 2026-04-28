@@ -190,12 +190,13 @@ namespace HueDoneIt.Gameplay.Beta
 
             Transform best = null;
             float bestScore = float.MaxValue;
+            ulong localClientId = ResolveLocalClientId();
 
             NetworkRepairTask[] repairTasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
             for (int i = 0; i < repairTasks.Length; i++)
             {
                 NetworkRepairTask task = repairTasks[i];
-                if (task == null || task.IsCompleted || task.CurrentState == RepairTaskState.Locked)
+                if (!IsRepairTaskGuideCandidate(task, localClientId))
                 {
                     continue;
                 }
@@ -214,7 +215,7 @@ namespace HueDoneIt.Gameplay.Beta
             for (int i = 0; i < advancedTasks.Length; i++)
             {
                 TaskObjectiveBase task = advancedTasks[i];
-                if (task == null || task.IsCompleted || task.IsLocked)
+                if (!IsAdvancedTaskGuideCandidate(task, localClientId))
                 {
                     continue;
                 }
@@ -230,6 +231,42 @@ namespace HueDoneIt.Gameplay.Beta
             }
 
             return best;
+        }
+
+        private static ulong ResolveLocalClientId()
+        {
+            NetworkManager manager = NetworkManager.Singleton;
+            return manager != null ? manager.LocalClientId : ulong.MaxValue;
+        }
+
+        private static bool IsRepairTaskGuideCandidate(NetworkRepairTask task, ulong localClientId)
+        {
+            if (task == null || task.IsCompleted || task.CurrentState == RepairTaskState.Locked)
+            {
+                return false;
+            }
+
+            if (task.CurrentState == RepairTaskState.InProgress &&
+                localClientId != ulong.MaxValue &&
+                task.ActiveClientId != localClientId)
+            {
+                return false;
+            }
+
+            return task.IsTaskEnvironmentSafe();
+        }
+
+        private static bool IsAdvancedTaskGuideCandidate(TaskObjectiveBase task, ulong localClientId)
+        {
+            if (task == null || task.IsCompleted || task.IsLocked)
+            {
+                return false;
+            }
+
+            return task.CurrentState != RepairTaskState.InProgress ||
+                   localClientId == ulong.MaxValue ||
+                   task.ActiveClientId == ulong.MaxValue ||
+                   task.ActiveClientId == localClientId;
         }
 
         private static string FormatTime(float seconds)

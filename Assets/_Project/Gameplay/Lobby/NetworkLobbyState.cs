@@ -63,6 +63,7 @@ namespace HueDoneIt.Gameplay.Lobby
             string initialMap = string.IsNullOrWhiteSpace(BootSessionConfig.SelectedMapScene)
                 ? DefaultGameplayScene
                 : BootSessionConfig.SelectedMapScene;
+            initialMap = ValidateMap(initialMap);
             _selectedMapScene.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(initialMap);
             _targetCpuCount.Value = Mathf.Clamp(BootSessionConfig.RequestedCpuCount, 0, 7);
             ReconcileVoteTallies();
@@ -122,7 +123,7 @@ namespace HueDoneIt.Gameplay.Lobby
                 return;
             }
 
-            string map = SelectedMapScene;
+            string map = ValidateMap(SelectedMapScene);
             if (string.IsNullOrWhiteSpace(map))
             {
                 map = DefaultGameplayScene;
@@ -153,8 +154,6 @@ namespace HueDoneIt.Gameplay.Lobby
             int undertintVotes = 0;
             int undertintAnnexVotes = 0;
             int undertintOverflowVotes = 0;
-            int testFloodVotes = 0;
-            int testTasksVotes = 0;
 
             foreach (KeyValuePair<ulong, string> pair in _playerVotes)
             {
@@ -162,8 +161,6 @@ namespace HueDoneIt.Gameplay.Lobby
                 if (vote == BetaGameplaySceneCatalog.MainMap) undertintVotes++;
                 else if (vote == BetaGameplaySceneCatalog.AnnexMap) undertintAnnexVotes++;
                 else if (vote == BetaGameplaySceneCatalog.OverflowMap) undertintOverflowVotes++;
-                else if (vote == "Test_Flood") testFloodVotes++;
-                else if (vote == "Test_Tasks") testTasksVotes++;
             }
 
             if (_playerVotes.Count == 0)
@@ -174,8 +171,8 @@ namespace HueDoneIt.Gameplay.Lobby
             _undertintVotes.Value = undertintVotes;
             _undertintAnnexVotes.Value = undertintAnnexVotes;
             _undertintOverflowVotes.Value = undertintOverflowVotes;
-            _testFloodVotes.Value = testFloodVotes;
-            _testTasksVotes.Value = testTasksVotes;
+            _testFloodVotes.Value = 0;
+            _testTasksVotes.Value = 0;
 
             string selected = BetaGameplaySceneCatalog.MainMap;
             int bestVotes = undertintVotes;
@@ -189,17 +186,6 @@ namespace HueDoneIt.Gameplay.Lobby
             {
                 selected = BetaGameplaySceneCatalog.OverflowMap;
                 bestVotes = undertintOverflowVotes;
-            }
-
-            if (testFloodVotes > bestVotes)
-            {
-                selected = "Test_Flood";
-                bestVotes = testFloodVotes;
-            }
-
-            if (testTasksVotes > bestVotes)
-            {
-                selected = "Test_Tasks";
             }
 
             _selectedMapScene.Value = HueDoneIt.Core.Netcode.FixedStringUtility.ToFixedString64(selected);

@@ -120,9 +120,10 @@ namespace HueDoneIt.Gameplay.Elimination
             base.OnNetworkDespawn();
         }
 
-        private void OnDestroy()
+        public override void OnDestroy()
         {
             UnsubscribeFromState();
+            base.OnDestroy();
         }
 
         private void Update()

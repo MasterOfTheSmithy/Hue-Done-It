@@ -23,7 +23,6 @@ namespace HueDoneIt.UI.Gameplay
 {
     public sealed class GameplayInvestorHud : MonoBehaviour
     {
-        private const string TargetSceneName = BetaGameplaySceneCatalog.MainMap;
         private const int CanvasSortingOrder = 5000;
         private const float MapWorldMinX = -28f;
         private const float MapWorldMaxX = 28f;
@@ -155,7 +154,7 @@ namespace HueDoneIt.UI.Gameplay
             }
 
             BuildHud();
-            SetHudVisible(SceneManager.GetActiveScene().name == TargetSceneName);
+            SetHudVisible(BetaGameplaySceneCatalog.IsProductionGameplayScene(SceneManager.GetActiveScene().name));
         }
 
         private void Update()
@@ -583,7 +582,7 @@ namespace HueDoneIt.UI.Gameplay
 
         private void Refresh()
         {
-            bool inGameplayScene = SceneManager.GetActiveScene().name == TargetSceneName;
+            bool inGameplayScene = BetaGameplaySceneCatalog.IsProductionGameplayScene(SceneManager.GetActiveScene().name);
             SetHudVisible(inGameplayScene);
             if (!inGameplayScene)
             {

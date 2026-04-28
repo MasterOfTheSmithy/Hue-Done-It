@@ -92,7 +92,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void ResolveReferences()
         {
-            _roundState = _roundState != null ? _roundState : FindObjectOfType<NetworkRoundState>();
+            _roundState = _roundState != null ? _roundState : FindFirstObjectByType<NetworkRoundState>();
 
             NetworkManager manager = NetworkManager.Singleton;
             _localPlayer = null;

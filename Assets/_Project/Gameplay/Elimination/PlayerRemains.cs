@@ -43,8 +43,9 @@ namespace HueDoneIt.Gameplay.Elimination
         public string VictimName => _victimName.Value.ToString();
         public bool IsReported => _isReported.Value;
 
-        private void Awake()
+        protected override void Awake()
         {
+            base.Awake();
             if (evidenceRenderers == null || evidenceRenderers.Length == 0)
             {
                 evidenceRenderers = GetComponentsInChildren<Renderer>(true);

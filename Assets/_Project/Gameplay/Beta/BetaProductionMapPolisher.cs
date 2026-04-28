@@ -141,7 +141,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void HideClutter()
         {
-            GameObject[] allObjects = FindObjectsOfType<GameObject>();
+            GameObject[] allObjects = FindObjectsByType<GameObject>(FindObjectsSortMode.None);
             for (int i = 0; i < allObjects.Length; i++)
             {
                 GameObject obj = allObjects[i];

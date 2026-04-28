@@ -117,6 +117,7 @@ namespace HueDoneIt.Gameplay.Beta
             }
 
             Vector3 origin = localPlayer != null ? localPlayer.position : Vector3.zero;
+            ulong localClientId = ResolveLocalClientId();
 
             Transform bestTarget = null;
             string bestLabel = string.Empty;
@@ -128,7 +129,7 @@ namespace HueDoneIt.Gameplay.Beta
             for (int i = 0; i < repairTasks.Length; i++)
             {
                 NetworkRepairTask task = repairTasks[i];
-                if (task == null || task.IsCompleted || task.CurrentState == RepairTaskState.Locked)
+                if (!IsRepairTaskGuideCandidate(task, localClientId))
                 {
                     continue;
                 }
@@ -148,7 +149,7 @@ namespace HueDoneIt.Gameplay.Beta
             for (int i = 0; i < advancedTasks.Length; i++)
             {
                 TaskObjectiveBase task = advancedTasks[i];
-                if (task == null || task.IsCompleted || task.IsLocked)
+                if (!IsAdvancedTaskGuideCandidate(task, localClientId))
                 {
                     continue;
                 }
@@ -234,6 +235,42 @@ namespace HueDoneIt.Gameplay.Beta
 
             Camera cameraRef = Camera.main;
             return cameraRef != null ? cameraRef.transform : null;
+        }
+
+        private static ulong ResolveLocalClientId()
+        {
+            NetworkManager manager = NetworkManager.Singleton;
+            return manager != null ? manager.LocalClientId : ulong.MaxValue;
+        }
+
+        private static bool IsRepairTaskGuideCandidate(NetworkRepairTask task, ulong localClientId)
+        {
+            if (task == null || task.IsCompleted || task.CurrentState == RepairTaskState.Locked)
+            {
+                return false;
+            }
+
+            if (task.CurrentState == RepairTaskState.InProgress &&
+                localClientId != ulong.MaxValue &&
+                task.ActiveClientId != localClientId)
+            {
+                return false;
+            }
+
+            return task.IsTaskEnvironmentSafe();
+        }
+
+        private static bool IsAdvancedTaskGuideCandidate(TaskObjectiveBase task, ulong localClientId)
+        {
+            if (task == null || task.IsCompleted || task.IsLocked)
+            {
+                return false;
+            }
+
+            return task.CurrentState != RepairTaskState.InProgress ||
+                   localClientId == ulong.MaxValue ||
+                   task.ActiveClientId == ulong.MaxValue ||
+                   task.ActiveClientId == localClientId;
         }
 
         private static Material CreateMaterial(string name, Color color)

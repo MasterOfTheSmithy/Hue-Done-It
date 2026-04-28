@@ -14,13 +14,13 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void Start()
         {
-            if (FindObjectOfType<BetaFloodWarningLights>() != null)
+            if (FindFirstObjectByType<BetaFloodWarningLights>() != null)
             {
                 return;
             }
 
-            FloodSequenceController controller = FindObjectOfType<FloodSequenceController>();
-            FloodZone[] zones = FindObjectsOfType<FloodZone>();
+            FloodSequenceController controller = FindFirstObjectByType<FloodSequenceController>();
+            FloodZone[] zones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
             if (controller == null && (zones == null || zones.Length == 0))
             {
                 return;

@@ -68,8 +68,8 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void ResolveState()
         {
-            _roundState = _roundState != null ? _roundState : FindObjectOfType<NetworkRoundState>();
-            _floodController = _floodController != null ? _floodController : FindObjectOfType<FloodSequenceController>();
+            _roundState = _roundState != null ? _roundState : FindFirstObjectByType<NetworkRoundState>();
+            _floodController = _floodController != null ? _floodController : FindFirstObjectByType<FloodSequenceController>();
             _localPlayer = ResolveLocalPlayer();
 
             if (_localPlayer == null)
@@ -108,7 +108,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private NetworkRepairTask FindBestTask(Vector3 origin)
         {
-            NetworkRepairTask[] tasks = FindObjectsOfType<NetworkRepairTask>();
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
             NetworkRepairTask best = null;
             float bestScore = float.PositiveInfinity;
 
