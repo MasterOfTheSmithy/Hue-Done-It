@@ -39,8 +39,8 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void ScanLoopState()
         {
-            NetworkRoundState round = FindObjectOfType<NetworkRoundState>();
-            NetworkRepairTask[] tasks = FindObjectsOfType<NetworkRepairTask>();
+            NetworkRoundState round = FindFirstObjectByType<NetworkRoundState>();
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
 
             int total = 0;
             int completed = 0;

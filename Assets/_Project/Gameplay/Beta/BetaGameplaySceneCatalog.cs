@@ -24,9 +24,7 @@ namespace HueDoneIt.Gameplay.Beta
         {
             MainMap,
             AnnexMap,
-            OverflowMap,
-            "Test_Flood",
-            "Test_Tasks"
+            OverflowMap
         };
 
         public static bool IsProductionGameplayScene(string sceneName)

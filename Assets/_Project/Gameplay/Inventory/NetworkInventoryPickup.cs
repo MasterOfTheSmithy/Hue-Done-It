@@ -92,8 +92,9 @@ namespace HueDoneIt.Gameplay.Inventory
             return true;
         }
 
-        private void Awake()
+        protected override void Awake()
         {
+            base.Awake();
             ApplyVisual(availableColor);
         }
 

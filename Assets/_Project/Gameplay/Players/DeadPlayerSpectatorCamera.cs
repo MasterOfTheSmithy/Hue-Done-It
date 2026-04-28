@@ -12,7 +12,6 @@ namespace HueDoneIt.Gameplay.Players
     [DefaultExecutionOrder(750)]
     public sealed class DeadPlayerSpectatorCamera : MonoBehaviour
     {
-        private const string GameplaySceneName = BetaGameplaySceneCatalog.MainMap;
         private const float FollowEyeHeight = 0.92f;
 
         [SerializeField, Min(0.1f)] private float freeMoveSpeed = 7f;
@@ -64,7 +63,7 @@ namespace HueDoneIt.Gameplay.Players
 
         private void Update()
         {
-            if (SceneManager.GetActiveScene().name != GameplaySceneName)
+            if (!BetaGameplaySceneCatalog.IsProductionGameplayScene(SceneManager.GetActiveScene().name))
             {
                 _wasSpectating = false;
                 return;
@@ -371,7 +370,7 @@ namespace HueDoneIt.Gameplay.Players
 
         private void OnGUI()
         {
-            if (!_wasSpectating || SceneManager.GetActiveScene().name != GameplaySceneName)
+            if (!_wasSpectating || !BetaGameplaySceneCatalog.IsProductionGameplayScene(SceneManager.GetActiveScene().name))
             {
                 return;
             }

@@ -38,7 +38,8 @@ namespace HueDoneIt.Gameplay.Beta
                 return;
             }
 
-            RectTransform rootRect = hudRoot.transform as RectTransform;
+            Transform contentRoot = hudRoot.transform.Find("GameplayHudRoot") ?? hudRoot.transform;
+            RectTransform rootRect = contentRoot as RectTransform;
             if (rootRect == null)
             {
                 return;

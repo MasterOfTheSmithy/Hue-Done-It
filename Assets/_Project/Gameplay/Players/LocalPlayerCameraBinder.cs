@@ -377,7 +377,11 @@ namespace HueDoneIt.Gameplay.Players
             ApplySceneLocalPresentation(force: true);
 
             _cameraBound = true;
-            if (lockCursorOnStart)
+            if (SceneManager.GetActiveScene().name == "Lobby")
+            {
+                LockCursor(false);
+            }
+            else if (lockCursorOnStart)
             {
                 LockCursor(true);
             }

@@ -38,7 +38,7 @@ namespace HueDoneIt.Gameplay.Beta
 
         private void TickTasks()
         {
-            NetworkRepairTask[] tasks = FindObjectsOfType<NetworkRepairTask>();
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
             for (int i = 0; i < tasks.Length; i++)
             {
                 NetworkRepairTask task = tasks[i];
@@ -107,7 +107,7 @@ namespace HueDoneIt.Gameplay.Beta
                 return;
             }
 
-            NetworkRepairTask[] tasks = FindObjectsOfType<NetworkRepairTask>();
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
             for (int i = 0; i < tasks.Length; i++)
             {
                 NetworkRepairTask task = tasks[i];

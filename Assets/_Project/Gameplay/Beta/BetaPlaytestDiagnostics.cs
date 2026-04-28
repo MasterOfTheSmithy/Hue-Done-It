@@ -61,7 +61,7 @@ namespace HueDoneIt.Gameplay.Beta
                 }
             }
 
-            NetworkRoundState round = FindObjectOfType<NetworkRoundState>();
+            NetworkRoundState round = FindFirstObjectByType<NetworkRoundState>();
             if (round != null)
             {
                 sb.AppendLine($"Round: phase={round.CurrentPhase}, winner={round.Winner}, time={round.RoundTimeRemaining:0.0}, pressure={round.CurrentPressureStage}/{round.Pressure01:0.00}");
@@ -76,13 +76,13 @@ namespace HueDoneIt.Gameplay.Beta
                 sb.AppendLine("Round: missing");
             }
 
-            FloodSequenceController flood = FindObjectOfType<FloodSequenceController>();
+            FloodSequenceController flood = FindFirstObjectByType<FloodSequenceController>();
             if (flood != null)
             {
                 sb.AppendLine($"Flood: {flood.BuildRoundPressureHint()}");
             }
 
-            FloodZone[] zones = FindObjectsOfType<FloodZone>();
+            FloodZone[] zones = FindObjectsByType<FloodZone>(FindObjectsSortMode.None);
             sb.AppendLine("FloodZones: " + zones.Length);
             for (int i = 0; i < Mathf.Min(zones.Length, 8); i++)
             {
@@ -93,7 +93,7 @@ namespace HueDoneIt.Gameplay.Beta
                 }
             }
 
-            NetworkRepairTask[] tasks = FindObjectsOfType<NetworkRepairTask>();
+            NetworkRepairTask[] tasks = FindObjectsByType<NetworkRepairTask>(FindObjectsSortMode.None);
             sb.AppendLine("RepairTasks: " + tasks.Length);
             for (int i = 0; i < Mathf.Min(tasks.Length, 12); i++)
             {

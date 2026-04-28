@@ -251,8 +251,6 @@ namespace HueDoneIt.UI.Lobby
             int undertintVotes = state != null ? state.UndertintVotes : 0;
             int undertintAnnexVotes = state != null ? state.UndertintAnnexVotes : 0;
             int undertintOverflowVotes = state != null ? state.UndertintOverflowVotes : 0;
-            int testFloodVotes = state != null ? state.TestFloodVotes : 0;
-            int testTasksVotes = state != null ? state.TestTasksVotes : 0;
 
             GUILayout.Label("Map Vote");
             GUILayout.Label($"Selected Map: {selectedMap}");
@@ -276,20 +274,6 @@ namespace HueDoneIt.UI.Lobby
                 BootSessionConfig.SelectedMapScene = BetaGameplaySceneCatalog.OverflowMap;
                 BootSessionConfig.Save();
                 RequestVoteMapServerRpc(BetaGameplaySceneCatalog.OverflowMap);
-            }
-
-            if (GUILayout.Button($"Test_Flood ({testFloodVotes})", GUILayout.Height(30f)))
-            {
-                BootSessionConfig.SelectedMapScene = "Test_Flood";
-                BootSessionConfig.Save();
-                RequestVoteMapServerRpc("Test_Flood");
-            }
-
-            if (GUILayout.Button($"Test_Tasks ({testTasksVotes})", GUILayout.Height(30f)))
-            {
-                BootSessionConfig.SelectedMapScene = "Test_Tasks";
-                BootSessionConfig.Save();
-                RequestVoteMapServerRpc("Test_Tasks");
             }
 
             GUILayout.Space(8f);
@@ -369,8 +353,8 @@ namespace HueDoneIt.UI.Lobby
         {
             _showMatchPanel = false;
             _showCustomizationPanel = false;
-            Cursor.lockState = CursorLockMode.Locked;
-            Cursor.visible = false;
+            Cursor.lockState = CursorLockMode.None;
+            Cursor.visible = true;
         }
 
         [ServerRpc(RequireOwnership = false)]
